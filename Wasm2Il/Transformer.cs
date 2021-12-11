@@ -56,13 +56,19 @@ namespace Wasm2Il
             public object Value;
             public FieldDefinition Field;
         }
+
+        public class FuncDeclType
+        {
+            public MethodDefinition Method;
+            public uint TypeId;
+        }
         const string magicHeader = "\0asm";
         const uint page_size = 64000;
         Dictionary<uint, Global> globals = new Dictionary<uint, Global>();
         Dictionary<uint, ImportFunc> ExportFunc = new Dictionary<uint, ImportFunc>();
         Dictionary<uint, TypeId> Types = new Dictionary<uint, TypeId>();
         // function declaration to function type
-        Dictionary<uint, uint> FuncDecl = new Dictionary<uint, uint>();
+        Dictionary<uint, FuncDeclType> FuncDecl = new Dictionary<uint, FuncDeclType>();
         AssemblyDefinition def;
         TypeDefinition cls;
         FieldDefinition heapField;
@@ -163,15 +169,17 @@ namespace Wasm2Il
             for (uint i = 0; i < funcCount; i++)
             {
                 var funcId = FuncDecl[i];
-                var ftype = Types[funcId];
+                var ftype = Types[funcId.TypeId];
                 string name = "Func" + funcId;
                 if (ExportFunc.TryGetValue(i, out var exp))
                 {
                     name = exp.Name;
                 }
 
-                var m1 = new MethodDefinition(name, MethodAttributes.Public | MethodAttributes.Static,
-                    ftype.ReturnType);
+                var m1 = funcId.Method;
+                m1.ReturnType = ftype.ReturnType;
+                m1.Name = name;
+                
                 cls.Methods.Add(m1);
                 m1.Body.InitLocals = true;
                 var il = m1.Body.GetILProcessor();
@@ -223,6 +231,12 @@ namespace Wasm2Il
                     {
                         case instr.NOP:
                             il.Emit(IlInstr.Nop);
+                            break;
+                        case instr.CALL:
+                            var fcn = reader.ReadU32Leb();
+                            var otherFun = FuncDecl[fcn].Method;
+                            il.Emit(IlInstr.Call, otherFun);
+
                             break;
                         case instr.GLOBAL_GET:
                             var offset2 = reader.ReadU32Leb();
@@ -550,7 +564,11 @@ namespace Wasm2Il
             for (uint i = 0; i < funcCount; i++)
             {
                 uint typeid = reader.ReadU32Leb();
-                FuncDecl[i] = typeid;
+                FuncDecl[i] = new FuncDeclType
+                {
+                    TypeId = typeid,
+                    Method = new MethodDefinition("func" + i, MethodAttributes.Static | MethodAttributes.Public, def.MainModule.TypeSystem.Void)
+                };
             }
         }
 
