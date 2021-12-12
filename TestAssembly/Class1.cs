@@ -51,6 +51,12 @@ namespace TestAssembly
             int num7 = System.Runtime.CompilerServices.Unsafe.As<byte, int>(ref Heap[num4 + 8L]);
             return num6 + num7;
         }
+
+        public static int TestBranch(int x)
+        {
+            if (x > 0) return 4;
+            return 5;
+        }
     }
 
 }

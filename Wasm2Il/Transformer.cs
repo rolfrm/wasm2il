@@ -163,6 +163,13 @@ namespace Wasm2Il
             iller.def.Dispose();
         }
 
+        class LabelType
+        {
+            public byte Type;
+            public Instruction? Label;
+            public bool Forward;
+        }
+        
         void ReadCodeSection(BinReader reader)
         {
             uint funcCount = reader.ReadU32Leb();
@@ -186,7 +193,7 @@ namespace Wasm2Il
                 il.Emit(IlInstr.Nop);
 
                 var codeSize = reader.ReadU32Leb();
-                var next = reader.Position;
+                var next = reader.Position + codeSize;
 
                 var localCount = reader.ReadU32Leb();
                 uint localTotal = 0;
@@ -223,7 +230,9 @@ namespace Wasm2Il
 
                 m1.Body.InitLocals = true;
                 int codeidx = 0;
-                while (true)
+                var labelStack = new List<LabelType>();
+                labelStack.Add(new LabelType()); // base label
+                while (next > reader.Position)
                 {
                     var instr = (instr) reader.ReadU8();
                     codeidx++;
@@ -236,7 +245,42 @@ namespace Wasm2Il
                             var fcn = reader.ReadU32Leb();
                             var otherFun = FuncDecl[fcn].Method;
                             il.Emit(IlInstr.Call, otherFun);
+                            break;
+                        case instr.BLOCK:
+                            var blockType = reader.ReadU8();
+                            var label = il.Create(OpCodes.Nop);
+                            var blk = new LabelType() {Type = blockType, Label = label, Forward = true};
+                            labelStack.Add(blk);
+                            break;
+                        case instr.LOOP:
+                            blockType = reader.ReadU8();
+                            label = il.Create(OpCodes.Nop);
+                            il.Append(label);
+                            blk = new LabelType() {Type = blockType, Label = label };
+                            labelStack.Add(blk);
+                            break;
+                        case instr.IF:
+                            blockType = reader.ReadU8();
+                            break;
+                        case instr.BR:
+                        case instr.BR_IF:
+                            var brindex = reader.ReadU32Leb();
+                            Instruction? label2 = null;
+                            if (instr == instr.BR_IF ){
+                               label2 = il.Create(IlInstr.Nop);
+                                il.Emit(OpCodes.Brfalse, label2);
+                            }
+                            for (int i2 = 0; i2 <= (int) brindex; i2++)
+                            {
+                                if (labelStack[(int) (labelStack.Count - i2 - 1)].Type != 0)
+                                {
+                                    //il.Emit(OpCodes.Pop);
+                                }
+                            }
 
+                            il.Emit(OpCodes.Br, labelStack[(int) (labelStack.Count - brindex - 1)].Label);
+                            if(label2 != null)
+                                il.Append(label2);
                             break;
                         case instr.GLOBAL_GET:
                             var offset2 = reader.ReadU32Leb();
@@ -399,6 +443,68 @@ namespace Wasm2Il
                         case instr.I64_DIV_U:
                             il.Emit(IlInstr.Div);
                             break;
+                        case instr.I32_LT_S:
+                        case instr.I32_LT_U:
+                        case instr.I64_LT_S:
+                        case instr.I64_LT_U:
+                        case instr.F64_LT:
+                        case instr.F32_LT:
+                            il.Emit(IlInstr.Clt);
+                            break;
+                        case instr.I32_GT_S:
+                        case instr.I32_GT_U:
+                        case instr.I64_GT_S:
+                        case instr.I64_GT_U:
+                        case instr.F64_GT:
+                        case instr.F32_GT:
+                            il.Emit(IlInstr.Cgt);
+                            break;  
+                        case instr.I32_GE_S:
+                        case instr.I32_GE_U:
+                        case instr.I64_GE_S:
+                        case instr.I64_GE_U:
+                        case instr.F64_GE:
+                        case instr.F32_GE:
+                            il.Emit(IlInstr.Dup);
+                            il.Emit(IlInstr.Ceq);
+                            il.Emit(IlInstr.Cgt);
+                            break;  
+                        case instr.I32_LE_S:
+                        case instr.I32_LE_U:
+                        case instr.I64_LE_S:
+                        case instr.I64_LE_U:
+                        case instr.F64_LE:
+                        case instr.F32_LE:
+                            il.Emit(IlInstr.Dup);
+                            il.Emit(IlInstr.Ceq);
+                            il.Emit(IlInstr.Clt);
+                            break;  
+                        case instr.I32_EQ:
+                        case instr.I64_EQ:
+                        case instr.F64_EQ:
+                        case instr.F32_EQ:
+                            il.Emit(IlInstr.Ceq);
+                            break;  
+                        case instr.I32_NE:
+                        case instr.I64_NE:
+                        case instr.F64_NE:
+                        case instr.F32_NE:
+                            il.Emit(IlInstr.Ceq);
+                            il.Emit(IlInstr.Not);
+                            break;
+                        case instr.I32_EQZ:
+                            il.Emit(IlInstr.Ldc_I4, 0);
+                            il.Emit(IlInstr.Ceq);
+                            break;  
+                        case instr.I64_EQZ:
+                            il.Emit(IlInstr.Ldc_I8, 0);
+                            il.Emit(IlInstr.Ceq);
+                            break;
+                        case instr.I32_AND:
+                        case instr.I64_AND:
+                            il.Emit(IlInstr.And);
+                            break;
+
                         case instr.UNREACHABLE:
                             il.Emit(IlInstr.Ret);
                             break;
@@ -407,14 +513,41 @@ namespace Wasm2Il
                             il.Emit(IlInstr.Ret);
                             break;
                         case instr.END:
-                            if (codeidx == 1) // for empty methods.
+                            
+
+                            if (labelStack.Count > 1)
+                            {
+                                var r = labelStack.Last();
+                                labelStack.RemoveAt(labelStack.Count - 1);
+                                if (r.Forward)
+                                {
+                                    il.Append(r.Label);
+                                }else if (r.Label != null) {
+                                    il.Emit(OpCodes.Br, (Instruction)r.Label);
+                                }
+
+                                //if (r.Type != 0)
+                                //    il.Emit(OpCodes.Pop);
+                            }
+                            else
+                            {
+                                labelStack.RemoveAt(0);
                                 il.Emit(IlInstr.Ret);
-                            goto next;
+                                goto next;
+                            }
+
+                            break;
                         default:
                             throw new Exception("Unsupported instruction: " + instr);
                     }
                 }
 
+                if (labelStack.Count > 0)
+                {
+                    Assert.IsTrue(labelStack.Count == 1);
+                    il.Emit(IlInstr.Ret);
+                    
+                }
                 next: ;
             }
         }

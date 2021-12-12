@@ -28,3 +28,17 @@ float GetX5(float x){
 float GetX6(float x){
     return GetX5(x) + GetX5(x)+ GetX5(x);
 }
+
+int TestCond(int x){
+    if(x > 0)
+        return TestCond(x - 1) + 1;
+    return 1;
+}
+int DivInt(int x, int y){
+    return x / y;
+}
+
+int TestFib(int x){
+    if(x < 2) return x;
+    return TestFib(x - 1) + TestFib(x - 2);
+}
