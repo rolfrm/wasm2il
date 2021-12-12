@@ -781,7 +781,8 @@ namespace Wasm2Il
                             else
                             {
                                 labelStack.RemoveAt(0);
-                                il.Emit(IlInstr.Ret);
+                                if(il.Body.Instructions.Last().OpCode != IlInstr.Ret)
+                                    il.Emit(IlInstr.Ret);
                                 goto next;
                             }
 
@@ -794,7 +795,8 @@ namespace Wasm2Il
                 if (labelStack.Count > 0)
                 {
                     Assert.IsTrue(labelStack.Count == 1);
-                    il.Emit(IlInstr.Ret);
+                    if(il.Body.Instructions.Last().OpCode != IlInstr.Ret)
+                        il.Emit(IlInstr.Ret);
                     
                 }
                 next: ;

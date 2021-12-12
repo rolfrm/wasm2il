@@ -67,6 +67,7 @@
                 var callPtr = Test.Code.callPtr(ptr, 5);
                 var mulPtr = Test.Code.MulIntPtr();
                 var callResult2 = Test.Code.callPtr(mulPtr, 5);
+                Test.Code.callPtr(10, 12);
                 //var callPtr = Test.Code.callPtr(ptr, 5);
             }
 
