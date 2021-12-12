@@ -383,6 +383,7 @@ namespace Wasm2Il
                             var defaultLabel = labelStack[(int) (labelStack.Count - defaultLabelIndex - 1)].Label;
                             il.Emit(OpCodes.Switch, items);
                             il.Emit(OpCodes.Br, defaultLabel);
+                            pop();
                             break;
                         case instr.SELECT:
                             // we have to keep track of the type on top of the stack.
