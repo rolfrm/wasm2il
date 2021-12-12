@@ -243,24 +243,6 @@ namespace Wasm2Il
             public bool Forward;
         }
 
-        /*TypeReference resolveTopType(Mono.Cecil.Cil.ILProcessor il)
-        {
-            var instr = il.Body.Instructions;
-            for (int i = 0; i < instr.Count; i++)
-            {
-                var ptr = instr.Count - 1 - i;
-                var i =instr[ptr];
-                switch (i.OpCode)
-                {
-                    
-                }
-
-            }
-            
-        }*/
-            
-            
-        
         void ReadCodeSection(BinReader reader)
         {
             uint funcCount = reader.ReadU32Leb();
@@ -388,6 +370,19 @@ namespace Wasm2Il
                                 il.Emit(OpCodes.Brtrue, labelStack[(int) (labelStack.Count - brindex - 1)].Label);
                             else
                                 il.Emit(OpCodes.Br, labelStack[(int) (labelStack.Count - brindex - 1)].Label);
+                            break;
+                        case instr.BR_TABLE:
+                            var cnt = reader.ReadU32Leb();
+                            var items = new Instruction[cnt];
+                            for (int i2 = 0; i2 < cnt; i2++)
+                            {
+                                var brindex2 = reader.ReadU32Leb();
+                                items[i2] = labelStack[(int) (labelStack.Count - brindex2 - 1)].Label;
+                            }
+                            var defaultLabelIndex = reader.ReadU32Leb();
+                            var defaultLabel = labelStack[(int) (labelStack.Count - defaultLabelIndex - 1)].Label;
+                            il.Emit(OpCodes.Switch, items);
+                            il.Emit(OpCodes.Br, defaultLabel);
                             break;
                         case instr.SELECT:
                             // we have to keep track of the type on top of the stack.
@@ -691,9 +686,11 @@ namespace Wasm2Il
                         case instr.RETURN:
                             il.Emit(IlInstr.Ret);
                             break;
+                        case instr.DROP:
+                            il.Emit(IlInstr.Pop);
+                            pop();
+                            break;
                         case instr.END:
-                            
-
                             if (labelStack.Count > 1)
                             {
                                 var r = labelStack.Last();
@@ -902,7 +899,6 @@ namespace Wasm2Il
             var name = reader.ReadStrN();
             Console.WriteLine("Custom section name: {0}", name);
         }
-
 
         void ReadTypeSection(BinReader reader)
         {
