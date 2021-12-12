@@ -57,8 +57,12 @@ namespace TestAssembly
 
         public static int TestBranch(int x)
         {
-            if (x > 0) return 4;
+            if (x == 0) return 4;
             return 5;
+        }
+        public static int TestBranch2(int x)
+        {
+            return x == 2 ? 1 : 2;
         }
     }
 

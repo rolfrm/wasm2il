@@ -53,3 +53,7 @@ int Tformx(int x){
        default: return -1;
     }
 }
+int selectTest(int x){
+   if(x == 0) return 1;
+   return 2;
+}

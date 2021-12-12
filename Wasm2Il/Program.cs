@@ -52,9 +52,15 @@
                 var t = Tformx(x);
                 var r10 = Test.Code.Tformx(x);
                 Assert.AreEqual(t, r10);
-    
             }
-            
+
+            {
+                var a = Test.Code.selectTest(0);
+                var b = Test.Code.selectTest(3);
+                Assert.AreEqual(1, a);
+                Assert.AreEqual(2, b);
+            }
+
         }
     }
 }
