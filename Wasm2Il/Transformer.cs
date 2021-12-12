@@ -1,9 +1,14 @@
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
+using AssemblyDefinition = Mono.Cecil.AssemblyDefinition;
 using FieldAttributes = Mono.Cecil.FieldAttributes;
+using FieldDefinition = Mono.Cecil.FieldDefinition;
 using MethodAttributes = Mono.Cecil.MethodAttributes;
+using MethodDefinition = Mono.Cecil.MethodDefinition;
 using TypeAttributes = Mono.Cecil.TypeAttributes;
+using TypeDefinition = Mono.Cecil.TypeDefinition;
+using TypeReference = Mono.Cecil.TypeReference;
 
 namespace Wasm2Il
 {
@@ -49,6 +54,11 @@ namespace Wasm2Il
             public string Name;
             public uint Index;
         }
+        struct ExportTable
+        {
+            public string Name;
+            public uint Index;
+        }
         class Global
         {
             public bool Const;
@@ -66,12 +76,14 @@ namespace Wasm2Il
         const uint page_size = 64000;
         Dictionary<uint, Global> globals = new Dictionary<uint, Global>();
         Dictionary<uint, ImportFunc> ExportFunc = new Dictionary<uint, ImportFunc>();
+        Dictionary<uint, ExportTable> ExportTables = new Dictionary<uint, ExportTable>();
         Dictionary<uint, TypeId> Types = new Dictionary<uint, TypeId>();
         // function declaration to function type
         Dictionary<uint, FuncDeclType> FuncDecl = new Dictionary<uint, FuncDeclType>();
         AssemblyDefinition def;
         TypeDefinition cls;
         FieldDefinition heapField;
+        FieldDefinition functionTable;
 
         TypeReference f32Type, f64Type, i64Type, i32Type, voidType;
 
@@ -99,7 +111,10 @@ namespace Wasm2Il
             heapField.IsStatic = true;
             // todo: Figure out how to init based on data.
             cls.Fields.Add(heapField);
-
+            
+            functionTable = new FieldDefinition("Ftab",FieldAttributes.Static | FieldAttributes.Private,
+                asm.MainModule.TypeSystem.IntPtr.MakeArrayType());
+            cls.Fields.Add(functionTable);
             var cctor = new MethodDefinition(".cctor",
                 MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.Static |
                 MethodAttributes.RTSpecialName | MethodAttributes.SpecialName, asm.MainModule.TypeSystem.Void);
@@ -164,6 +179,9 @@ namespace Wasm2Il
                     case Section.DATA:
                         iller.ReadDataSection(reader);
                         break;
+                    case Section.ELEMENT:
+                        iller.ReadElementSection(reader);
+                        break;
                     default:
                         str.Position = next;
                         break;
@@ -174,6 +192,37 @@ namespace Wasm2Il
 
             iller.def.Write(asmName + ".dll");
             iller.def.Dispose();
+        }
+
+        private void ReadElementSection(BinReader reader)
+        {
+            var cnt = reader.ReadU32Leb();
+            for (int i = 0; i < cnt; i++)
+            {
+                var table_index = reader.ReadU32Leb();
+                var instr2 = (instr)reader.ReadU8();
+                Assert.AreEqual(Wasm.Instruction.I32_CONST, instr2);
+                var offset = reader.ReadU32Leb();
+                var end = (instr)reader.ReadU8();
+                var fncCnt = reader.ReadU32Leb();
+
+                var ctor = cls.GetStaticConstructor();
+                ctor.Body.Instructions.RemoveAt(ctor.Body.Instructions.Count - 1);
+                var il = ctor.Body.GetILProcessor();
+                il.Emit(OpCodes.Ldc_I4, (int)fncCnt + 1);
+                il.Emit(OpCodes.Newarr, def.MainModule.TypeSystem.IntPtr);
+                il.Emit(OpCodes.Stsfld, functionTable);
+                for (var i2 = 0; i2 < fncCnt; i2++)
+                {
+                    il.Emit(OpCodes.Ldsfld, functionTable);
+                    var funcId = reader.ReadU32Leb();
+                    il.Emit(OpCodes.Ldc_I4, (int)i2 + 1);
+                    il.Emit(OpCodes.Ldftn, FuncDecl[funcId].Method);
+                    il.Emit(OpCodes.Stelem_I);
+
+                }
+                il.Emit(IlInstr.Ret);
+            }
         }
 
         void ReadDataSection(BinReader reader)
@@ -347,6 +396,29 @@ namespace Wasm2Il
                             pop(otherFun.Parameters.Count);
                             push(otherFun.ReturnType);
                             break;
+                        case instr.CALL_INDIRECT:
+                            var typeidx = reader.ReadU32Leb();
+                            var table = reader.ReadU8();
+                            Assert.AreEqual(0, table);
+                            var ftp = Types[typeidx];
+                            // function ID is top of the stack.
+                            // store id
+                            il.Emit(IlInstr.Stloc, getVariable(i32Type));
+                            // get function from global table
+                            il.Emit(IlInstr.Ldsfld, functionTable);
+                            il.Emit(IlInstr.Ldloc, getVariable(i32Type));
+                            il.Emit(IlInstr.Ldelem_I);
+                            
+                            var callSite = new CallSite(ftp.ReturnType);
+                            foreach (var pt in ftp.ParamTypes)
+                            {
+                                callSite.Parameters.Add(new ParameterDefinition(pt));
+                            }
+                            
+                            il.Emit(IlInstr.Calli, callSite);
+                            pop((int)ftp.ParamCount);
+                            push(ftp.ReturnType);
+                            break;
                         case instr.BLOCK:
                             var blockType = reader.ReadU8();
                             var label = il.Create(OpCodes.Nop);
@@ -386,6 +458,7 @@ namespace Wasm2Il
                             pop();
                             break;
                         case instr.SELECT:
+                            // select(a,b,c) = a ? b : c
                             // we have to keep track of the type on top of the stack.
                             var t = pop(2);
                             var nextLabel = il.Create(IlInstr.Stloc, getVariable(t));
@@ -427,8 +500,6 @@ namespace Wasm2Il
                             {
                                 param = m1.Parameters[(int)local_index];
                             }
-
-                            
 
                             switch (instr)
                             {
@@ -485,15 +556,19 @@ namespace Wasm2Il
                             // LOAD: [... heap address]
 
                             // get the heap
-
+                            VariableDefinition stvar = null;
                             if (instr.ToString().Contains("STORE"))
                             {
                                 if (instr == instr.F32_STORE)
-                                    il.Emit(IlInstr.Stloc, getVariable(f32Type));
+                                    stvar = getVariable(f32Type);
                                 else if (instr == instr.F64_STORE)
-                                    il.Emit(IlInstr.Stloc, getVariable(f64Type));
-                                else
-                                    il.Emit(IlInstr.Stloc, getVariable(i64Type));
+                                    stvar = getVariable(f64Type);
+                                else if (instr == instr.I64_STORE)
+                                    stvar = getVariable(i64Type);
+                                else if (instr == instr.I32_STORE)
+                                    stvar = getVariable(i32Type);
+                                else throw new Exception("Unknown type");
+                                il.Emit(IlInstr.Stloc, stvar);
                                 pop();
                             }
 
@@ -511,29 +586,29 @@ namespace Wasm2Il
                                 // pop address, value. store value in address according to size.
                                 case instr.I32_STORE_8:
                                 case instr.I64_STORE_8:
-                                    il.Emit(IlInstr.Ldloc, getVariable(i64Type));
+                                    il.Emit(IlInstr.Ldloc, stvar);
                                     il.Emit(IlInstr.Stind_I1);
                                     break;
                                 case instr.I32_STORE_16:
                                 case instr.I64_STORE_16:
-                                    il.Emit(IlInstr.Ldloc, getVariable(i64Type));
+                                    il.Emit(IlInstr.Ldloc, stvar);
                                     il.Emit(IlInstr.Stind_I2);
                                     break;
                                 case instr.I32_STORE:
                                 case instr.I64_STORE_32:
-                                    il.Emit(IlInstr.Ldloc, getVariable(i64Type));
+                                    il.Emit(IlInstr.Ldloc, stvar);
                                     il.Emit(IlInstr.Stind_I4);
                                     break;
                                 case instr.I64_STORE:
-                                    il.Emit(IlInstr.Ldloc, getVariable(i64Type));
+                                    il.Emit(IlInstr.Ldloc, stvar);
                                     il.Emit(IlInstr.Stind_I8);
                                     break;
                                 case instr.F32_STORE:
-                                    il.Emit(IlInstr.Ldloc, getVariable(f32Type));
+                                    il.Emit(IlInstr.Ldloc, stvar);
                                     il.Emit(IlInstr.Stind_R4);
                                     break;
                                 case instr.F64_STORE:
-                                    il.Emit(IlInstr.Ldloc, getVariable(f64Type));
+                                    il.Emit(IlInstr.Ldloc, stvar);
                                     il.Emit(IlInstr.Stind_R8);
                                     break;
                                 case instr.I32_LOAD:
@@ -741,7 +816,9 @@ namespace Wasm2Il
                         ExportFunc[index] = new ImportFunc {Name = name, Index = index};
                         break;
                     case ImportType.TABLE:
-                        throw new Exception("Import table unsupported");
+                        index = reader.ReadU32Leb();
+                        ExportTables[index] = new ExportTable() {Name = name, Index = index};
+                        break;
                     case ImportType.MEM:
                         var memIndex = reader.ReadU32Leb();
                         Console.WriteLine("Memory: {0}", memIndex);

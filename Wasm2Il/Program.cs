@@ -61,6 +61,15 @@
                 Assert.AreEqual(2, b);
             }
 
+            {
+                var ptr = Test.Code.selectTestPtr();
+                
+                var callPtr = Test.Code.callPtr(ptr, 5);
+                var mulPtr = Test.Code.MulIntPtr();
+                var callResult2 = Test.Code.callPtr(mulPtr, 5);
+                //var callPtr = Test.Code.callPtr(ptr, 5);
+            }
+
         }
     }
 }

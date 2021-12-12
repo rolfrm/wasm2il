@@ -2,7 +2,9 @@
 int AddNumbers(int a, int b){
     return a + b;
 }
-
+int MulInt(int a){
+    return a * a;
+}
 void DoNothing(){
 
 }
@@ -57,3 +59,17 @@ int selectTest(int x){
    if(x == 0) return 1;
    return 2;
 }
+
+typedef int ( * fptr)(int x);
+fptr selectTestPtr(){
+    return selectTest;
+}
+
+fptr MulIntPtr(){
+    return MulInt;
+}
+
+
+int callPtr(fptr f, int x){
+    return f(x);
+} 
