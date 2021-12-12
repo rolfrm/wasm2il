@@ -5,6 +5,9 @@ namespace TestAssembly
     class CodeModule
     {
         static byte[] Heap = new byte[1024];
+
+        private static byte[] HeapTest = new byte[]
+            {0, 0, 0, 0, 0, 0, 0, 0, 00, 0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 3, 1, 0, 0, 0, 0, 0, 0};
         public static int Add(int x, int y)
         {
             return Heap[0] + Heap[1];

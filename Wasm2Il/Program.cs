@@ -9,6 +9,8 @@
             UnitTests.TestReadWrite();
             var fstr = File.OpenRead("test.wasm");
             Transformer.Go(fstr, "Test");
+            
+            
             megaTest();
         }
 
@@ -16,6 +18,17 @@
             if(x == 0) return 0;
             if(x == 1) return 1;
             return TestFib(x - 1) + TestFib(x - 2);
+        }
+        
+        static int Tformx(int x){
+            switch(x){
+                case 0: return 5;
+                case 1: return 111;
+                case 2: return 313;
+                case 4: return -1000;
+                case 5: return -1000000;
+                default: return -1;
+            }
         }
         static void megaTest()
         {
@@ -34,6 +47,14 @@
 
             float r8 = Test.Code.DivInt(1, 2);
             float r9 = Test.Code.DivInt(10, 2);
+            foreach(int x in new int[]{10, 0,1,2,3,4,5})
+            {
+                var t = Tformx(x);
+                var r10 = Test.Code.Tformx(x);
+                Assert.AreEqual(t, r10);
+    
+            }
+            
         }
     }
 }
