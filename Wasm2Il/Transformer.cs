@@ -121,9 +121,6 @@ namespace Wasm2Il
             cls.Methods.Add(cctor);
             var cctoril = cctor.Body.GetILProcessor();
             cctoril.Emit(OpCodes.Nop);
-            cctoril.Emit(OpCodes.Ldc_I4, 1024 * 1024);
-            cctoril.Emit(OpCodes.Newarr, asm.MainModule.TypeSystem.Byte);
-            cctoril.Emit(OpCodes.Stsfld, heapField);
             cctoril.Emit(OpCodes.Ret);
             def = asm;
         }
@@ -288,8 +285,9 @@ namespace Wasm2Il
         class LabelType
         {
             public byte Type;
-            public Instruction? Label;
+            public Instruction? EndLabel;
             public bool Forward;
+            public Instruction? StartLabel;
         }
 
         void ReadCodeSection(BinReader reader)
@@ -421,15 +419,16 @@ namespace Wasm2Il
                             break;
                         case instr.BLOCK:
                             var blockType = reader.ReadU8();
-                            var label = il.Create(OpCodes.Nop);
-                            var blk = new LabelType() {Type = blockType, Label = label, Forward = true};
+                            var endLabel = il.Create(OpCodes.Nop);
+                            var blk = new LabelType() {Type = blockType, EndLabel = endLabel, Forward = true};
                             labelStack.Add(blk);
                             break;
                         case instr.LOOP:
                             blockType = reader.ReadU8();
-                            label = il.Create(OpCodes.Nop);
-                            il.Append(label);
-                            blk = new LabelType() {Type = blockType, Label = label };
+                            endLabel = il.Create(OpCodes.Nop);
+                            
+                            var startLabel = il.Create(OpCodes.Nop);
+                            blk = new LabelType() {Type = blockType, EndLabel = endLabel, StartLabel = startLabel };
                             labelStack.Add(blk);
                             break;
                         //case instr.IF:
@@ -439,9 +438,9 @@ namespace Wasm2Il
                         case instr.BR_IF:
                             var brindex = reader.ReadU32Leb();
                             if (instr == instr.BR_IF )
-                                il.Emit(OpCodes.Brtrue, labelStack[(int) (labelStack.Count - brindex - 1)].Label);
+                                il.Emit(OpCodes.Brtrue, labelStack[(int) (labelStack.Count - brindex - 1)].EndLabel);
                             else
-                                il.Emit(OpCodes.Br, labelStack[(int) (labelStack.Count - brindex - 1)].Label);
+                                il.Emit(OpCodes.Br, labelStack[(int) (labelStack.Count - brindex - 1)].EndLabel);
                             break;
                         case instr.BR_TABLE:
                             var cnt = reader.ReadU32Leb();
@@ -449,10 +448,10 @@ namespace Wasm2Il
                             for (int i2 = 0; i2 < cnt; i2++)
                             {
                                 var brindex2 = reader.ReadU32Leb();
-                                items[i2] = labelStack[(int) (labelStack.Count - brindex2 - 1)].Label;
+                                items[i2] = labelStack[(int) (labelStack.Count - brindex2 - 1)].EndLabel;
                             }
                             var defaultLabelIndex = reader.ReadU32Leb();
-                            var defaultLabel = labelStack[(int) (labelStack.Count - defaultLabelIndex - 1)].Label;
+                            var defaultLabel = labelStack[(int) (labelStack.Count - defaultLabelIndex - 1)].EndLabel;
                             il.Emit(OpCodes.Switch, items);
                             il.Emit(OpCodes.Br, defaultLabel);
                             pop();
@@ -462,7 +461,7 @@ namespace Wasm2Il
                             // we have to keep track of the type on top of the stack.
                             var t = pop(2);
                             var nextLabel = il.Create(IlInstr.Stloc, getVariable(t));
-                            var endLabel = il.Create(IlInstr.Nop);
+                            endLabel = il.Create(IlInstr.Nop);
                             il.Emit(IlInstr.Brfalse, nextLabel);
                             il.Emit(IlInstr.Pop);
                             il.Emit(IlInstr.Br, endLabel);
@@ -771,12 +770,10 @@ namespace Wasm2Il
                             {
                                 var r = labelStack.Last();
                                 labelStack.RemoveAt(labelStack.Count - 1);
-                                if (r.Forward)
-                                {
-                                    il.Append(r.Label);
-                                }else if (r.Label != null) {
-                                    il.Emit(OpCodes.Br, (Instruction)r.Label);
-                                }
+                                if (r.EndLabel != null)
+                                    il.Append(r.EndLabel);
+                                if (r.StartLabel != null) 
+                                    il.Emit(OpCodes.Br, r.StartLabel);
                             }
                             else
                             {
@@ -797,7 +794,6 @@ namespace Wasm2Il
                     Assert.IsTrue(labelStack.Count == 1);
                     if(il.Body.Instructions.Last().OpCode != IlInstr.Ret)
                         il.Emit(IlInstr.Ret);
-                    
                 }
                 next: ;
             }

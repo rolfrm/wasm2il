@@ -67,7 +67,19 @@
                 var callPtr = Test.Code.callPtr(ptr, 5);
                 var mulPtr = Test.Code.MulIntPtr();
                 var callResult2 = Test.Code.callPtr(mulPtr, 5);
-                Test.Code.callPtr(10, 12);
+                var xpt = Test.Code.getXPointer();
+                Test.Code.SetValue(xpt, 10);
+                Test.Code.SetValue(xpt+4, 20);
+                Test.Code.SetValue(xpt + 8, 2000000000);
+
+                //Test.Code.writeData(xpt, 10);
+                var a = Test.Code.GetValue(xpt + 8);
+                var b = Test.Code.GetValue(xpt + 9);
+                Test.Code.writeData(xpt, xpt + 12, 12);
+                Test.Code.writeData(xpt, xpt + 24, 12);
+                var c = Test.Code.GetValue(xpt + 8 + 12);
+
+                //Test.Code.callPtr(10, 12);
                 //var callPtr = Test.Code.callPtr(ptr, 5);
             }
 

@@ -69,7 +69,22 @@ fptr MulIntPtr(){
     return MulInt;
 }
 
-
 int callPtr(fptr f, int x){
     return f(x);
 } 
+
+
+void writeData(int * ptr, int * ptr2, int cnt){
+    for(int i = 0; i < cnt; i++)
+       ptr2[i] = ptr[i];
+}
+int * getXPointer(){
+    static int x[1024];
+    return x;
+}
+void SetValue(int * ptr, int value){
+    ptr[0] = value;
+}
+int GetValue(int * ptr){
+    return ptr[0];
+}
