@@ -52,7 +52,11 @@ namespace Wasm2Il
         struct ImportFunc
         {
             public string Name;
+            public string Module;
             public uint Index;
+            public uint? TypeId;
+            public MethodReference? Method;
+
         }
         struct ExportTable
         {
@@ -76,6 +80,7 @@ namespace Wasm2Il
         const uint page_size = 64000;
         Dictionary<uint, Global> globals = new Dictionary<uint, Global>();
         Dictionary<uint, ImportFunc> ExportFunc = new Dictionary<uint, ImportFunc>();
+        private Dictionary<uint, ImportFunc> ImportFuncs = new();
         Dictionary<uint, ExportTable> ExportTables = new Dictionary<uint, ExportTable>();
         Dictionary<uint, TypeId> Types = new Dictionary<uint, TypeId>();
         // function declaration to function type
@@ -85,7 +90,7 @@ namespace Wasm2Il
         FieldDefinition heapField;
         FieldDefinition functionTable;
 
-        TypeReference f32Type, f64Type, i64Type, i32Type, voidType;
+        TypeReference f32Type, f64Type, i64Type, i32Type, voidType, byteType;
 
         // note there are also globals which are added dynamically depending on need.
 
@@ -98,6 +103,7 @@ namespace Wasm2Il
             i64Type = asm.MainModule.TypeSystem.Int64;
             i32Type = asm.MainModule.TypeSystem.Int32;
             voidType = asm.MainModule.TypeSystem.Void;
+            byteType = asm.MainModule.TypeSystem.Byte;
             cls = new TypeDefinition(asmName, "Code",
                 TypeAttributes.AnsiClass | TypeAttributes.BeforeFieldInit | TypeAttributes.Class |
                 TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.Public,
@@ -170,6 +176,9 @@ namespace Wasm2Il
                     case Section.EXPORT:
                         iller.ReadExportSection(reader);
                         break;
+                    case Section.IMPORT:
+                        iller.ReadImportSection(reader);
+                        break;
                     case Section.CODE:
                         iller.ReadCodeSection(reader);
                         break;
@@ -189,6 +198,68 @@ namespace Wasm2Il
 
             iller.def.Write(asmName + ".dll");
             iller.def.Dispose();
+        }
+
+        private void ReadImportSection(BinReader reader)
+        {
+            var importCount = reader.ReadU32Leb();
+            for (uint i = 0; i < importCount; i++)
+            {
+                var moduleName = reader.ReadStrN();
+                var itemName = reader.ReadStrN();
+                var type = (ImportType)reader.ReadU8();
+                switch (type)
+                {
+                    case ImportType.FUNC:
+                        var typeid = reader.ReadU32Leb();
+                        var funid = (uint)ImportFuncs.Count;
+                        ImportFuncs[funid] = new ImportFunc() {Name = itemName, TypeId = typeid, Index = funid, Module = moduleName};
+                        break;
+                    case ImportType.TABLE:
+                        var elemType = reader.ReadU8();
+                        Assert.AreEqual(elemType, 0x70);
+                        byte limitt = reader.ReadU8();
+                        uint min = 0, max = 0;
+                        if (limitt == 0)
+                        {
+                            min = reader.ReadU32Leb();
+                            max = min;
+                        }
+                        else
+                        {
+                            min = reader.ReadU32Leb();
+                            max = reader.ReadU32Leb();
+                        }
+
+                        Console.WriteLine("Table: {0}.{1} {2}-{3}", moduleName, itemName, min, max);
+                        break;
+                    case ImportType.GLOBAL:
+                        var valType = reader.ReadU8();
+                        bool mut = reader.ReadU8() > 0;
+                        
+                        Console.WriteLine("Global: {0}.{1} {2}-{3}", moduleName, itemName, valType, mut);
+                        break;
+                    case ImportType.MEM:
+                        elemType = reader.ReadU8();
+                        Assert.AreEqual(elemType, 0x70); 
+                        limitt = reader.ReadU8();
+                        if (limitt == 0)
+                        {
+                            min = reader.ReadU32Leb();
+                            max = min;
+                        }
+                        else
+                        {
+                            min = reader.ReadU32Leb();
+                            max = reader.ReadU32Leb();
+                        }
+                        Console.WriteLine("Memory: {0}.{1} {2}-{3}", moduleName, itemName, min, max);
+
+                        break;
+                        
+                }
+
+            }
         }
 
         private void ReadElementSection(BinReader reader)
@@ -290,6 +361,39 @@ namespace Wasm2Il
             public Instruction? StartLabel;
         }
 
+
+        MethodReference? resolveMethod(uint func)
+        {
+            if (func < ImportFuncs.Count)
+            {
+                var importFun = ImportFuncs[func];
+                if (importFun.Method == null)
+                {
+                    var type = Types[(uint)importFun.TypeId];
+                    var m = new MethodDefinition(importFun.Module + "." + importFun.Name, MethodAttributes.Static | MethodAttributes.Public,
+                        type.ReturnType);
+                    m.Body.InitLocals = true;
+                    var il = m.Body.GetILProcessor();
+                    if(type.ReturnCount == 1)
+                        il.Emit(IlInstr.Ldc_I8, 0L);
+
+                    il.Emit(IlInstr.Ret);
+                    importFun.Method = m;
+                    cls.Methods.Add(m);
+                    foreach (var param in type.ParamTypes)
+                    {
+                        m.Parameters.Add(new ParameterDefinition(param));
+                    }
+                }
+                return importFun.Method;
+            }
+            else
+            {
+                var declFun = FuncDecl[func - (uint)ImportFuncs.Count].Method;
+                return declFun;
+            }
+        }
+
         void ReadCodeSection(BinReader reader)
         {
             uint funcCount = reader.ReadU32Leb();
@@ -297,8 +401,8 @@ namespace Wasm2Il
             {
                 var funcId = FuncDecl[i];
                 var ftype = Types[funcId.TypeId];
-                string name = "Func" + funcId;
-                if (ExportFunc.TryGetValue(i, out var exp))
+                string name = "Func" + i;
+                if (ExportFunc.TryGetValue((uint)(i + ImportFuncs.Count), out var exp))
                 {
                     name = exp.Name;
                 }
@@ -306,7 +410,21 @@ namespace Wasm2Il
                 var m1 = funcId.Method;
                 m1.ReturnType = ftype.ReturnType;
                 m1.Name = name;
-                
+                for (uint i2 = 0; i2 < ftype.ParamCount; i2++)
+                {
+                    var parameter = new ParameterDefinition(ftype.ParamTypes[i2]);
+                    parameter.Name = "param" + i2;
+                    m1.Parameters.Add(parameter);
+                }
+            }
+            
+
+            for (uint i = 0; i < funcCount; i++)
+            {
+                var funcId = FuncDecl[i];
+                var ftype = Types[funcId.TypeId];
+               
+                var m1 = funcId.Method;
                 cls.Methods.Add(m1);
                 m1.Body.InitLocals = true;
                 var il = m1.Body.GetILProcessor();
@@ -330,33 +448,31 @@ namespace Wasm2Il
                     }
                 }
 
-                Dictionary<TypeReference, VariableDefinition> helperVars =
-                    new Dictionary<TypeReference, VariableDefinition>();
+                Dictionary<int, Dictionary<TypeReference, VariableDefinition>> helperVars = new();
 
-                VariableDefinition getVariable(TypeReference tr)
+                VariableDefinition getVariable(TypeReference tr, int idx = 0)
                 {
+                    if (helperVars.ContainsKey(idx) == false)
+                        helperVars[idx] = new();
+                    var dict = helperVars[idx];
                     if (tr == voidType) throw new Exception("void type");
-                    if (helperVars.TryGetValue(tr, out var x))
+                    if (dict.TryGetValue(tr, out var x))
                         return x;
                     var v = new VariableDefinition(tr);
                     m1.Body.Variables.Add(v);
-                    helperVars[tr] = v;
+                    dict[tr] = v;
                     return v;
                 }
                 var heapaddr = new VariableDefinition(def.MainModule.TypeSystem.Int32);
                 m1.Body.Variables.Add(heapaddr);
 
-                for (uint i2 = 0; i2 < ftype.ParamCount; i2++)
-                {
-                    var parameter = new ParameterDefinition(ftype.ParamTypes[i2]);
-                    parameter.Name = "param" + i2;
-                    m1.Parameters.Add(parameter);
-                }
+                
 
                 m1.Body.InitLocals = true;
                 int codeidx = 0;
                 var labelStack = new List<LabelType>();
                 labelStack.Add(new LabelType()); // base label
+                List<instr> instructions = new List<instr>();
 
                 // to satisfy SELECT.
                 Stack<TypeReference> top = new Stack<TypeReference>();
@@ -370,6 +486,7 @@ namespace Wasm2Il
 
                 TypeReference pop(int i = 1)
                 {
+                    if (i == 0) return default;
                     while (i > 1)
                     {
                         top.Pop();
@@ -381,6 +498,7 @@ namespace Wasm2Il
                 while (next > reader.Position)
                 {
                     var instr = (instr) reader.ReadU8();
+                    instructions.Add(instr);
                     codeidx++;
                     switch (instr)
                     {
@@ -389,7 +507,10 @@ namespace Wasm2Il
                             break;
                         case instr.CALL:
                             var fcn = reader.ReadU32Leb();
-                            var otherFun = FuncDecl[fcn].Method;
+                            var otherFun = resolveMethod(fcn);
+                            if (otherFun == null) 
+                                throw new Exception("");
+                            
                             il.Emit(IlInstr.Call, otherFun);
                             pop(otherFun.Parameters.Count);
                             push(otherFun.ReturnType);
@@ -533,8 +654,45 @@ namespace Wasm2Il
                             push(f64Type);
                             il.Emit(IlInstr.Ldc_R8, reader.ReadF64());
                             break;
+                        case instr.MEMORY_SIZE:
+                            push(i32Type);
+                            il.Emit(IlInstr.Stsfld, heapField);
+                            il.Emit(IlInstr.Ldlen);
+                            il.Emit(IlInstr.Ldc_I8, page_size);
+                            il.Emit(IlInstr.Div);
+                            il.Emit(IlInstr.Conv_I4);
+                            break;
+                        case instr.MEMORY_GROW:
+                            pop(1);
+                            push(i32Type);
+                            il.Emit(IlInstr.Stsfld, heapField);
+                            il.Emit(IlInstr.Ldlen);
+                            il.Emit(IlInstr.Ldc_I8, page_size);
+                            il.Emit(IlInstr.Div);
+                            il.Emit(IlInstr.Add); // add the argument pages;
+                            il.Emit(IlInstr.Ldc_I8, page_size);
+                            il.Emit(IlInstr.Mul);
+                            // new page size top stack.
+                            
+                            il.Emit(IlInstr.Newarr, byteType);
+                            il.Emit(IlInstr.Dup);
+                            il.Emit(IlInstr.Ldc_I8, 0L);
+                            il.Emit(IlInstr.Ldelema, byteType);
+                            il.Emit(IlInstr.Ldsfld, heapField);
+                            il.Emit(IlInstr.Ldc_I8, 0L);
+                            il.Emit(IlInstr.Ldelema, byteType);
+                            il.Emit(IlInstr.Ldsfld, heapField);
+                            il.Emit(IlInstr.Ldlen);
+                            il.Emit(IlInstr.Cpblk); // copy!
+                            il.Emit(IlInstr.Stsfld, heapField); // store tue duplicate.
+                            goto case instr.MEMORY_SIZE;
+                            
 
                         case instr.I32_LOAD:
+                        case instr.I32_LOAD8_S:
+                        case instr.I32_LOAD8_U:
+                        case instr.I32_LOAD16_U:
+                        case instr.I32_LOAD16_S:
                         case instr.I64_LOAD:
                         case instr.F32_LOAD:
                         case instr.F64_LOAD:
@@ -558,13 +716,13 @@ namespace Wasm2Il
                             VariableDefinition stvar = null;
                             if (instr.ToString().Contains("STORE"))
                             {
-                                if (instr == instr.F32_STORE)
+                                if (instr.ToString().Contains("F32"))
                                     stvar = getVariable(f32Type);
-                                else if (instr == instr.F64_STORE)
+                                else if (instr.ToString().Contains("F64"))
                                     stvar = getVariable(f64Type);
-                                else if (instr == instr.I64_STORE)
+                                else if (instr.ToString().Contains("I64"))
                                     stvar = getVariable(i64Type);
-                                else if (instr == instr.I32_STORE)
+                                else if (instr.ToString().Contains("I32"))
                                     stvar = getVariable(i32Type);
                                 else throw new Exception("Unknown type");
                                 il.Emit(IlInstr.Stloc, stvar);
@@ -611,6 +769,10 @@ namespace Wasm2Il
                                     il.Emit(IlInstr.Stind_R8);
                                     break;
                                 case instr.I32_LOAD:
+                                case instr.I32_LOAD8_S:
+                                case instr.I32_LOAD8_U:
+                                case instr.I32_LOAD16_U:
+                                case instr.I32_LOAD16_S:
                                     il.Emit(IlInstr.Ldind_I4);
                                     push(i32Type);
                                     break;
@@ -628,6 +790,17 @@ namespace Wasm2Il
                                     break;
                             }
 
+                            break;
+                        case instr.I64_EXTEND_I32_S:
+                        case instr.I64_EXTEND_I32_U:
+                            il.Emit(IlInstr.Conv_I8);
+                            pop(1);
+                            push(i64Type);
+                            break;
+                        case instr.I32_WRAP_I64:
+                            il.Emit(IlInstr.Conv_I4);
+                            pop(1);
+                            push(i32Type);
                             break;
                         case instr.F32_ADD:
                         case instr.F64_ADD:
@@ -725,18 +898,54 @@ namespace Wasm2Il
                         case instr.I32_EQZ:
                             il.Emit(IlInstr.Ldc_I4, 0);
                             il.Emit(IlInstr.Ceq);
-                            pop(2);
+                            pop(1);
                             push(i32Type);
                             break;  
                         case instr.I64_EQZ:
                             il.Emit(IlInstr.Ldc_I8, 0);
                             il.Emit(IlInstr.Ceq);
-                            pop(2);
+                            pop(1);
                             push(i32Type);
                             break;
                         case instr.I32_AND:
                         case instr.I64_AND:
                             il.Emit(IlInstr.And);
+                            pop(1);
+                            break;
+                        case instr.I32_OR:
+                        case instr.I64_OR:
+                            il.Emit(IlInstr.Or);
+                            pop(1);
+                            break;
+                        case instr.I32_XOR:
+                        case instr.I64_XOR:
+                            il.Emit(IlInstr.Xor);
+                            pop(1);
+                            break;
+                        case instr.I32_ROTR:
+                        case instr.I64_ROTR:
+                        case instr.I32_ROTL:
+                        case instr.I64_ROTL:
+
+                            bool is64 = instr.ToString().Contains("I64");
+                            bool isRight = instr.ToString().Contains("ROTR");
+                            //(original << bits) | (original >> (32 - bits))
+                            //rotl(original, bits)
+                            stvar = getVariable(is64 ? i32Type : i64Type);
+                            var stvar2 = getVariable(is64 ? i32Type : i64Type, 1);
+                            il.Emit(IlInstr.Stloc, stvar);//bits stored in the var
+                            il.Emit(IlInstr.Stloc, stvar2);//value stored in the var
+                            
+                            il.Emit(IlInstr.Ldloc, stvar2);
+                            il.Emit(IlInstr.Ldloc, stvar);
+                            il.Emit(isRight ? IlInstr.Shr : IlInstr.Shl);
+                            il.Emit(IlInstr.Ldloc, stvar2);
+
+                            il.Emit(is64 ? IlInstr.Ldc_I8 : IlInstr.Ldc_I4, is64 ? 64 : 32);
+                            il.Emit(IlInstr.Ldloc, stvar);
+                            il.Emit(IlInstr.Sub);
+                            il.Emit(isRight ? IlInstr.Shl : IlInstr.Shr);
+                            il.Emit(IlInstr.Or);
                             pop(1);
                             break;
                         case instr.I32_SHL:

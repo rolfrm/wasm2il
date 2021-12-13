@@ -73,7 +73,6 @@ int callPtr(fptr f, int x){
     return f(x);
 } 
 
-
 void writeData(int * ptr, int * ptr2, int cnt){
     for(int i = 0; i < cnt; i++)
        ptr2[i] = ptr[i];
@@ -88,3 +87,17 @@ void SetValue(int * ptr, int value){
 int GetValue(int * ptr){
     return ptr[0];
 }
+
+typedef struct {
+    float x;
+    float y;
+}vec2;
+
+vec2 vec2_new(float x, float y){
+    return (vec2){.x = x, .y = y};
+   }
+   
+int main(int argc, const char ** argv){
+   return 0;
+}
+  
