@@ -13,6 +13,19 @@ namespace Wasm2Il
             if (Equals(a, b) == false)
                 throw new AssertException();
         }
+        public static void AreEqual(float a, float b)
+        {
+            float d = 0.0001f;
+            if (Math.Abs(a - b) > d)
+                throw new AssertException();
+        }
+        
+        public static void AreEqual(double a, double b)
+        {
+            double d = 0.00001;
+            if (Math.Abs(a - b) > d)
+                throw new AssertException();
+        }
 
         public static void AreEqual(string a, string b)
         {

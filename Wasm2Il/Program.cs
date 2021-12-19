@@ -118,8 +118,17 @@ namespace Wasm2Il
                     foreach (var ptr2 in ptrs)
                         Test.Code.free(ptr2);
                 }
-
-                var lencrc = Test.Code.runTest2();
+                
+                
+                var fmotr = Test.Code.fmod2(3.5f, 3.0f);
+                var fmodt = 3.5 - 3.0;
+                Assert.IsTrue(Math.Abs(fmotr - fmodt) < 0.01);
+                var fmodr2 = Test.Code.fmod2(1.55f, 1.5f);
+                
+                var abs = Test.Code.fabs2(-1.0f);
+                var abs2 = Test.Code.fabsd(-1.0f);
+                Assert.AreEqual(abs2, Math.Abs(-1.0));
+                Assert.AreEqual(abs, Math.Abs(-1.0f));
                 int combined = 0;
                 for (int i = 0; i < 9; i++)
                 {
@@ -155,13 +164,10 @@ namespace Wasm2Il
                 
                 var c2 = Test.Code.GetValue(xpt + 1);
                 var c2str = c2.ToString("X");
+
+                //var y = Test4.Code.runTest();
                 var x = Test.Code.runTest();
-                //var a1 = Test.Code.aligned_alloc(4, 32);
-
-                //var a2 = Test.Code.realloc(a1, 1024 * 2);
-
-                //Test.Code.callPtr(10, 12);
-                //var callPtr = Test.Code.callPtr(ptr, 5);
+                var lencrc = Test.Code.runTest2();
             }
 
         }

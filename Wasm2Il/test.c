@@ -5,6 +5,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <unistd.h>
 int AddNumbers(int a, int b){
     return a + b;
 }
@@ -164,7 +165,9 @@ int runTest2(){
     char buffer[100];
     char * str = getString3();
     int crc =  test3(buffer);;
-    //sprintf(buffer, "%i", crc);
+    //while(1)
+    //    fwrite(str, 1, 10, stdout);
+    sprintf(buffer, "%i", crc);
     return strlen(buffer);
 }
 
@@ -185,8 +188,18 @@ addingNumbers( int nHowMany, ... )
 int testAddingNumbers(int n){
     return addingNumbers(n, 1,2,3,4,5,6,7,8);
 }
+float fmod2(float a, float b){
+    return fmod(a, b);
+}
 
- //#xA;wasm2wat bin/Debug/net6.0/test.wasm &gt; ./test.wat&#xA;ilspy bin/Debug/net6.0/TestAssembly.dll -il TestAssembly.il" 
+float fabs2(float a){
+    return fabsf(a);
+}
+
+double fabsd(double a){
+    return fabs(a);
+}
+
  int runTest(){
       char buffer[100];
       int x = 0;
@@ -200,10 +213,12 @@ int testAddingNumbers(int n){
          return 0;
       if(atoi("1000") != 1000)
          return 1;
+       
       
-      if(fabs(atof("1.55") - 1.55) < 0.1)
-             return 2; 
-         
+      if(fabs(atof("1.55") - 1.55) > 0.0001)
+         return 3; 
+       if(fabs(fmod(1.55, 1.5) - 0.05) > 0.01);
+         return 2;  
       return 5;
       
       //sprintf(buffer, "%s %s %i", getString2(), getString1(), x);
