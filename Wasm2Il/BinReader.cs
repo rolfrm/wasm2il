@@ -10,12 +10,17 @@ namespace Wasm2Il
     using u8 = Byte;
     using u16 = UInt16;
 
+    
     public class BinReader
     {
         static System.Text.Encoding utf8 => System.Text.Encoding.UTF8;
         Stream str;
 
-        public long Position => str.Position;
+        public long Position
+        {
+            get => str.Position;
+            set => str.Position = value;
+        }
 
         public BinReader(Stream stream)
         {

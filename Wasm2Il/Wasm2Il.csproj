@@ -6,16 +6,23 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
-    
+    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
     <ItemGroup>
-    <Reference Include="Test">
-      <HintPath>$(OutputPath)/Test.dll</HintPath>
-    </Reference>
-
-        
+        <Reference Include="Test">
+            <HintPath>$(OutputPath)/Test.dll</HintPath>
+        </Reference>
         <PackageReference Include="Mono.Cecil" Version="0.11.4" />
-        <PackageReference Include="OpenTAP" Version="9.16.3" />
-        <OpenTapPackageReference Include="OpenTAP" Version="9.16.3" />
+        <Reference Include="Test3">
+          <HintPath>bin\Debug\net6.0\Test3.dll</HintPath>
+        </Reference>
     </ItemGroup>
-
+    <ItemGroup>
+        <ProjectReference Include="..\TestAssembly\TestAssembly.csproj" />
+    </ItemGroup>
+    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+      <Exec Command="clang --target=wasm32-wasi -Wl,--no-entry, -Wl,--export-all -o bin/Debug/net6.0/test.wasm -O3 --sysroot /Users/bruger/code/wasi-libc/sysroot ./test.c"/>
+      <Exec Command="wasm2wat bin/Debug/net6.0/test.wasm --output ./test.wat"/>
+    </Target>
 </Project>

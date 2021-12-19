@@ -2,9 +2,15 @@ using System.Runtime.InteropServices;
 namespace TestAssembly
 {
 
-    class CodeModule
+    public class CodeModule
     {
-        static byte[] Heap = new byte[1024];
+        public static byte[] Heap = new byte[3024];
+        public static object[] Functions = new object[1024];
+
+        static CodeModule()
+        {
+            Functions[0] = new Func<int,int,int>(Add);
+        }
 
         private static byte[] HeapTest = new byte[]
             {0, 0, 0, 0, 0, 0, 0, 0, 00, 0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 3, 1, 0, 0, 0, 0, 0, 0};
@@ -64,6 +70,64 @@ namespace TestAssembly
         {
             return x == 2 ? 1 : 2;
         }
+        public static int strlen(int param0)
+        {
+            int num = param0;
+            int num2;
+            if (((uint)param0 & 3u) != 0)
+            {
+                num = param0;
+                num2 = param0;
+                if (Heap[num2 + 0L] == 0)
+                {
+                    goto IL_01fd;
+                }
+                if (((uint)(num = param0 + 1) & 3u) != 0)
+                {
+                    num2 = num;
+                    if (Heap[num2 + 0L] == 0)
+                    {
+                        goto IL_01fd;
+                    }
+                    if (((uint)(num = param0 + 2) & 3u) != 0)
+                    {
+                        num2 = num;
+                        if (Heap[num2 + 0L] == 0)
+                        {
+                            goto IL_01fd;
+                        }
+                        if (((uint)(num = param0 + 3) & 3u) != 0)
+                        {
+                            num2 = num;
+                            if (Heap[num2 + 0L] == 0)
+                            {
+                                goto IL_01fd;
+                            }
+                            num = param0 + 4;
+                        }
+                    }
+                }
+            }
+            num += -4;
+            int num3;
+            do
+            {
+                num2 = (num += 4);
+            }
+            while ((((num3 = System.Runtime.CompilerServices.Unsafe.As<byte, int>(ref Heap[num2 + 0L])) ^ -1) & (num3 + -16843009) & -2139062144) == 0);
+            if (((uint)num3 & 0xFFu) != 0)
+            {
+                do
+                {
+                    num2 = ++num;
+                }
+                while (Heap[num2 + 0L] != 0);
+            }
+            goto IL_01fd;
+            IL_01fd:
+            return num - param0;
+        }
+
     }
 
 }
