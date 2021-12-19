@@ -165,8 +165,7 @@ int runTest2(){
     char buffer[100];
     char * str = getString3();
     int crc =  test3(buffer);;
-    //while(1)
-    //    fwrite(str, 1, 10, stdout);
+
     sprintf(buffer, "%i", crc);
     return strlen(buffer);
 }
@@ -225,3 +224,9 @@ double fabsd(double a){
       //return strlen2(buffer);
  }
  
+ void testWrite(){
+     char * test = "1234567890";
+     for(int i = 0; i < 1000; i++)
+         fwrite(test, 1, 10, stdout);
+ 
+ }

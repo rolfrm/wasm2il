@@ -443,6 +443,17 @@ namespace Wasm2Il
                 if (importFun.Method == null)
                 {
                     var type = Types[(uint)importFun.TypeId];
+                    if (importFun.Name == "fd_fdstat_get")
+                    {
+                    
+                        return def.MainModule.ImportReference(typeof(Imports).GetMethod(nameof(Imports.fd_fdstat_get)));
+                    }
+                    if (importFun.Name == "fd_write")
+                    {
+                    
+                        return def.MainModule.ImportReference(typeof(Imports).GetMethod(nameof(Imports.fd_write)));
+                    }
+
                     var m = new MethodDefinition(importFun.Module + "__" + importFun.Name, MethodAttributes.Static | MethodAttributes.Public,
                         type.ReturnType);
                     m.Body.InitLocals = true;
@@ -545,8 +556,6 @@ namespace Wasm2Il
                 }
                 var heapaddr = new VariableDefinition(def.MainModule.TypeSystem.Int32);
                 m1.Body.Variables.Add(heapaddr);
-
-                
 
                 m1.Body.InitLocals = true;
                 int codeidx = 0;

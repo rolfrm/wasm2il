@@ -107,8 +107,8 @@ namespace Wasm2Il
                 
                 //var mall2 = Test2.Code.malloc2(1024);
 
-                var mallo = Test4.Code.malloc(1024);
-                var mallo2 = Test4.Code.malloc(1024);
+                //var mallo = Test4.Code.malloc(1024);
+                //var mallo2 = Test4.Code.malloc(1024);
                 for (int j = 0; j < 10; j++)
                 {
                     List<int> ptrs = new List<int>();
@@ -165,9 +165,12 @@ namespace Wasm2Il
                 var c2 = Test.Code.GetValue(xpt + 1);
                 var c2str = c2.ToString("X");
 
+                
                 //var y = Test4.Code.runTest();
                 var x = Test.Code.runTest();
                 var lencrc = Test.Code.runTest2();
+                Test.Code.testWrite();
+
             }
 
         }
