@@ -216,7 +216,7 @@ double fabsd(double a){
       
       if(fabs(atof("1.55") - 1.55) > 0.0001)
          return 3; 
-       if(fabs(fmod(1.55, 1.5) - 0.05) > 0.01);
+       if(fabs(fmod(1.55, 1.5) - 0.05) > 0.01)
          return 2;  
       return 5;
       
@@ -226,7 +226,23 @@ double fabsd(double a){
  
  void testWrite(){
      char * test = "1234567890";
-     for(int i = 0; i < 1000; i++)
+     for(int i = 0; i < 10; i++)
          fwrite(test, 1, 10, stdout);
- 
+      printf("\n");
  }
+ 
+ void helloWorld(){
+    printf("hello world\n");
+ }
+
+int openWriteRead(){
+    __wasilibc_register_preopened_fd("/tmp/test.txt", 3);
+    FILE * f = fopen("/tmp/test.txt", "w+");
+    if(f == NULL) return 1;
+    fwrite("Hello world", 1, 10, f);
+    //fseek(f, SEEK_SET, 0);
+    //char buf[100];
+    //fread(buf, 100, 1, f);
+    fclose(f);
+    return 0;
+}

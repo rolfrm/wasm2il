@@ -1,3 +1,4 @@
+using System.Numerics;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
@@ -443,18 +444,15 @@ namespace Wasm2Il
                 if (importFun.Method == null)
                 {
                     var type = Types[(uint)importFun.TypeId];
-                    if (importFun.Name == "fd_fdstat_get")
+                    var imp = typeof(Imports);
+                    var method = imp.GetMethod(importFun.Name);
+                    if (method != null)
                     {
-                    
-                        return def.MainModule.ImportReference(typeof(Imports).GetMethod(nameof(Imports.fd_fdstat_get)));
+                        importFun.Method = def.MainModule.ImportReference(method);
+                        return importFun.Method;
                     }
-                    if (importFun.Name == "fd_write")
-                    {
                     
-                        return def.MainModule.ImportReference(typeof(Imports).GetMethod(nameof(Imports.fd_write)));
-                    }
-
-                    var m = new MethodDefinition(importFun.Module + "__" + importFun.Name, MethodAttributes.Static | MethodAttributes.Public,
+                    var m = new MethodDefinition(importFun.Name.Replace(":", "_"), MethodAttributes.Static | MethodAttributes.Public,
                         type.ReturnType);
                     m.Body.InitLocals = true;
                     var il = m.Body.GetILProcessor();
@@ -597,6 +595,7 @@ namespace Wasm2Il
                         if (s.Contains("I64")) return i64Type;
                         return voidType;
                     } 
+                    bool is64 = instr.ToString().Contains("64");
                     instructions.Add(instr);
                     codeidx++;
                     switch (instr)
@@ -609,9 +608,24 @@ namespace Wasm2Il
                             var otherFun = resolveMethod(fcn);
                             if (otherFun == null) 
                                 throw new Exception("");
+                            if (otherFun.DeclaringType?.Name == "Imports")
+                            {
+                                il.Emit(IlInstr.Ldtoken, cls);
+                                il.Emit(IlInstr.Call,
+                                    def.MainModule.ImportReference(
+                                        typeof(Imports).GetMethod(nameof(Imports.GetContext))));
+                            }
                             
                             il.Emit(IlInstr.Call, otherFun);
-                            pop(otherFun.Parameters.Count);
+                            if (otherFun.DeclaringType?.Name == "Imports")
+                            {
+                                pop(otherFun.Parameters.Count - 1);
+                            }
+                            else
+                            {
+                                pop(otherFun.Parameters.Count);
+                            }
+
                             push(otherFun.ReturnType);
                             break;
                         case instr.CALL_INDIRECT:
@@ -1169,7 +1183,6 @@ namespace Wasm2Il
                             break;
                         case instr.F32_ABS:
                         case instr.F64_ABS:
-                            var is64 = instr == instr.F64_ABS;
                             il.Emit(IlInstr.Dup);
                             if(is64)
                                 il.Emit(IlInstr.Ldc_R8, 0.0);
@@ -1183,7 +1196,6 @@ namespace Wasm2Il
                             break;
                         case instr.F64_COPYSIGN:
                         case instr.F32_COPYSIGN:
-                            is64 = instr == instr.F64_COPYSIGN;
                             var vtype = is64 ? f64Type : f32Type;
                             il.Emit(IlInstr.Stloc, getVariable(vtype));
                             il.Emit(IlInstr.Stloc, getVariable(vtype, 1));
@@ -1233,7 +1245,7 @@ namespace Wasm2Il
                         case instr.I32_ROTL:
                         case instr.I64_ROTL:
 
-                            is64 = instr.ToString().Contains("I64");
+                            
                             bool isRight = instr.ToString().Contains("ROTR");
                             //(original << bits) | (original >> (32 - bits))
                             //rotl(original, bits)
@@ -1268,6 +1280,24 @@ namespace Wasm2Il
                         case instr.I64_SHR_U:
                             il.Emit(IlInstr.Shr_Un);
                             pop(1);
+                            break;
+                        case instr.I32_CTZ:
+                        case instr.I64_CTZ:
+                            m = typeof(BitOperations).GetMethod(nameof(BitOperations.TrailingZeroCount),
+                                new Type[] {is64 ? typeof(ulong) : typeof(uint)});
+                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
+                            break;
+                        case instr.I32_CLZ:
+                        case instr.I64_CLZ:
+                            m = typeof(BitOperations).GetMethod(nameof(BitOperations.LeadingZeroCount),
+                                new Type[] {is64 ? typeof(ulong) : typeof(uint)});
+                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
+                            break;
+                        case instr.I32_POPCNT:
+                        case instr.I64_POPCNT:
+                            m = typeof(BitOperations).GetMethod(nameof(BitOperations.PopCount),
+                            new Type[] {is64 ? typeof(ulong) : typeof(uint)});
+                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
                             break;
                         case instr.UNREACHABLE:
                             il.Emit(IlInstr.Ldstr, "Unreachable code");
@@ -1508,7 +1538,7 @@ namespace Wasm2Il
                         for (var nameId = 0; nameId < names; nameId++)
                         {
                             var idx = reader.ReadU32Leb();
-                            var fname = reader.ReadStrN();
+                            var fname = reader.ReadStrN().Replace(":","_");
                             if (idx < ImportFuncs.Count)
                             {
                                 var imp = ImportFuncs[idx];

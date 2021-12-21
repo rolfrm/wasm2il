@@ -19,8 +19,14 @@ namespace TestAssembly
             return Heap[0] + Heap[1];
         }
 
+        public static void TestType(Type t)
+        {
+            
+        }
+
         public static void Ref(ref byte x)
         {
+            TestType(typeof(CodeModule));
             x += 1;
         }
 

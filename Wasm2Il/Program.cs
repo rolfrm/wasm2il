@@ -165,11 +165,12 @@ namespace Wasm2Il
                 var c2 = Test.Code.GetValue(xpt + 1);
                 var c2str = c2.ToString("X");
 
-                
-                //var y = Test4.Code.runTest();
                 var x = Test.Code.runTest();
                 var lencrc = Test.Code.runTest2();
-                Test.Code.testWrite();
+                //Test.Code.testWrite();
+                Test.Code.helloWorld();
+
+                Test.Code.openWriteRead();
 
             }
 

@@ -21,6 +21,11 @@
     <ItemGroup>
         <ProjectReference Include="..\TestAssembly\TestAssembly.csproj" />
     </ItemGroup>
+    <ItemGroup>
+      <!--<None Update="test.c">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>-->
+    </ItemGroup>
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">
         <Exec Command="clang --target=wasm32-wasi -Wl,--no-entry, -Wl,--export-all -o bin/Debug/net6.0/test.wasm -O3 --sysroot /Users/bruger/code/wasi-libc/sysroot ./test.c" />
         <Exec Command="wasm2wat bin/Debug/net6.0/test.wasm --output ./test.wat" />
