@@ -1,4 +1,5 @@
 ﻿using System.Numerics;
+using System.Reflection;
 
 namespace Wasm2Il
 {
@@ -11,7 +12,11 @@ namespace Wasm2Il
             UnitTests.TestReadWrite();
             var fstr = File.OpenRead("test.wasm");
             Transformer.Go(fstr, "Test");
+            var asm = Assembly.LoadFile(Path.GetFullPath("./Test.dll"));
+            var m =asm.ExportedTypes.First().GetMethod("GoTest");
+            var result = m.Invoke(null, null);
             
+            /*
             var fstr2 = File.OpenRead("base.wasm");
             Transformer.Go(fstr2, "Test3");
 
@@ -36,9 +41,9 @@ namespace Wasm2Il
                 Assert.AreEqual((int)r6r, r6);
                 Assert.AreEqual((int)r7r, r7);
 
-            }
+            }*/
             // to do: add wat compiling as a pre-step.
-            
+
             megaTest();
         }
 

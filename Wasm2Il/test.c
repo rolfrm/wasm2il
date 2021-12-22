@@ -236,13 +236,21 @@ double fabsd(double a){
  }
 
 int openWriteRead(){
+    printf("OpenWriteRead\n");
     __wasilibc_register_preopened_fd("/tmp/test.txt", 3);
     FILE * f = fopen("/tmp/test.txt", "w+");
     if(f == NULL) return 1;
+    
+    printf("file opened: %i\n", f);
     fwrite("Hello world", 1, 10, f);
     //fseek(f, SEEK_SET, 0);
     //char buf[100];
     //fread(buf, 100, 1, f);
     fclose(f);
     return 0;
+}
+
+int GoTest(){
+    helloWorld();
+    return 1;
 }
