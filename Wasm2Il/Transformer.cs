@@ -146,7 +146,7 @@ namespace Wasm2Il
             def = asm;
         }
 
-        public static void Go(Stream str, string asmName)
+        public static void Go(Stream str, string asmName, string outpath)
         {
             var iller = new Transformer();
             var reader = new BinReader(str);
@@ -211,7 +211,8 @@ namespace Wasm2Il
                 Assert.AreEqual(next, str.Position);
             }
 
-            iller.def.Write(asmName + ".dll");
+            iller.def.Write(outpath);
+            Console.WriteLine("Output written to " + outpath);
             iller.def.Dispose();
         }
 
@@ -1359,7 +1360,7 @@ namespace Wasm2Il
                         uint index = reader.ReadU32Leb();
                         if (ExportFunc.ContainsKey(index))
                         {
-                            Console.WriteLine("!! {0} {1}", index, name);
+                            Console.WriteLine("Export already defined: {0} {1} - {2}", index, name, ExportFunc[index].Name);
                             
                         }else
                             ExportFunc[index] = new ImportFunc {Name = name, Index = index};
@@ -1532,6 +1533,8 @@ namespace Wasm2Il
                 {
                     var id = reader.ReadU8();
                     var len = reader.ReadU32Leb();
+                    var next = reader.Position + len;
+                    Console.WriteLine("Name section {0} ({1} bytes)", id, len);
                     if (id == 1)
                     {
                         var names = reader.ReadU32Leb();
@@ -1550,15 +1553,10 @@ namespace Wasm2Il
                                 f.ImportName = fname;
                                 if (f.IsDefaultName)
                                     f.Method.Name = fname;
-
-
                             }
                         }
-
-                        return;
-
                     }
-                    reader.Position += len;
+                    reader.Position = next;
     
                 }
             }

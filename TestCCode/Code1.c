@@ -232,25 +232,36 @@ double fabsd(double a){
  }
  
  void helloWorld(){
-    printf("hello world\n");
+    printf("hello world4\n");
+    printf("hello world3\n");
  }
+int __wasilibc_register_preopened_fd(const char * str, int fd);
 
 int openWriteRead(){
     printf("OpenWriteRead\n");
-    __wasilibc_register_preopened_fd("/tmp/test.txt", 3);
+    __wasilibc_register_preopened_fd("/tmp/", 4);
     FILE * f = fopen("/tmp/test.txt", "w+");
     if(f == NULL) return 1;
-    
-    printf("file opened: %i\n", f);
-    fwrite("Hello world", 1, 10, f);
-    //fseek(f, SEEK_SET, 0);
-    //char buf[100];
-    //fread(buf, 100, 1, f);
+    printf("file opened: %i\n", (int)f);
+    fwrite("Hello worle!\n", 1, 13, f);
+    fflush(f);
+    fseek(f, 0, SEEK_SET);
+    char buf[100];
+    fread(buf, 100, 1, f);
+    fclose(f);
+    printf("File contet: %s\n", buf);
+    printf("Finished\n");
+    fflush(stdout);
+    f = fopen("/tmp/test2.txt", "w+");
+    if(f == NULL) return 2;
+    fwrite("Hello world!\n", 1, 13, f);
     fclose(f);
     return 0;
 }
 
 int GoTest(){
     helloWorld();
+    if(openWriteRead() != 0)
+        return 2;
     return 1;
 }

@@ -7,22 +7,65 @@ public class Imports
 {
     public class Context
     {
+        public Dictionary<int, FileStream> fds = new Dictionary<int, FileStream>();
         public byte[] Memory => (byte[])t.GetField("Memory", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
         private Type t;
         public Context(RuntimeTypeHandle rt)
         {
             t = Type.GetTypeFromHandle(rt);
         }
+
+        public Stream GetFdStream(int fd)
+        {
+            if (fd == 1)
+            {
+                return Console.OpenStandardOutput();
+            }
+
+            if (fd == 2)
+            {
+                return Console.OpenStandardInput();
+            }
+
+            return fds[fd];
+        }
+
+        public int OpenFile(string pa)
+        {
+            var fst = File.Open(pa, FileMode.OpenOrCreate);
+            for (int i = 3; i < 1000; i++)
+            {
+                if (fds.ContainsKey(i) == false)
+                {
+                    fds[i] = fst;
+                    return i;
+                }
+            }
+
+            throw new Exception("Out of handles");
+
+        }
+
+        public void CloseFd(int fd)
+        {
+            if (fds.TryGetValue(fd, out var ctx))
+            {
+                ctx.Close();
+                fds.Remove(fd);
+            }
+        }
     }
 
+    private static Dictionary<IntPtr, Context> contexts = new Dictionary<IntPtr, Context>(); 
     public static Context GetContext(RuntimeTypeHandle t)
     {
-        return new Context(t);
+        if (contexts.TryGetValue(t.Value, out var ctx))
+            return ctx;
+        return contexts[t.Value] = new Context(t);
     }
     public static int fd_fdstat_get(int fd, int b, Context context)
     {
         return fd == 1 ? 1 : 0;
-        
     }
 
     public static int args_get(int a, int b, Context context)
@@ -43,6 +86,7 @@ public class Imports
         public int bufptr;
         public int size;
     }
+    
     public static int fd_write(int fd, int iov, int iov_len, int n_written, Context context)
     {
         var memory = context.Memory;
@@ -52,10 +96,9 @@ public class Imports
             ciovec_t p = Unsafe.Add(ref Unsafe.As<byte, ciovec_t>(ref memory[iov]), i);
             written += p.size;
             var span = memory.AsSpan(p.bufptr, p.size);
-            if (fd == 1)
-            {
-                Console.OpenStandardOutput().Write(span);
-            }
+            var stream = context.GetFdStream(fd);
+            stream.Write(span);
+            
         }
 
         return written;
@@ -85,9 +128,10 @@ public class Imports
     {
         throw new NotImplementedException("Not Implemented");
     }
-    public static int fd_close(int P_0, Context context)
+    public static int fd_close(int fd, Context context)
     {
-        throw new NotImplementedException("Not Implemented");
+        context.CloseFd(fd);
+        return 0;
     }
     
     public static int fd_datasync(int P_0, Context context)
@@ -136,9 +180,20 @@ public class Imports
         throw new NotImplementedException("Not Implemented");
     }
 
-    public static int fd_read(int P_0, int P_1, int P_2, int P_3, Context context)
+    public static int fd_read(int fd, int iov, int iov_len, int retPtrs, Context context)
     {
-        throw new NotImplementedException("Not Implemented");
+        var stream = context.GetFdStream(fd);
+        var memory = context.Memory;
+        int read = 0;
+        for (int i = 0; i < iov_len; i++)
+        {
+            ciovec_t p = Unsafe.Add(ref Unsafe.As<byte, ciovec_t>(ref memory[iov]), i);
+            var span = memory.AsSpan(p.bufptr, p.size);
+            read += stream.Read(span);
+        }
+
+        Unsafe.As<byte, int>(ref memory[retPtrs]) = read;
+        return 0;
     }
 
     public static int fd_readdir(int P_0, int P_1, int P_2, long P_3, int P_4, Context context)
@@ -151,9 +206,13 @@ public class Imports
         throw new NotImplementedException("Not Implemented");
     }
 
-    public static int fd_seek(int P_0, long P_1, int P_2, int P_3, Context context)
+    public static int fd_seek(int fd, long offset, SeekOrigin whence, int retptr, Context context)
     {
-        throw new NotImplementedException("Not Implemented");
+        var fptr = context.GetFdStream(fd);
+        var o = (ulong)fptr.Seek(offset, whence);
+        var mem = context.Memory;
+        Unsafe.As<byte, ulong>(ref mem[retptr]) = o;
+        return 0;
     }
     
     public static int fd_sync(int P_0, Context context)
@@ -181,9 +240,11 @@ public class Imports
         var pathMem= context.Memory.AsSpan(pathPtr);
         var end = pathMem.IndexOf((byte)0);
         var pa = System.Text.Encoding.UTF8.GetString(pathMem.Slice(0, end));
-        if (pa == "tmp/test.txt")
+        
         {
-            Unsafe.As<byte, int>(ref context.Memory[retptr0]) = 3;
+            int fd = context.OpenFile("/" + pa);
+            Unsafe.As<byte, int>(ref context.Memory[retptr0]) = fd;
+            
             return 0;
         }
 

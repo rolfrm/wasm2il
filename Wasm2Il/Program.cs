@@ -7,15 +7,47 @@ namespace Wasm2Il
     {
         public static void Main()
         {
+            var args = Environment.GetCommandLineArgs();
+            string run = null;
+            string file = null;
+            bool test = false;
+            for(int i = 0; i < args.Length; i++)
+            {
+                if (args[i] == "--run")
+                {
+                    run = args[i + 1];
+                    i += 1;
+                }else if (args[i] == "--test")
+                {
+                    test = true;
+                }
+                else
+                {
+                    file = args[i];
+                }
+            }
 
+            if (file == null)
+            {
+                throw new ArgumentException("File not specified", "--file");
+            }
 
-            UnitTests.TestReadWrite();
-            var fstr = File.OpenRead("test.wasm");
-            Transformer.Go(fstr, "Test");
-            var asm = Assembly.LoadFile(Path.GetFullPath("./Test.dll"));
-            var m =asm.ExportedTypes.First().GetMethod("GoTest");
-            var result = m.Invoke(null, null);
-            
+            //Code2.Code.GoTest();
+            if(test)
+                UnitTests.TestReadWrite();
+            string dllName = Path.ChangeExtension(file, ".dll");
+            if (file != null)
+            {
+                var fstr = File.OpenRead(file);
+                Transformer.Go(fstr, Path.GetFileNameWithoutExtension(file), dllName);
+            }
+
+            if (run != null)
+            {  
+                var asm = Assembly.LoadFile(Path.GetFullPath(dllName));
+                var m = asm.ExportedTypes.First().GetMethod(run);
+                var result = m.Invoke(null, null);
+            }
             /*
             var fstr2 = File.OpenRead("base.wasm");
             Transformer.Go(fstr2, "Test3");
@@ -44,7 +76,7 @@ namespace Wasm2Il
             }*/
             // to do: add wat compiling as a pre-step.
 
-            megaTest();
+            //megaTest();
         }
 
         static int TestFib(int x){
@@ -66,7 +98,7 @@ namespace Wasm2Il
         }
         static void megaTest()
         {
-            int r = Test.Code.GetX(50);
+            /*int r = Test.Code.GetX(50);
             int r2 = Test.Code.AddNumbers(60,11);
             float r3 = Test.Code.GetX4(5f);
             float r4 = Test.Code.GetX3(3.1f);
@@ -177,7 +209,7 @@ namespace Wasm2Il
 
                 Test.Code.openWriteRead();
 
-            }
+            }*/
 
         }
     }
