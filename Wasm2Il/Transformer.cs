@@ -1,4 +1,6 @@
 using System.Numerics;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
@@ -82,7 +84,7 @@ namespace Wasm2Il
             public MethodDefinition? Method;
             public uint TypeId;
             public bool IsDefaultName;
-            public string ImportName { get; set; }
+            public string? ImportName { get; set; }
             public override string ToString() => Method?.Name ?? "Func?";
         }
         const string magicHeader = "\0asm";
@@ -146,9 +148,8 @@ namespace Wasm2Il
             def = asm;
         }
 
-        public static void Go(Stream str, string asmName, string outpath)
+        public void Go(Stream str, string asmName, string outpath)
         {
-            var iller = new Transformer();
             var reader = new BinReader(str);
             var header = reader.ReadStrl(4);
             if (magicHeader != header)
@@ -159,7 +160,7 @@ namespace Wasm2Il
                 throw new Exception("Unsupported wasm version");
             Console.WriteLine("Wasm Version: {0}", string.Join(" ", wasmVersion));
 
-            iller.Init(asmName);
+            Init(asmName);
 
             while (!reader.ReadToEnd())
             {
@@ -172,36 +173,36 @@ namespace Wasm2Il
                 {
                     case Section.CUSTOM:
                     {
-                        iller.ReadCustomSection(reader);
+                        ReadCustomSection(reader);
                         str.Position = next;
                         break;
                     }
                     case Section.TYPE:
-                        iller.ReadTypeSection(reader);
+                        ReadTypeSection(reader);
                         break;
                     case Section.FUNCTION:
-                        iller.ReadFunctionSection(reader);
+                        ReadFunctionSection(reader);
                         break;
                     case Section.MEMORY:
-                        iller.ReadMemorySection(reader);
+                        ReadMemorySection(reader);
                         break;
                     case Section.GLOBAL:
-                        iller.ReadGlobalSection(reader);
+                        ReadGlobalSection(reader);
                         break;
                     case Section.EXPORT:
-                        iller.ReadExportSection(reader);
+                        ReadExportSection(reader);
                         break;
                     case Section.IMPORT:
-                        iller.ReadImportSection(reader);
+                        ReadImportSection(reader);
                         break;
                     case Section.CODE:
-                        iller.ReadCodeSection(reader);
+                        ReadCodeSection(reader);
                         break;
                     case Section.DATA:
-                        iller.ReadDataSection(reader);
+                        ReadDataSection(reader);
                         break;
                     case Section.ELEMENT:
-                        iller.ReadElementSection(reader);
+                        ReadElementSection(reader);
                         break;
                     default:
                         str.Position = next;
@@ -211,9 +212,9 @@ namespace Wasm2Il
                 Assert.AreEqual(next, str.Position);
             }
 
-            iller.def.Write(outpath);
+            def.Write(outpath);
             Console.WriteLine("Output written to " + outpath);
-            iller.def.Dispose();
+            def.Dispose();
         }
 
         private void ReadImportSection(BinReader reader)
@@ -354,7 +355,10 @@ namespace Wasm2Il
                     }
                 }
 
-
+                if (id.ReturnCount == 0)
+                {
+                    return baseType.MakeGenericType(id.ParamTypes.Select(refToType).ToArray());    
+                }
                 return baseType.MakeGenericType(id.ParamTypes.Select(refToType).Append(refToType(id.ReturnType)).ToArray());
             }
         }
@@ -436,7 +440,24 @@ namespace Wasm2Il
             public Instruction? StartLabel;
         }
 
-
+        private Dictionary<string, MethodReference?> methodCache = new Dictionary<string, MethodReference?>();
+        MethodReference? methodFromName(string name)
+        {
+            if (name == null) return null;
+            if (methodCache.TryGetValue(name, out var m))
+            {
+                return m;
+            }
+            var imp = typeof(Wasi);
+            var method = imp.GetMethod(name);
+            if (method != null)
+            {
+                m = def.MainModule.ImportReference(method);
+                return methodCache[name] = m;
+            }
+            return methodCache[name] = null;
+        }
+        
         MethodReference? resolveMethod(uint func)
         {
             if (func < ImportFuncs.Count)
@@ -445,12 +466,11 @@ namespace Wasm2Il
                 if (importFun.Method == null)
                 {
                     var type = Types[(uint)importFun.TypeId];
-                    var imp = typeof(Imports);
-                    var method = imp.GetMethod(importFun.Name);
+                    var method = methodFromName(importFun.Name);
                     if (method != null)
                     {
-                        importFun.Method = def.MainModule.ImportReference(method);
-                        return importFun.Method;
+                        importFun.Method = method;
+                        return method;
                     }
                     
                     var m = new MethodDefinition(importFun.Name.Replace(":", "_"), MethodAttributes.Static | MethodAttributes.Public,
@@ -469,11 +489,13 @@ namespace Wasm2Il
                 }
                 return importFun.Method;
             }
-            else
-            {
-                var declFun = FuncDecl[func - (uint)ImportFuncs.Count].Method;
-                return declFun;
-            }
+
+            var decl = FuncDecl[func - (uint) ImportFuncs.Count];
+            var m2 = methodFromName(decl.ImportName ?? decl.Method?.Name);
+            if (m2 != null)
+                return m2;
+            var declFun = decl.Method;
+            return declFun;
         }
 
         void ReadCodeSection(BinReader reader)
@@ -595,7 +617,22 @@ namespace Wasm2Il
                         if (s.Contains("I32")) return i32Type;
                         if (s.Contains("I64")) return i64Type;
                         return voidType;
-                    } 
+                    }
+                    Type instrType2(bool unsigned = false)
+                    {
+                        var s = instr.ToString();
+                        if (s.Contains("F32")) return typeof(float);
+                        if (s.Contains("F64")) return typeof(double);
+                        if (s.Contains("I32")) return unsigned ? typeof(uint):typeof(int);
+                        if (s.Contains("I64")) return unsigned ? typeof(ulong) : typeof(long);
+                        return typeof(void);
+                    }
+
+                    MethodReference getMethod(Type classT, string method, params Type[] argTypes)
+                    {
+                        var csm = classT.GetMethod(method, BindingFlags.Static | BindingFlags.Public,argTypes);
+                        return def.MainModule.ImportReference(csm);
+                    }
                     bool is64 = instr.ToString().Contains("64");
                     instructions.Add(instr);
                     codeidx++;
@@ -609,16 +646,16 @@ namespace Wasm2Il
                             var otherFun = resolveMethod(fcn);
                             if (otherFun == null) 
                                 throw new Exception("");
-                            if (otherFun.DeclaringType?.Name == "Imports")
+                            if (otherFun.DeclaringType?.Name == nameof(Wasi))
                             {
                                 il.Emit(IlInstr.Ldtoken, cls);
                                 il.Emit(IlInstr.Call,
                                     def.MainModule.ImportReference(
-                                        typeof(Imports).GetMethod(nameof(Imports.GetContext))));
+                                        typeof(Wasi).GetMethod(nameof(Wasi.GetContext))));
                             }
                             
                             il.Emit(IlInstr.Call, otherFun);
-                            if (otherFun.DeclaringType?.Name == "Imports")
+                            if (otherFun.DeclaringType?.Name == nameof(Wasi))
                             {
                                 pop(otherFun.Parameters.Count - 1);
                             }
@@ -670,9 +707,6 @@ namespace Wasm2Il
                             blk = new LabelType {Type = blockType, EndLabel = null, StartLabel = startLabel };
                             labelStack.Add(blk);
                             break;
-                        //case instr.IF:
-                        //    blockType = reader.ReadU8();
-                        //    break;
                         case instr.BR:
                         case instr.BR_IF:
                             
@@ -783,7 +817,7 @@ namespace Wasm2Il
                             push(i32Type);
                             il.Emit(IlInstr.Ldsfld, memoryField);
                             il.Emit(IlInstr.Ldlen);
-                            il.Emit(IlInstr.Ldc_I8, page_size);
+                            il.Emit(IlInstr.Ldc_I4, (int)page_size);
                             il.Emit(IlInstr.Div);
                             il.Emit(IlInstr.Conv_I4);
                             break;
@@ -794,13 +828,13 @@ namespace Wasm2Il
                             push(i32Type);
                             il.Emit(IlInstr.Ldsfld, memoryField);
                             il.Emit(IlInstr.Ldlen);
-                            il.Emit(IlInstr.Ldc_I8, page_size);
+                            il.Emit(IlInstr.Ldc_I4, (int)page_size);
                             il.Emit(IlInstr.Div);
                             il.Emit(IlInstr.Dup);
-                            il.Emit(IlInstr.Stloc, getVariable(i64Type));
+                            il.Emit(IlInstr.Stloc, getVariable(i32Type));
 
                             il.Emit(IlInstr.Add); // add the argument pages;
-                            il.Emit(IlInstr.Ldc_I8, page_size);
+                            il.Emit(IlInstr.Ldc_I4, (int)page_size);
                             il.Emit(IlInstr.Mul);
                             // new page size top stack.
                             
@@ -814,9 +848,12 @@ namespace Wasm2Il
                             il.Emit(IlInstr.Ldsfld, memoryField);
                             il.Emit(IlInstr.Ldlen);
                             il.Emit(IlInstr.Conv_U4);
-                            il.Emit(IlInstr.Cpblk); // copy!
+                            var mcpy  = getMethod(typeof(Unsafe), nameof(Unsafe.CopyBlock), typeof(byte).MakeByRefType(), typeof(byte).MakeByRefType(),
+                                typeof(uint));
+                            il.Emit(IlInstr.Call, mcpy);
+                            //il.Emit(IlInstr.Cpblk); // copy!
                             il.Emit(IlInstr.Stsfld, memoryField); // store tue duplicate.
-                            il.Emit(IlInstr.Ldloc, getVariable(i64Type));
+                            il.Emit(IlInstr.Ldloc, getVariable(i32Type));
                             break;
                         case instr.I32_LOAD:
                         case instr.I32_LOAD8_S:
@@ -1031,30 +1068,47 @@ namespace Wasm2Il
                             pop(1);
                             push(i32Type);
                             break;
-                        case instr.I32_TRUNC_F64_S:
                         case instr.I32_TRUNC_F64_U:
+                            il.Emit(IlInstr.Conv_U4);
+                            pop(1);
+                            push(i32Type);
+                            goto case instr.I32_TRUNC_F64_S; 
+                        case instr.I32_TRUNC_F64_S:
                             il.Emit(IlInstr.Conv_I4);
                             pop(1);
                             push(i32Type);
                             break;
+                        case instr.I64_TRUNC_F64_U:
+                            il.Emit(IlInstr.Conv_U8);
+                            pop(1);
+                            push(i64Type);
+                            goto case instr.I64_TRUNC_F64_S;
+                        case instr.I64_TRUNC_F64_S:
+                            il.Emit(IlInstr.Conv_I8);
+                            pop(1);
+                            push(i64Type);
+                            break;
                         case instr.F32_CONVERT_I32_S:
                         case instr.F32_CONVERT_I32_U:
+                        case instr.F32_CONVERT_I64_S:
+                        case instr.F32_CONVERT_I64_U:
+                            if (instr.ToString().EndsWith("_U"))
+                                il.Emit(IlInstr.Conv_U8);
                             il.Emit(IlInstr.Conv_R4);
                             pop(1);
                             push(f32Type);
                             break;
                         case instr.F64_CONVERT_I32_S:
                         case instr.F64_CONVERT_I32_U:
-                            il.Emit(IlInstr.Conv_R8);
-                            pop(1);
-                            push(f64Type);
-                            break;
                         case instr.F64_CONVERT_I64_S:
                         case instr.F64_CONVERT_I64_U:
+                            if(instr.ToString().EndsWith("_U"))
+                                il.Emit(IlInstr.Conv_U8);
                             il.Emit(IlInstr.Conv_R8);
                             pop(1);
                             push(f64Type);
                             break;
+                        
                         case instr.F32_ADD:
                         case instr.F64_ADD:
                         case instr.I32_ADD:
@@ -1195,6 +1249,30 @@ namespace Wasm2Il
                             il.Emit(IlInstr.Neg);
                             il.Append(label);
                             break;
+                        case instr.F32_MIN:
+                        case instr.F64_MIN:
+                        case instr.F32_MAX:
+                        case instr.F64_MAX:
+                            var name = instr.ToString().EndsWith("MAX") ? "Max" : "Min";
+                            var m2 = getMethod(typeof(Math), name, instrType2(), instrType2());
+                            il.Emit(IlInstr.Call, m2);
+                            pop();
+                            break;
+                        case instr.F32_SQRT:
+                        case instr.F64_SQRT:
+                            m2 = getMethod(typeof(Math), nameof(Math.Sqrt), instrType2());
+                            il.Emit(IlInstr.Call, m2);
+                            break;
+                        case instr.F64_CEIL:
+                        case instr.F32_CEIL:
+                            m2 = getMethod(typeof(Math), nameof(Math.Ceiling), instrType2());
+                            il.Emit(IlInstr.Call, m2);
+                            break;
+                        case instr.F64_FLOOR:
+                        case instr.F32_FLOOR:
+                            m2 = getMethod(typeof(Math), nameof(Math.Floor), instrType2());
+                            il.Emit(IlInstr.Call, m2);
+                            break;
                         case instr.F64_COPYSIGN:
                         case instr.F32_COPYSIGN:
                             var vtype = is64 ? f64Type : f32Type;
@@ -1243,28 +1321,15 @@ namespace Wasm2Il
                             break;
                         case instr.I32_ROTR:
                         case instr.I64_ROTR:
+                            il.Emit(IlInstr.Call, getMethod(typeof(BitOperations), nameof(BitOperations.RotateRight), 
+                                instrType2(true),
+                                typeof(int)));
+                            pop(1);
+                            break;
                         case instr.I32_ROTL:
                         case instr.I64_ROTL:
-
-                            
-                            bool isRight = instr.ToString().Contains("ROTR");
-                            //(original << bits) | (original >> (32 - bits))
-                            //rotl(original, bits)
-                            stvar = getVariable(is64 ? i64Type : i32Type);
-                            var stvar2 = getVariable(is64 ? i64Type : i32Type, 1);
-                            il.Emit(IlInstr.Stloc, stvar);//bits stored in the var
-                            il.Emit(IlInstr.Stloc, stvar2);//value stored in the var
-                            
-                            il.Emit(IlInstr.Ldloc, stvar2);
-                            il.Emit(IlInstr.Ldloc, stvar);
-                            il.Emit(isRight ? IlInstr.Shr : IlInstr.Shl);
-                            il.Emit(IlInstr.Ldloc, stvar2);
-
-                            il.Emit(is64 ? IlInstr.Ldc_I8 : IlInstr.Ldc_I4, is64 ? 64 : 32);
-                            il.Emit(IlInstr.Ldloc, stvar);
-                            il.Emit(IlInstr.Sub);
-                            il.Emit(isRight ? IlInstr.Shl : IlInstr.Shr);
-                            il.Emit(IlInstr.Or);
+                            il.Emit(IlInstr.Call, getMethod(typeof(BitOperations), nameof(BitOperations.RotateLeft), instrType2(true),
+                                typeof(int)));
                             pop(1);
                             break;
                         case instr.I32_SHL:
@@ -1287,18 +1352,24 @@ namespace Wasm2Il
                             m = typeof(BitOperations).GetMethod(nameof(BitOperations.TrailingZeroCount),
                                 new Type[] {is64 ? typeof(ulong) : typeof(uint)});
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
+                            if (is64)
+                                il.Emit(IlInstr.Conv_I8);
                             break;
                         case instr.I32_CLZ:
                         case instr.I64_CLZ:
                             m = typeof(BitOperations).GetMethod(nameof(BitOperations.LeadingZeroCount),
                                 new Type[] {is64 ? typeof(ulong) : typeof(uint)});
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
+                            if (is64)
+                                il.Emit(IlInstr.Conv_I8);
                             break;
                         case instr.I32_POPCNT:
                         case instr.I64_POPCNT:
                             m = typeof(BitOperations).GetMethod(nameof(BitOperations.PopCount),
                             new Type[] {is64 ? typeof(ulong) : typeof(uint)});
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
+                            if (is64)
+                                il.Emit(IlInstr.Conv_I8);
                             break;
                         case instr.UNREACHABLE:
                             il.Emit(IlInstr.Ldstr, "Unreachable code");

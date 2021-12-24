@@ -5,15 +5,4 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
-
-    <ItemGroup>
-      <None Include="Code1.c">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </None>
-    </ItemGroup>
-
-    <Target Name="PreBuild" BeforeTargets="BeforeBuild" Inputs="Code1.c" Outputs="$(OutputPath)/Code1.wat">
-        <Exec Command="clang --target=wasm32-wasi -Wl,--no-entry, -Wl,--export-all -o $(OutputPath)/Code1.wasm -O3 --sysroot /Users/bruger/code/wasi-libc/sysroot Code1.c" />
-        <Exec Command="wasm2wat $(OutputPath)/Code1.wasm --output $(OutputPath)/Code1.wat" />
-    </Target>
 </Project>

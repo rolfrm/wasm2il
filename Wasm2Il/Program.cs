@@ -39,7 +39,7 @@ namespace Wasm2Il
             if (file != null)
             {
                 var fstr = File.OpenRead(file);
-                Transformer.Go(fstr, Path.GetFileNameWithoutExtension(file), dllName);
+                new Transformer().Go(fstr, Path.GetFileNameWithoutExtension(file), dllName);
             }
 
             if (run != null)

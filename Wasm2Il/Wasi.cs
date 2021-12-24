@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace Wasm2Il;
 
-public class Imports
+public class Wasi
 {
     public class Context
     {
@@ -13,6 +13,12 @@ public class Imports
         public Context(RuntimeTypeHandle rt)
         {
             t = Type.GetTypeFromHandle(rt);
+        }
+
+        public void Call(string method, params object[] args)
+        {
+            var x = t.GetMethod(method);
+            x.Invoke(null, args);
         }
 
         public Stream GetFdStream(int fd)
@@ -29,6 +35,8 @@ public class Imports
 
             return fds[fd];
         }
+
+        
 
         public int OpenFile(string pa)
         {
@@ -63,6 +71,12 @@ public class Imports
             return ctx;
         return contexts[t.Value] = new Context(t);
     }
+    
+    public static void abort(Context ctx)
+    {
+        ctx.Call("fflush", 0);
+        throw new Exception("Operation aborted");
+    }
     public static int fd_fdstat_get(int fd, int b, Context context)
     {
         return fd == 1 ? 1 : 0;
@@ -79,7 +93,8 @@ public class Imports
     }
     public static int environ_get(int a, int b, Context context)
     {
-        throw new NotImplementedException("");
+        //throw new NotImplementedException("");
+        return 0;
     }
     struct ciovec_t
     {
@@ -106,7 +121,8 @@ public class Imports
     
     public static int environ_sizes_get(int P_0, int P_1, Context context)
     {
-        throw new NotImplementedException("Not Implemented");
+        //throw new NotImplementedException("Not Implemented");
+        return 0;
     }
 
     public static int clock_res_get(int P_0, int P_1, Context context)
@@ -235,7 +251,30 @@ public class Imports
     {
         throw new NotImplementedException("Not Implemented");
     }
-    public static int path_open(int fd2, int dirFlags, int pathPtr, int o_flags, int fs_rights_base, long fs_rights_inheriting, long fdflags, int P_7, int retptr0, Context context)
+    [Flags]
+    public enum LookupFlags : uint
+    {
+        FollowSymlinks = 1,
+    }
+
+    [Flags]
+    public enum OFlags : ushort
+    {
+        CREAT = 1,
+        DIRECTORY = 2,
+        EXCL = 4,
+        TRUNC = 8,
+    }
+    [Flags]
+    public enum FdFlags : ushort
+    {
+        APPEND = 1,
+        DSYNC = 2,
+        NONBLOCK = 4,
+        RSYNC = 8,
+        SYNC = 16
+    }
+    public static int path_open(int fd2, LookupFlags dirFlags, int pathPtr, OFlags o_flags, int fs_rights_base, long fs_rights_inheriting, FdFlags fdflags, int P_7, int retptr0, Context context)
     {
         var pathMem= context.Memory.AsSpan(pathPtr);
         var end = pathMem.IndexOf((byte)0);
@@ -289,7 +328,8 @@ public class Imports
 
     public static int sched_yield(Context context)
     {
-        throw new NotImplementedException("Not Implemented");
+        Thread.Yield();
+        return 0;
     }
 
     public static int random_get(int P_0, int P_1, Context context)
