@@ -1,10 +1,16 @@
-﻿using System.Numerics;
+﻿using System.Diagnostics;
+using System.Numerics;
 using System.Reflection;
 
 namespace Wasm2Il
 {
     public class Program
     {
+        static int Fib(int x)
+        {
+            if (x < 2) return x;
+            return Fib(x - 1) + Fib(x - 2);
+        }
         public static void Main()
         {
             var args = Environment.GetCommandLineArgs();
@@ -46,8 +52,10 @@ namespace Wasm2Il
             {  
                 var asm = Assembly.LoadFile(Path.GetFullPath(dllName));
                 var m = asm.ExportedTypes.First().GetMethod(run);
+                var sw = Stopwatch.StartNew();
                 var result = m.Invoke(null, null);
-            }
+                Console.WriteLine("Done " + sw.ElapsedMilliseconds + "ms");
+            }   
             /*
             var fstr2 = File.OpenRead("base.wasm");
             Transformer.Go(fstr2, "Test3");

@@ -7,6 +7,10 @@
         <Nullable>enable</Nullable>
         <RunPostBuildEvent>Always</RunPostBuildEvent>
     </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+      <Optimize>false</Optimize>
+    </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Mono.Cecil" Version="0.11.4" />
     </ItemGroup>
