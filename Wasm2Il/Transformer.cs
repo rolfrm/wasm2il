@@ -18,78 +18,8 @@ namespace Wasm2Il
     using instr = Wasm.Instruction;
     using IlInstr = OpCodes;
 
-    public enum ImportType : byte
-    {
-        FUNC = 0,
-        TABLE = 1,
-        MEM = 2,
-        GLOBAL = 3
-    }
-
-    public enum Section : byte
-    {
-        CUSTOM = 0,
-        TYPE = 1,
-        IMPORT = 2,
-        FUNCTION = 3,
-        TABLE = 4,
-        MEMORY = 5,
-        GLOBAL = 6,
-        EXPORT = 7,
-        START = 8,
-        ELEMENT = 9,
-        CODE = 10,
-        DATA = 11
-    }
-
     public class Transformer
     {
-        struct TypeId
-        {
-            public uint ParamCount;
-            public uint ReturnCount;
-            public TypeReference[] ParamTypes;
-            public TypeReference ReturnType;
-        }
-
-        struct ImportFunc
-        {
-            public string Name;
-            public string Module;
-            public uint Index;
-            public uint? TypeId;
-            public MethodReference? Method;
-            public string CustomName;
-
-            public override string ToString()
-            {
-                return $"import: {Name}";
-            }
-        }
-
-        struct ExportTable
-        {
-            public string Name;
-            public uint Index;
-        }
-
-        class Global
-        {
-            public bool Const;
-            public byte Type;
-            public object? Value;
-            public FieldDefinition? Field;
-        }
-
-        public class FuncDeclType
-        {
-            public MethodDefinition? Method;
-            public uint TypeId;
-            public bool IsDefaultName;
-            public string? ImportName { get; set; }
-            public override string ToString() => Method?.Name ?? "Func?";
-        }
-
         const string magicHeader = "\0asm";
         const uint page_size = 1 << 16;
         Dictionary<uint, Global> globals = new Dictionary<uint, Global>();
@@ -220,6 +150,35 @@ namespace Wasm2Il
                 // check that section was properly read.
                 Assert.AreEqual(next, str.Position);
             }
+
+            var wasi = typeof(Wasi);
+            foreach (var kv in ImportFuncs
+                         .Where(x => x.Value.Method == null)
+                         .ToArray())
+            {
+                var imp = kv.Value;
+                if (wasi.GetMethod(imp.Name) != null) continue;
+                var type = Types[(uint) imp.TypeId];
+                var m = new MethodDefinition(imp.Name, MethodAttributes.Public | MethodAttributes.Static,
+                    type.ReturnType);
+                foreach (var p in type.ParamTypes)
+                {
+                    m.Parameters.Add(new ParameterDefinition(p));
+                }
+
+                // throw exception
+                m.Body.InitLocals = true;
+                
+                var il = m.Body.GetILProcessor();
+                il.Emit(IlInstr.Nop);
+                il.Emit(IlInstr.Ldstr, "Not Implemented");
+                il.Emit(IlInstr.Newobj, resolveTypeConstructor(typeof(NotImplementedException), typeof(string)));
+                il.Emit(IlInstr.Throw);
+                cls.Methods.Add(m);
+                imp.Method = m;
+                ImportFuncs[kv.Key] = imp;
+                
+            }
             reader.Position = elementLoc;
             ReadElementSection(reader);
 
@@ -319,14 +278,35 @@ namespace Wasm2Il
 
                     il.Emit(OpCodes.Ldnull);
                     var funcId = reader.ReadU32Leb();
-                    var importFunc = FuncDecl[(uint) (funcId - ImportFuncs.Count)];
-                    var t = Types[FuncDecl[(uint) (funcId - ImportFuncs.Count)].TypeId];
-                    il.Emit(OpCodes.Ldftn, FuncDecl[(uint) (funcId - ImportFuncs.Count)].Method);
-                    var ftype = typeToFunc(t);
-                    var constr = ftype.GetConstructors().First();
-                    var cref = def.MainModule.ImportReference(constr);
-                    il.Emit(OpCodes.Newobj, cref);
-                    il.Emit(OpCodes.Stelem_Any, def.MainModule.TypeSystem.Object);
+                    if (funcId < ImportFuncs.Count)
+                    {
+                        var imp = ImportFuncs[funcId];
+                        var t = Types[(uint)imp.TypeId];
+                        if (imp.Method == null)
+                        {
+                            throw new InvalidOperationException("!");
+                        }
+                        else
+                        {
+                            il.Emit(OpCodes.Ldftn, imp.Method);
+                            var ftype = typeToFunc(t);
+                            var constr = ftype.GetConstructors().First();
+                            var cref = def.MainModule.ImportReference(constr);
+                            il.Emit(OpCodes.Newobj, cref);
+                            il.Emit(OpCodes.Stelem_Any, def.MainModule.TypeSystem.Object);
+                        }
+                    }
+                    else
+                    {
+                        var importFunc = FuncDecl[(uint) (funcId - ImportFuncs.Count)];
+                        var t = Types[importFunc.TypeId];
+                        il.Emit(OpCodes.Ldftn, FuncDecl[(uint) (funcId - ImportFuncs.Count)].Method);
+                        var ftype = typeToFunc(t);
+                        var constr = ftype.GetConstructors().First();
+                        var cref = def.MainModule.ImportReference(constr);
+                        il.Emit(OpCodes.Newobj, cref);
+                        il.Emit(OpCodes.Stelem_Any, def.MainModule.TypeSystem.Object);
+                    }
                 }
 
                 il.Emit(IlInstr.Ret);
@@ -565,7 +545,6 @@ namespace Wasm2Il
                     funcId.IsDefaultName = true;
                 }
 
-
                 var m1 = funcId.Method;
                 m1.ReturnType = ftype.ReturnType;
                 m1.Name = name;
@@ -605,7 +584,7 @@ namespace Wasm2Il
                     {
                         var p = m1.Parameters[i2];
                         il2.Emit(IlInstr.Ldarg, p);
-                        if (wasiMethod2.Parameters[i2].ParameterType.FullName != p.ParameterType.FullName)
+                        if (false && wasiMethod2.Parameters[i2].ParameterType.FullName != p.ParameterType.FullName)
                             throw new Exception("Unmatched parameters types");
                     }
 

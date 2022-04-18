@@ -538,7 +538,6 @@ int TestSqlite(const char * connectionString)
     while (SQLITE_ROW == (rc = sqlAssert(db, sqlite3_step(res))))
     {
         printf("Got Animal row: %s hp=%f id = %i, price = %i\n", sqlite3_column_text(res, 1), sqlite3_column_double(res, 3) , sqlite3_column_int(res, 0), sqlite3_column_int(res, 2));
-        rc = sqlite3_step(res);
     }
     sqlAssert(db, rc);
     sqlAssert(db, sqlite3_finalize(res));
@@ -625,8 +624,8 @@ int GoTest2()
 {
    __wasilibc_register_preopened_fd(4, "/tmp");
    //__wasilibc_register_preopened_fd(5, "/tmp/sqlthing");
-    
-    /*helloWorld();
+    /*
+    helloWorld();
     basicNumbersTest();
     if (openWriteRead() != 0)
         return 2;
@@ -646,8 +645,8 @@ int GoTest2()
     //TestFib(40);
     //printf("done\n");
     //return 0;
-    remove("/tmp/sqlthing");
-    if (TestSqlite("/tmp/sqlthing") != 0)
+    //remove("/tmp/sqlthing");
+    if (TestSqlite(":memory:") != 0)
         return 4;
     //if(testFstat() != 0)
     //    return 6;

@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestAssembly", "TestAssembl
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestCCode", "TestCCode\TestCCode.csproj", "{D058A411-E173-418A-B439-53CCF3E679FD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wasm2Il.UnitTests", "Wasm2Il.UnitTests\Wasm2Il.UnitTests.csproj", "{513591A8-3288-43E2-AF20-970930166FEA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{D058A411-E173-418A-B439-53CCF3E679FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D058A411-E173-418A-B439-53CCF3E679FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D058A411-E173-418A-B439-53CCF3E679FD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{513591A8-3288-43E2-AF20-970930166FEA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{513591A8-3288-43E2-AF20-970930166FEA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{513591A8-3288-43E2-AF20-970930166FEA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{513591A8-3288-43E2-AF20-970930166FEA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

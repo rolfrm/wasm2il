@@ -1,9 +1,14 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Wasm2Il;
 
+/// <summary>
+/// This class contains overrides for libc standard functions or other things imported by wasi,
+/// but should be overridden to support whichever platform is currently being used.
+/// </summary>
 public class Wasi
 {
     public class Context
@@ -97,6 +102,13 @@ public class Wasi
                 fds.Remove(fd);
             }
         }
+
+        public string GetString(int ptr, int len = -1)
+        {
+
+            if (len < 0) len = (int)Call("strlen", ptr);
+            return System.Text.Encoding.UTF8.GetString(Memory.AsSpan(ptr, len));
+        }
     }
 
     private static Dictionary<IntPtr, Context> contexts = new Dictionary<IntPtr, Context>(); 
@@ -105,6 +117,21 @@ public class Wasi
         if (contexts.TryGetValue(t.Value, out var ctx))
             return ctx;
         return contexts[t.Value] = new Context(t);
+    }
+
+    [Flags]
+    public enum FileFlags : int
+    {
+        Read = 1,
+        Write = 2
+    }
+    
+    // intercept
+    public static int __wasilibc_open_nomode(int ptr, FileFlags flags, Context ctx)
+    {
+        string path = ctx.GetString(ptr);
+        var test = ctx.Call("__wasilibc_open_nomode_pre", ptr, (int)flags & 0xFFFF);
+        return (int)test;
     }
     
     public static void abort(Context ctx)
@@ -120,6 +147,9 @@ public class Wasi
         Assert.AreEqual(test, 5);
         return 0;
     }
+
+    public static int getpid(Context ctx) => Process.GetCurrentProcess().Id;
+    
     const int F_GETLK = 5;
     const int F_SETLK = 6;
     public static int fcntl(int fd, int cmd, int args, Context ctx)
@@ -510,7 +540,13 @@ public class Wasi
         throw new NotImplementedException("Not Implemented");
     }
 
-    public static int path_filestat_get(int dirFd, LookupFlags flags, int path, int pathlen, int retptr0, Context context)
+    public enum Error : int
+    {
+        Success = 0,
+        NoEnt = 44
+    }
+    
+    public static Error path_filestat_get(int dirFd, LookupFlags flags, int path, int pathlen, int retptr0, Context context)
     {
         string baseDir = "";
         if (dirFd == 4)
@@ -521,7 +557,7 @@ public class Wasi
         var path2 = System.Text.Encoding.UTF8.GetString(span);
         var x = fileStatFromString(context, baseDir + path2);
         Unsafe.As<byte, __wasi_filestat_t>(ref context.Memory[retptr0]) = x;
-        return 0;
+        return x.filetype == __wasi_filetype_t.Unknown ? Error.NoEnt : Error.Success;
     }
     public static int path_filestat_set_times(int P_0, int P_1, int P_2, int P_3, long P_4, long P_5, int P_6, Context context)
     {
