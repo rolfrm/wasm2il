@@ -170,6 +170,9 @@ namespace Wasm2Il
                 m.Body.InitLocals = true;
                 
                 var il = m.Body.GetILProcessor();
+                
+                // let's implemented 
+                
                 il.Emit(IlInstr.Nop);
                 il.Emit(IlInstr.Ldstr, "Not Implemented");
                 il.Emit(IlInstr.Newobj, resolveTypeConstructor(typeof(NotImplementedException), typeof(string)));
@@ -231,8 +234,8 @@ namespace Wasm2Il
                         Console.WriteLine("Global: {0}.{1} {2}-{3}", moduleName, itemName, valType, mut);
                         break;
                     case ImportType.MEM:
-                        elemType = reader.ReadU8();
-                        Assert.AreEqual(elemType, 0x70);
+                        //elemType = reader.ReadU8();
+                        //Assert.AreEqual(elemType, 0x70);
                         limitt = reader.ReadU8();
                         if (limitt == 0)
                         {
@@ -785,6 +788,25 @@ namespace Wasm2Il
                             blk = new LabelType {Type = blockType, EndLabel = null, StartLabel = startLabel};
                             labelStack.Add(blk);
                             break;
+                        case instr.IF:
+                            blockType = reader.ReadU8();
+                            {
+                                endLabel = il.Create(OpCodes.Nop);
+                                il.Emit(IlInstr.Brfalse, endLabel);
+                                blk = new LabelType {Type = blockType, EndLabel = endLabel, StartLabel = null};
+                                labelStack.Add(blk);
+                            }
+                            break;
+                        case instr.ELSE:
+                            endLabel = il.Create(OpCodes.Nop);
+                            il.Emit(OpCodes.Br, endLabel);
+                            blk = labelStack.Last();
+                            labelStack.Remove(blk);
+                            il.Append(blk.EndLabel);
+                            blk = new LabelType {Type = blk.Type, EndLabel = endLabel, StartLabel = null};
+                            labelStack.Add(blk);
+                            break;
+
                         case instr.BR:
                         case instr.BR_IF:
 
@@ -1120,18 +1142,20 @@ namespace Wasm2Il
                             pop();
                             push(i32Type);
                             break;
-                        case instr.F64_REINTERPRET_I64:
-                            m = typeof(BitConverter).GetMethod(nameof(BitConverter.Int64BitsToDouble));
-                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
-                            pop();
-                            push(f64Type);
-                            break;
+                        
                         case instr.F32_REINTERPRET_I32:
                             m = typeof(BitConverter).GetMethod(nameof(BitConverter.Int32BitsToSingle));
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
                             pop(1);
                             push(f32Type);
                             break;
+                        case instr.F64_REINTERPRET_I64:
+                            m = typeof(BitConverter).GetMethod(nameof(BitConverter.Int64BitsToDouble));
+                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
+                            pop();
+                            push(f64Type);
+                            break;
+                        
                         case instr.F64_PROMOTE_F32:
                             il.Emit(IlInstr.Conv_R8);
                             pop(1);
@@ -1484,6 +1508,39 @@ namespace Wasm2Il
                             }
 
                             break;
+                        case instr.I32_EXTEND8_S:
+                        case instr.I32_EXTEND16_S:
+                            il.Emit(IlInstr.Conv_I4);
+                            break;
+
+                        case instr.I64_EXTEND8_S:
+                        case instr.I64_EXTEND16_S:
+                        case instr.I64_EXTEND32_S:
+                            il.Emit(IlInstr.Conv_I8);
+                            break;
+                        case instr.F32_TRUNC:
+                            m = typeof(MathF).GetMethod(nameof(MathF.Truncate),
+                                new Type[] {typeof(float)});
+                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
+                            break;
+                        case instr.F32_NEAREST:
+                            m = typeof(MathF).GetMethod(nameof(MathF.Round),
+                                new Type[] {typeof(float)});
+                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
+                            break;
+                        case instr.F64_TRUNC:
+                            m = typeof(Math).GetMethod(nameof(Math.Truncate),
+                                new Type[] {typeof(float)});
+                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
+                            break;
+                        case instr.F64_NEAREST:
+                            m = typeof(Math).GetMethod(nameof(Math.Round),
+                                new Type[] {typeof(float)});
+                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
+                            break;
+                        case instr.I64_TRUNC_F32_S:
+                        case instr.I64_TRUNC_F32_U:
+                        
                         default:
                             throw new Exception("Unsupported instruction: " + instr);
                     }

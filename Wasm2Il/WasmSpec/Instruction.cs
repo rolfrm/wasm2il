@@ -173,6 +173,11 @@ namespace Wasm
         I32_REINTERPRET_F32 = 0xBC,
         I64_REINTERPRET_F64 = 0xBD,
         F32_REINTERPRET_I32 = 0xBE,
-        F64_REINTERPRET_I64 = 0xBF
+        F64_REINTERPRET_I64 = 0xBF,
+        I32_EXTEND8_S = 0xC0,
+        I32_EXTEND16_S = 0xC1,
+        I64_EXTEND8_S = 0xC2,
+        I64_EXTEND16_S = 0xC3,
+        I64_EXTEND32_S = 0xC4,
     }
 }
