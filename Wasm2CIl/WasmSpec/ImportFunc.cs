@@ -1,6 +1,6 @@
 using Mono.Cecil;
 
-namespace Wasm2Il;
+namespace Wasm2Cil;
 
 struct ImportFunc
 {

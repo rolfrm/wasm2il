@@ -1,12 +1,12 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wasm2Il", "Wasm2Il\Wasm2Il.csproj", "{09EE0D60-1DA4-4B23-B9C7-39CAFB297C17}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wasm2CIl", "Wasm2CIl\Wasm2CIl.csproj", "{09EE0D60-1DA4-4B23-B9C7-39CAFB297C17}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestAssembly", "TestAssembly\TestAssembly.csproj", "{09EE0D60-1DA4-4B23-C9C7-39CAFB297C17}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestCCode", "TestCCode\TestCCode.csproj", "{D058A411-E173-418A-B439-53CCF3E679FD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wasm2Il.UnitTests", "Wasm2Il.UnitTests\Wasm2Il.UnitTests.csproj", "{513591A8-3288-43E2-AF20-970930166FEA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wasm2CIl.UnitTests", "Wasm2CIl.UnitTests\Wasm2CIl.UnitTests.csproj", "{513591A8-3288-43E2-AF20-970930166FEA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

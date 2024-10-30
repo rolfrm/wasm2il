@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+      <OutputType>Exe</OutputType>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="../Wasm2CIl/Wasm2CIl.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <WatFile Include="WatFiles/w1.wat">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </WatFile>
+    </ItemGroup>
+
+    <Target Name="WatToWasm" BeforeTargets="Build"
+            Inputs="%(WatFile.Identity)"
+            Outputs="$(OutDir)%(WatFile.Filename).wasm">
+        <Exec Command="wat2wasm %(WatFile.Identity) -o $(OutDir)%(WatFile.Filename).wasm" />
+    </Target>
+
+</Project>

@@ -13,13 +13,18 @@ using TypeAttributes = Mono.Cecil.TypeAttributes;
 using TypeDefinition = Mono.Cecil.TypeDefinition;
 using TypeReference = Mono.Cecil.TypeReference;
 
-namespace Wasm2Il
+namespace Wasm2Cil
 {
     using instr = Wasm.Instruction;
     using IlInstr = OpCodes;
 
     public class Transformer
     {
+        private Dictionary<string, Type> importModules = new Dictionary<string, Type>();
+        public void LoadImportModule(string moduleName, Type type)
+        {
+            importModules[moduleName] = type;
+        }
         const string magicHeader = "\0asm";
         const uint page_size = 1 << 16;
         Dictionary<uint, Global> globals = new Dictionary<uint, Global>();
@@ -85,7 +90,7 @@ namespace Wasm2Il
             def = asm;
         }
 
-        public void Go(Stream str, string asmName, string outpath)
+        public void Transform(Stream str, string asmName, string outpath)
         {
             var reader = new BinReader(str);
             var header = reader.ReadStrl(4);
@@ -151,13 +156,24 @@ namespace Wasm2Il
                 Assert.AreEqual(next, str.Position);
             }
 
-            var wasi = typeof(Wasi);
+            
             foreach (var kv in ImportFuncs
                          .Where(x => x.Value.Method == null)
                          .ToArray())
             {
+                
                 var imp = kv.Value;
-                if (wasi.GetMethod(imp.Name) != null) continue;
+                if (this.importModules.TryGetValue(imp.Module, out var wasi) == false)
+                {
+                    Console.WriteLine($"Warning: Import module not defined {imp.Module}");
+                    continue;
+                }
+
+                if (wasi.GetMethod(imp.Name) != null)
+                {
+                    continue;
+                }
+                Console.WriteLine($"Warning: Import not defined {imp.Name} by module {imp.Module}.");
                 var type = Types[(uint) imp.TypeId];
                 var m = new MethodDefinition(imp.Name, MethodAttributes.Public | MethodAttributes.Static,
                     type.ReturnType);
@@ -497,6 +513,17 @@ namespace Wasm2Il
                 var importFun = ImportFuncs[func];
                 if (importFun.Method == null)
                 {
+                    if(importModules.TryGetValue(importFun.Module, out var type2))
+                    {
+                        var m3 = type2.GetMethod(importFun.Name);
+                        if (m3 != null)
+                        {
+                            var m2 = def.MainModule.ImportReference(m3);
+                            importFun.Method = m2;
+                            return m2;
+
+                        }
+                    }
                     var type = Types[(uint) importFun.TypeId];
                     var method = methodFromName(importFun.Name);
                     if (method != null)

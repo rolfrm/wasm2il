@@ -1,4 +1,4 @@
-namespace Wasm2Il;
+namespace Wasm2Cil;
 
 public enum ImportType : byte
 {

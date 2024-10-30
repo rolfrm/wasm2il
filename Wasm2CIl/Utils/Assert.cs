@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Wasm2Il.UnitTests")]
-namespace Wasm2Il
+namespace Wasm2Cil
 {
     public static class Assert
     {

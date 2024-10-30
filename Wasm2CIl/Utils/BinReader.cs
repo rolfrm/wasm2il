@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Wasm2Il
+namespace Wasm2Cil
 {
     using u64 = UInt64;
     using u32 = UInt32;

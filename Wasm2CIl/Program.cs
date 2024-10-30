@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Reflection;
 
-namespace Wasm2Il
+namespace Wasm2Cil
 {
     public class Program
     {
@@ -32,7 +32,7 @@ namespace Wasm2Il
             if (file != null)
             {
                 var fstr = File.OpenRead(file);
-                new Transformer().Go(fstr, Path.GetFileNameWithoutExtension(file), dllName);
+                new Transformer().Transform(fstr, Path.GetFileNameWithoutExtension(file), dllName);
             }
 
             if (run != null)

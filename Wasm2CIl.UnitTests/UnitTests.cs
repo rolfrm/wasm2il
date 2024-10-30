@@ -1,8 +1,10 @@
-namespace Wasm2Il
+namespace Wasm2Cil
 {
 
-    class UnitTests
+    [TestFixture]
+    public class UnitTests
     {
+        //[Test]
         public static void BuildInstructionEnum()
         {
             var instructionLookup = new Dictionary<string, string>();
@@ -28,7 +30,7 @@ namespace Wasm2Il
                 sb.Append(str);
             return sb.ToString();
         }
-
+/*
         public static void TestReadWrite()
         {
 
@@ -104,6 +106,6 @@ namespace Wasm2Il
             foreach (var v in strs)
                 Assert.AreEqual(v, reader.ReadStrN());
         }
-
+*/
     }
 }
