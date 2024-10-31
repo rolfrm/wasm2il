@@ -4,6 +4,12 @@
     local.get $lhs
     local.get $rhs
     i32.mul)
+     (func $multiply_vec (param $lhs v128) (param $rhs v128) (result v128)
+        ;; Perform element-wise multiplication on the vectors
+        local.get $lhs
+        local.get $rhs
+        f32x4.mul
+      )
   (func $incf (result i32)
      global.get $a
 	 i64.const 1
@@ -22,6 +28,7 @@
      local.get $a
      call $log)
   (export "multiply" (func $multiply))
+  (export "multiply_vec" (func $multiply_vec))
   (export "incf" (func $incf))
   (export "testLog" (func $testLog))
 

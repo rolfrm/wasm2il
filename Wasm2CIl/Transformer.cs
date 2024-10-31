@@ -284,6 +284,11 @@ namespace Wasm2Cil
             {
                 var table_index = reader.ReadU32Leb();
                 var instr2 = (instr) reader.ReadU8();
+                if (instr2 == instr.EXTENDED)
+                {
+                    var ext2 = reader.ReadU8();
+                    instr2 = (instr) (0xFD00 | ext2);
+                }
                 Assert.AreEqual(Wasm.Instruction.I32_CONST, instr2);
                 var offset = reader.ReadU32Leb();
                 var end = (instr) reader.ReadU8();
@@ -718,7 +723,10 @@ namespace Wasm2Cil
                 while (next > reader.Position)
                 {
                     var instr = (instr) reader.ReadU8();
-
+                    if (instr == instr.EXTENDED)
+                    {
+                        instr = (instr) (0xFD00 | reader.ReadU8());
+                    }
                     TypeReference instrType()
                     {
                         var s = instr.ToString();
@@ -1571,6 +1579,11 @@ namespace Wasm2Cil
                                 new Type[] {typeof(float)});
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
                             break;
+                        case instr.F32X4_MUL:
+                            m = typeof(Vector4).GetMethod(nameof(Vector4.Multiply)
+                                , [typeof(Vector4), typeof(Vector4)]);
+                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
+                            break;
                         case instr.I64_TRUNC_F32_S:
                         case instr.I64_TRUNC_F32_U:
                         
@@ -1632,7 +1645,7 @@ namespace Wasm2Cil
             }
         }
 
-
+        private TypeReference v128Type;
         TypeReference ByteToTypeReference(byte b)
         {
             switch (b)
@@ -1641,6 +1654,7 @@ namespace Wasm2Cil
                 case 0x7E: return def.MainModule.TypeSystem.Int64;
                 case 0x7D: return def.MainModule.TypeSystem.Single;
                 case 0x7C: return def.MainModule.TypeSystem.Double;
+                case 123: return v128Type ??= def.MainModule.ImportReference(typeof(Vector4));
                 default:
                     throw new Exception("Invalid type " + b);
             }

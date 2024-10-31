@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Reflection;
 
 namespace Wasm2Cil.UnitTests;
@@ -17,14 +18,17 @@ public class TestBasicWasm
         var type = asm.ExportedTypes.FirstOrDefault();
         var incf = type.GetMethod("incf");
         var multiply = type.GetMethod("multiply");
+        var multiplyVec = type.GetMethod("multiply_vec");
         var a = (int)incf.Invoke(null, []);
         var b= (int)incf.Invoke(null, []);
         var c= (int)incf.Invoke(null, []);
         var d = multiply.Invoke(null, [3, 5]);
+        var e = (Vector4)multiplyVec.Invoke(null, [new Vector4(1, 2, 3, 4), new Vector4(5, 4, 3, 2)]);
         Assert.AreEqual(a, 75601);
         Assert.AreEqual(b, 75602);
         Assert.AreEqual(c, 75603);
         Assert.AreEqual(d, 15);
+        Assert.AreEqual(e, new Vector4(5, 8, 9, 8));
     }
     
 

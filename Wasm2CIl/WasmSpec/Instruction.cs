@@ -1,6 +1,6 @@
 namespace Wasm
 {
-    public enum Instruction : byte
+    public enum Instruction : int
     {
         UNREACHABLE = 0x0,
         NOP = 0x01,
@@ -179,5 +179,8 @@ namespace Wasm
         I64_EXTEND8_S = 0xC2,
         I64_EXTEND16_S = 0xC3,
         I64_EXTEND32_S = 0xC4,
+        EXTENDED = 0xFD,
+        
+        F32X4_MUL = 0xFDE6
     }
 }
