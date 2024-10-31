@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
+using Wasm2CIl.Utils;
 using AssemblyDefinition = Mono.Cecil.AssemblyDefinition;
 using FieldAttributes = Mono.Cecil.FieldAttributes;
 using FieldDefinition = Mono.Cecil.FieldDefinition;
@@ -90,7 +91,13 @@ namespace Wasm2Cil
             def = asm;
         }
 
-        public void Transform(Stream str, string asmName, string outpath)
+        public void Transform(Stream str, string asmName, string filePath)
+        {
+            using var outFile = new FileStream (filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
+            Transform(str, asmName, outFile);
+        }
+
+        public void Transform(Stream str, string asmName, Stream outStream)
         {
             var reader = new BinReader(str);
             var header = reader.ReadStrl(4);
@@ -100,7 +107,7 @@ namespace Wasm2Cil
             reader.Read(wasmVersion);
             if (!wasmVersion.SequenceEqual(new byte[] {1, 0, 0, 0}))
                 throw new Exception("Unsupported wasm version");
-            Console.WriteLine("Wasm Version: {0}", string.Join(" ", wasmVersion));
+            Log.WriteLine("Wasm Version: {0}", string.Join(" ", wasmVersion));
 
             Init(asmName);
             long codeLoc = 0;
@@ -109,7 +116,7 @@ namespace Wasm2Cil
             {
                 var section = (Section) reader.ReadU8();
                 uint length = reader.ReadU32Leb();
-                Console.WriteLine("Reading section {0}: {1}bytes", section, length);
+                Log.WriteLine("Reading section {0}: {1}bytes", section, length);
                 var next = str.Position + length;
 
                 switch (section)
@@ -165,7 +172,7 @@ namespace Wasm2Cil
                 var imp = kv.Value;
                 if (this.importModules.TryGetValue(imp.Module, out var wasi) == false)
                 {
-                    Console.WriteLine($"Warning: Import module not defined {imp.Module}");
+                    Log.WriteLine($"Warning: Import module not defined {imp.Module}");
                     continue;
                 }
 
@@ -173,7 +180,7 @@ namespace Wasm2Cil
                 {
                     continue;
                 }
-                Console.WriteLine($"Warning: Import not defined {imp.Name} by module {imp.Module}.");
+                Log.WriteLine($"Warning: Import not defined {imp.Name} by module {imp.Module}.");
                 var type = Types[(uint) imp.TypeId];
                 var m = new MethodDefinition(imp.Name, MethodAttributes.Public | MethodAttributes.Static,
                     type.ReturnType);
@@ -203,9 +210,8 @@ namespace Wasm2Cil
 
             reader.Position = codeLoc;
             ReadCodeSection(reader);
-
-            def.Write(outpath);
-            Console.WriteLine("Output written to " + outpath);
+            def.Write(outStream);
+            Log.WriteLine($"Output written to {outStream}" );
             def.Dispose();
         }
 
@@ -241,13 +247,13 @@ namespace Wasm2Cil
                             max = reader.ReadU32Leb();
                         }
 
-                        Console.WriteLine("Table: {0}.{1} {2}-{3}", moduleName, itemName, min, max);
+                        Log.WriteLine("Table: {0}.{1} {2}-{3}", moduleName, itemName, min, max);
                         break;
                     case ImportType.GLOBAL:
                         var valType = reader.ReadU8();
                         bool mut = reader.ReadU8() > 0;
 
-                        Console.WriteLine("Global: {0}.{1} {2}-{3}", moduleName, itemName, valType, mut);
+                        Log.WriteLine("Global: {0}.{1} {2}-{3}", moduleName, itemName, valType, mut);
                         break;
                     case ImportType.MEM:
                         //elemType = reader.ReadU8();
@@ -264,7 +270,7 @@ namespace Wasm2Cil
                             max = reader.ReadU32Leb();
                         }
 
-                        Console.WriteLine("Memory: {0}.{1} {2}-{3}", moduleName, itemName, min, max);
+                        Log.WriteLine("Memory: {0}.{1} {2}-{3}", moduleName, itemName, min, max);
 
                         break;
                 }
@@ -635,7 +641,7 @@ namespace Wasm2Cil
                     
 
                     m1 = m2;
-                    Console.WriteLine("Override: {0}", wasiMethod);
+                    Log.WriteLine("Override: {0}", wasiMethod);
                 }
                 cls.Methods.Add(m1);
                 m1.Body.InitLocals = true;
@@ -1598,7 +1604,7 @@ namespace Wasm2Cil
                         uint index = reader.ReadU32Leb();
                         if (ExportFunc.ContainsKey(index))
                         {
-                            Console.WriteLine("Export already defined: {0} {1} - {2}", index, name,
+                            Log.WriteLine("Export already defined: {0} {1} - {2}", index, name,
                                 ExportFunc[index].Name);
                         }
                         else
@@ -1611,7 +1617,7 @@ namespace Wasm2Cil
                         break;
                     case ImportType.MEM:
                         var memIndex = reader.ReadU32Leb();
-                        Console.WriteLine("Memory: {0}", memIndex);
+                        Log.WriteLine("Memory: {0}", memIndex);
                         break;
                     case ImportType.GLOBAL:
                         var idx = reader.ReadU32Leb();
@@ -1620,7 +1626,7 @@ namespace Wasm2Cil
                             glob.Field.Name = name;
                         }
 
-                        Console.WriteLine("Global import: {0}   {1}", idx, name);
+                        Log.WriteLine("Global import: {0}   {1}", idx, name);
                         break;
                 }
             }
@@ -1707,7 +1713,7 @@ namespace Wasm2Cil
             }
 
             il.Emit(IlInstr.Ret);
-            Console.WriteLine("Globals: {0}", globals.Count);
+            Log.WriteLine("Globals: {0}", globals.Count);
         }
 
 
@@ -1721,7 +1727,7 @@ namespace Wasm2Cil
                 var min = reader.ReadU32Leb();
                 if (type == 0)
                 {
-                    Console.WriteLine("Memory: {0} pages", min);
+                    Log.WriteLine("Memory: {0} pages", min);
                     var cctoril = cls.GetStaticConstructor().Body.GetILProcessor();
                     cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
                     cctoril.Emit(OpCodes.Ldc_I8, (long) min * page_size);
@@ -1733,7 +1739,7 @@ namespace Wasm2Cil
                 {
                     var max = reader.ReadU32Leb();
 
-                    Console.WriteLine("Memory of {0}-{1} pages ({2} - {3})", min, max, min * page_size,
+                    Log.WriteLine("Memory of {0}-{1} pages ({2} - {3})", min, max, min * page_size,
                         max * page_size);
                     var cctoril = cls.GetStaticConstructor().Body.GetILProcessor();
                     cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
@@ -1749,7 +1755,7 @@ namespace Wasm2Cil
         void ReadFunctionSection(BinReader reader)
         {
             uint funcCount = reader.ReadU32Leb();
-            Console.WriteLine("Func count: {0}", funcCount);
+            Log.WriteLine("Func count: {0}", funcCount);
             for (uint i = 0; i < funcCount; i++)
             {
                 uint typeid = reader.ReadU32Leb();
@@ -1766,7 +1772,7 @@ namespace Wasm2Cil
         void ReadCustomSection(BinReader reader)
         {
             var name = reader.ReadStrN();
-            Console.WriteLine("Custom section name: {0}", name);
+            Log.WriteLine("Custom section name: {0}", name);
             if (name == "name")
             {
                 for (int i = 0; i < 3; i++)
@@ -1774,7 +1780,7 @@ namespace Wasm2Cil
                     var id = reader.ReadU8();
                     var len = reader.ReadU32Leb();
                     var next = reader.Position + len;
-                    Console.WriteLine("Name section {0} ({1} bytes)", id, len);
+                    Log.WriteLine("Name section {0} ({1} bytes)", id, len);
                     if (id == 1)
                     {
                         var names = reader.ReadU32Leb();

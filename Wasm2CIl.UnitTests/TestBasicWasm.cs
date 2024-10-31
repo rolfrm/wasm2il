@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace Wasm2Cil;
+namespace Wasm2Cil.UnitTests;
 
 [TestFixture]
 public class TestBasicWasm
@@ -26,6 +26,7 @@ public class TestBasicWasm
         Assert.AreEqual(c, 75603);
         Assert.AreEqual(d, 15);
     }
+    
 
     public class Import
     {
@@ -36,16 +37,24 @@ public class TestBasicWasm
     }
     
     [Test]
-    public void LoadAndRunImport()
+    public void LoadAndRunImportFromStream()
     {
-        var transformer = new Transformer();
-        transformer.LoadImportModule("console", typeof(Import));
-        using var file = File.OpenRead("w1.wasm");
-        transformer.Transform(file, "W1_2", "./w1_2.dll");
-        
-        var asm = Assembly.LoadFrom("./w1_2.dll");
-        var testLog = asm.ExportedTypes.FirstOrDefault()?.GetMethod("testLog");
-        testLog.Invoke(null, [5]);
+        List<int> results = new List<int>();
+        foreach (string wasmFile in new []{"w1.wasm", "w2.wasm"})
+        {
+            var transformer = new Transformer();
+            transformer.LoadImportModule("console", typeof(Import));
+            using var file = File.OpenRead(wasmFile);
+            using var mem = new MemoryStream();
+            transformer.Transform(file, "W1", mem);
+            mem.Position = 0;
 
+            var asm = Assembly.Load(mem.ToArray());
+            var testLog = asm.ExportedTypes.FirstOrDefault()?.GetMethod("testLog");
+            var r = (int)testLog.Invoke(null, [5]);
+            results.Add(r);
+        }
+
+        Assert.IsTrue(results.SequenceEqual([5, 10]));
     }
 }

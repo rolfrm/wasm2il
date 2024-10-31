@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Wasm2Cil
+namespace Wasm2Cil.UnitTests
 {
     static class Assert
     {

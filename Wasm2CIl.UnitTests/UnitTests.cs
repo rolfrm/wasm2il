@@ -2,7 +2,7 @@ namespace Wasm2Cil
 {
 
     [TestFixture]
-    public class UnitTests
+    public class UnitTests2
     {
         //[Test]
         public static void BuildInstructionEnum()

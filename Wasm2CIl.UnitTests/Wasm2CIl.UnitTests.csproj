@@ -9,15 +9,14 @@
     </ItemGroup>
 
     <ItemGroup>
-      <WatFile Include="WatFiles/w1.wat">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </WatFile>
+        <WatFile Include="WatFiles/w1.wat"/>
+        <WatFile Include="WatFiles/w2.wat"/>
     </ItemGroup>
 
     <Target Name="WatToWasm" BeforeTargets="Build"
             Inputs="%(WatFile.Identity)"
-            Outputs="$(OutDir)%(WatFile.Filename).wasm">
-        <Exec Command="wat2wasm %(WatFile.Identity) -o $(OutDir)%(WatFile.Filename).wasm" />
+            Outputs="$(OutputPath)%(WatFile.Filename).wasm">
+        <Exec Command="wat2wasm %(WatFile.Identity) -o $(OutputPath)%(WatFile.Filename).wasm" />
     </Target>
 
 </Project>
