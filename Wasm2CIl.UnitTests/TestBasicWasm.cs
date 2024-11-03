@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Reflection;
+using System.Runtime.Intrinsics;
 
 namespace Wasm2Cil.UnitTests;
 
@@ -23,12 +24,12 @@ public class TestBasicWasm
         var b= (int)incf.Invoke(null, []);
         var c= (int)incf.Invoke(null, []);
         var d = multiply.Invoke(null, [3, 5]);
-        var e = (Vector4)multiplyVec.Invoke(null, [new Vector4(1, 2, 3, 4), new Vector4(5, 4, 3, 2)]);
+        var e = (Vector128<byte>)multiplyVec.Invoke(null, [new Vector4(1, 2, 3, 4).AsVector128().AsByte(), new Vector4(5, 4, 3, 2).AsVector128().AsByte()]);
         Assert.AreEqual(a, 75601);
         Assert.AreEqual(b, 75602);
         Assert.AreEqual(c, 75603);
         Assert.AreEqual(d, 15);
-        Assert.AreEqual(e, new Vector4(5, 8, 9, 8));
+        Assert.AreEqual(e.AsSingle().AsVector4(), new Vector4(5, 8, 9, 8));
     }
     
 

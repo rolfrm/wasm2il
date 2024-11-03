@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
@@ -1579,10 +1580,25 @@ namespace Wasm2Cil
                                 new Type[] {typeof(float)});
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
                             break;
+                        
+                        case instr.F32X4_Add:
+                            il.EmitCall(() => Lib.MulF32);
+                            break;
+                        
+                        case instr.F32X4_SUB:
+                            il.EmitCall(() => Lib.MulF32);
+                            break;
                         case instr.F32X4_MUL:
-                            m = typeof(Vector4).GetMethod(nameof(Vector4.Multiply)
-                                , [typeof(Vector4), typeof(Vector4)]);
-                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
+                            il.EmitCall(() => Lib.MulF32);
+                            break;
+                        case instr.F32X4_DIV:
+                            il.EmitCall(() => Lib.DivF32);
+                            break;
+                        case instr.F32X4_MIN:
+                            il.EmitCall(() => Lib.MinF32);
+                            break;
+                        case instr.F32X4_MAX:
+                            il.EmitCall(() => Lib.MaxF32);
                             break;
                         case instr.I64_TRUNC_F32_S:
                         case instr.I64_TRUNC_F32_U:
@@ -1654,7 +1670,7 @@ namespace Wasm2Cil
                 case 0x7E: return def.MainModule.TypeSystem.Int64;
                 case 0x7D: return def.MainModule.TypeSystem.Single;
                 case 0x7C: return def.MainModule.TypeSystem.Double;
-                case 123: return v128Type ??= def.MainModule.ImportReference(typeof(Vector4));
+                case 123: return v128Type ??= def.MainModule.ImportReference(typeof(Vector128<byte>));
                 default:
                     throw new Exception("Invalid type " + b);
             }

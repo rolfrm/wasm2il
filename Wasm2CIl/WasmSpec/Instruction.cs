@@ -181,6 +181,11 @@ namespace Wasm
         I64_EXTEND32_S = 0xC4,
         EXTENDED = 0xFD,
         
-        F32X4_MUL = 0xFDE6
+        F32X4_Add = 0xFDE4,
+        F32X4_SUB = 0xFDE5,
+        F32X4_MUL = 0xFDE6,
+        F32X4_DIV = 0xFDE7,
+        F32X4_MIN = 0xFDE8,
+        F32X4_MAX = 0xFDE9,
     }
 }
