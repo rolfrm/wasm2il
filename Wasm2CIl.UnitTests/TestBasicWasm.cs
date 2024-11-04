@@ -20,11 +20,13 @@ public class TestBasicWasm
         var incf = type.GetMethod("incf");
         var multiply = type.GetMethod("multiply");
         var multiplyVec = type.GetMethod("multiply_vec");
+        var tryVec = type.GetMethod("try_vec");
         var a = (int)incf.Invoke(null, []);
         var b= (int)incf.Invoke(null, []);
         var c= (int)incf.Invoke(null, []);
         var d = multiply.Invoke(null, [3, 5]);
         var e = (Vector128<byte>)multiplyVec.Invoke(null, [new Vector4(1, 2, 3, 4).AsVector128().AsByte(), new Vector4(5, 4, 3, 2).AsVector128().AsByte()]);
+        var f = (Vector128<byte>) tryVec.Invoke(null, Array.Empty<object>());
         Assert.AreEqual(a, 75601);
         Assert.AreEqual(b, 75602);
         Assert.AreEqual(c, 75603);

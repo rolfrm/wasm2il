@@ -17,6 +17,7 @@ namespace Wasm
         CALL_INDIRECT = 0x11,
         DROP = 0x1A,
         SELECT = 0x1B,
+        SELECT_T = 0x1C,
         LOCAL_GET = 0x20,
         LOCAL_SET = 0x21,
         LOCAL_TEE = 0x22,
@@ -179,13 +180,77 @@ namespace Wasm
         I64_EXTEND8_S = 0xC2,
         I64_EXTEND16_S = 0xC3,
         I64_EXTEND32_S = 0xC4,
-        EXTENDED = 0xFD,
         
-        F32X4_Add = 0xFDE4,
-        F32X4_SUB = 0xFDE5,
-        F32X4_MUL = 0xFDE6,
-        F32X4_DIV = 0xFDE7,
-        F32X4_MIN = 0xFDE8,
-        F32X4_MAX = 0xFDE9,
+        REF_NULL = 0xD0,
+        REF_IS_NULL = 0xD1,
+        REF_FUNC = 0xD2,
+        EXTENDED_1 = 0xFC,
+        EXTENDED_2 = 0xFD,
+        
+
+    }
+
+    public enum ExtendedInstructions
+    {
+        V128_LOAD = 0,
+        V128_LOAD8X8_S = 1,
+        V128_LOAD8X8_U = 2,
+        V128_LOAD16X4_S = 3,
+        V128_LOAD16X4_U = 4,
+        V128_LOAD32X2_S = 5,
+        V128_LOAD32X2_U = 6,
+        V128_LOAD8_SPLAT = 7,
+        V128_LOAD16_SPLAT = 8,
+        V128_LOAD32_SPLAT = 9,
+        V128_LOAD64_SPLAT = 10,
+        V128_STORE = 11,
+        V128_CONST = 12,
+        I8X16_SHUFFLE = 13,
+        I8X16_SWIZZLE = 14,
+        I8X16_SPLAT = 15,
+        I16X8_SPLAT = 16,
+        I32X4_SPLAT = 17,
+        I64X2_SPLAT = 18,
+        F32X4_SPLAT = 19,
+        F64X2_SPLAT = 20,
+
+        
+        I8X16_EXTRACT_LANE_S = 21,
+        I8X16_EXTRACT_LANE_U = 22,
+        I8X16_REPLACE_LANE = 23,
+        I16X8_EXTRACT_LANE_S = 24,
+        I16X8_EXTRACT_LANE_U = 25,
+        I16X8_REPLACE_LANE = 26,
+        I32X4_EXTRACT_LANE = 27,
+        I32X4_REPLACE_LANE = 28,
+        I64X2_EXTRACT_LANE = 29,
+        I64X2_REPLACE_LANE = 30,
+        F32X4_EXTRACT_LANE = 31,
+        F32X4_REPLACE_LANE = 32,
+        F64X2_EXTRACT_LANE = 33,
+        F64X2_REPLACE_LANE = 34,
+
+
+        
+        V128_LOAD8_LANE = 84,
+        V128_LOAD16_LANE = 85,
+        V128_LOAD32_LANE = 86,
+        V128_LOAD64_LANE = 87,
+        V128_STORE8_LANE = 88,
+        V128_STORE16_LANE = 89,
+        V128_STORE32_LANE = 90,
+        V128_STORE64_LANE = 91,
+
+        V128_LOAD32_ZERO = 92,
+        V128_LOAD64_ZERO = 93,
+        
+        
+        
+        F32X4_Add = 228,
+        F32X4_SUB = 229,
+        F32X4_MUL = 230,
+        F32X4_DIV = 231,
+        F32X4_MIN = 232,
+        F32X4_MAX = 233,
     }
 }

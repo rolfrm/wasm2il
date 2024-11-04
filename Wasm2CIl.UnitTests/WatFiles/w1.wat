@@ -10,6 +10,12 @@
         local.get $rhs
         f32x4.mul
       )
+      
+           (func $try_vec (result v128)
+              ;; Perform element-wise multiplication on the vectors
+              (v128.const i8x16 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16)
+            )
+      
   (func $incf (result i32)
      global.get $a
 	 i64.const 1
@@ -31,6 +37,7 @@
   (export "multiply_vec" (func $multiply_vec))
   (export "incf" (func $incf))
   (export "testLog" (func $testLog))
+  (export "try_vec" (func $try_vec))
 
   (global $a (mut i32) (i32.const 75600))
   (global $a2 (mut i32) (i32.const -64))

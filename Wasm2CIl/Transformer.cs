@@ -5,10 +5,12 @@ using System.Runtime.Intrinsics;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
+using Wasm;
 using Wasm2CIl.Utils;
 using AssemblyDefinition = Mono.Cecil.AssemblyDefinition;
 using FieldAttributes = Mono.Cecil.FieldAttributes;
 using FieldDefinition = Mono.Cecil.FieldDefinition;
+using Instruction = Mono.Cecil.Cil.Instruction;
 using MethodAttributes = Mono.Cecil.MethodAttributes;
 using MethodDefinition = Mono.Cecil.MethodDefinition;
 using TypeAttributes = Mono.Cecil.TypeAttributes;
@@ -18,6 +20,7 @@ using TypeReference = Mono.Cecil.TypeReference;
 namespace Wasm2Cil
 {
     using instr = Wasm.Instruction;
+    using instr2 = Wasm.ExtendedInstructions;
     using IlInstr = OpCodes;
 
     public class Transformer
@@ -285,7 +288,7 @@ namespace Wasm2Cil
             {
                 var table_index = reader.ReadU32Leb();
                 var instr2 = (instr) reader.ReadU8();
-                if (instr2 == instr.EXTENDED)
+                if (instr2 == instr.EXTENDED_2)
                 {
                     var ext2 = reader.ReadU8();
                     instr2 = (instr) (0xFD00 | ext2);
@@ -724,10 +727,7 @@ namespace Wasm2Cil
                 while (next > reader.Position)
                 {
                     var instr = (instr) reader.ReadU8();
-                    if (instr == instr.EXTENDED)
-                    {
-                        instr = (instr) (0xFD00 | reader.ReadU8());
-                    }
+                
                     TypeReference instrType()
                     {
                         var s = instr.ToString();
@@ -1580,25 +1580,53 @@ namespace Wasm2Cil
                                 new Type[] {typeof(float)});
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
                             break;
+                        case instr.EXTENDED_2:
+                            var instr2 = (ExtendedInstructions) reader.ReadU32Leb();
+                            switch (instr2)
+                            {
+                                case instr2.V128_CONST:
+                                {
+                                    void LoadV128ConstCode()
+                                    {
+                                        Span<byte> buffer = stackalloc byte[16]; 
+                                        reader.Read(buffer);
+                                        foreach (var elem in buffer)
+                                        {
+                                            il.Emit(IlInstr.Ldc_I4, (int)elem);
+                                            il.Emit(IlInstr.Conv_I1);
+                                        }
+                                        il.EmitCall(() => Lib.CreateVector128);
+                                    }
+
+                                    LoadV128ConstCode();
+
+                                }
+
+                                    break;
+                                case instr2.F32X4_Add:
+                                    il.EmitCall(() => Lib.MulF32);
+                                    break;
                         
-                        case instr.F32X4_Add:
-                            il.EmitCall(() => Lib.MulF32);
-                            break;
-                        
-                        case instr.F32X4_SUB:
-                            il.EmitCall(() => Lib.MulF32);
-                            break;
-                        case instr.F32X4_MUL:
-                            il.EmitCall(() => Lib.MulF32);
-                            break;
-                        case instr.F32X4_DIV:
-                            il.EmitCall(() => Lib.DivF32);
-                            break;
-                        case instr.F32X4_MIN:
-                            il.EmitCall(() => Lib.MinF32);
-                            break;
-                        case instr.F32X4_MAX:
-                            il.EmitCall(() => Lib.MaxF32);
+                                case instr2.F32X4_SUB:
+                                    il.EmitCall(() => Lib.MulF32);
+                                    break;
+                                case instr2.F32X4_MUL:
+                                    il.EmitCall(() => Lib.MulF32);
+                                    break;
+                                case instr2.F32X4_DIV:
+                                    il.EmitCall(() => Lib.DivF32);
+                                    break;
+                                case instr2.F32X4_MIN:
+                                    il.EmitCall(() => Lib.MinF32);
+                                    break;
+                                case instr2.F32X4_MAX:
+                                    il.EmitCall(() => Lib.MaxF32);
+                                    break;
+                                default:
+                                    throw new Exception("Unsupported exception!");
+                                
+                            }
+
                             break;
                         case instr.I64_TRUNC_F32_S:
                         case instr.I64_TRUNC_F32_U:
