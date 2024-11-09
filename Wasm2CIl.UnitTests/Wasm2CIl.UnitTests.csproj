@@ -2,6 +2,7 @@
 
     <PropertyGroup>
       <OutputType>Exe</OutputType>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <ItemGroup>
@@ -11,12 +12,15 @@
     <ItemGroup>
         <WatFile Include="WatFiles/w1.wat"/>
         <WatFile Include="WatFiles/w2.wat"/>
+        <None Include="sqlite3.wasm">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
     <Target Name="WatToWasm" BeforeTargets="Build"
             Inputs="%(WatFile.Identity)"
             Outputs="$(OutputPath)%(WatFile.Filename).wasm">
-        <Exec Command="wat2wasm %(WatFile.Identity) -o $(OutputPath)%(WatFile.Filename).wasm --enable-simd" />
+        <Exec Command="wat2wasm %(WatFile.Identity) -o $(OutputPath)%(WatFile.Filename).wasm" />
     </Target>
 
 </Project>

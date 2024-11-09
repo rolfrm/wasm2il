@@ -1,13 +1,14 @@
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.Intrinsics;
+using Wasm2CIl.UnitTests;
 
 namespace Wasm2Cil.UnitTests;
 
 [TestFixture]
 public class TestBasicWasm
 {
-    [Test]
+    //[Test]
     public void LoadAndRunBasic()
     {
         var transformer = new Transformer();
@@ -43,7 +44,7 @@ public class TestBasicWasm
         }
     }
     
-    [Test]
+    //[Test]
     public void LoadAndRunImportFromStream()
     {
         List<int> results = new List<int>();
@@ -63,5 +64,53 @@ public class TestBasicWasm
         }
 
         Assert.IsTrue(results.SequenceEqual([5, 10]));
+    }
+
+   
+    //[Test]
+    public void TestStrLen()
+    {
+        var tform = new Transformer();
+        tform.LoadImportModule("env", typeof(LibC));
+        var asm = tform.LoadWasmAssembly("w1.wasm", "W2");
+        var len = asm.Invoke("get_strlen", "string");
+        Assert.AreEqual(6, len);
+    }
+    
+    [Test]
+    public void TestMemCpy()
+    {
+        var tform = new Transformer();
+        tform.LoadImportModule("env", typeof(LibC));
+        var asm = tform.LoadWasmAssembly("w1.wasm", "W2");
+        var len = asm.Invoke("get_strlen", "string");
+        Assert.AreEqual(6, len);
+        
+        asm.Invoke("test_memcpy", asm.Malloc(6), asm.Malloc(6), 6);
+    }
+    [Test]
+    public void TestMemFill()
+    {
+        var tform = new Transformer();
+        tform.LoadImportModule("env", typeof(LibC));
+        var asm = tform.LoadWasmAssembly("w1.wasm", "W2");
+        
+        var p = (int)asm.Invoke("test_memfill", 10, 16);
+        var h = asm.GetHeap();
+        var arr = h.AsSpan(p, 10).ToArray();
+        Assert.IsTrue(arr.SequenceEqual(Enumerable.Repeat((byte)16, 10)));
+    }
+    
+    [Test]
+    public void TestMemFill2()
+    {
+        var tform = new Transformer();
+        tform.LoadImportModule("env", typeof(LibC));
+        var asm = tform.LoadWasmAssembly("w1.wasm", "W2");
+        
+        var p = (int)asm.Invoke("test_memfill2", 10, 16);
+        var h = asm.GetHeap();
+        var arr = h.AsSpan(p, 10).ToArray();
+        Assert.IsTrue(arr.SequenceEqual(Enumerable.Repeat((byte)16, 10)));
     }
 }

@@ -5,4 +5,8 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
+
+    <ItemGroup>
+      <ClCompile Include="sqlite_pre.c" />
+    </ItemGroup>
 </Project>

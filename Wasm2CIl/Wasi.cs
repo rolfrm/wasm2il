@@ -283,7 +283,7 @@ public class Wasi
     {
         throw new NotImplementedException("");
     }
-    public static int environ_get(int a, int b, Context context)
+    public static int environ_get(CString a, int b)
     {
         //throw new NotImplementedException("");
         return 0;
@@ -315,9 +315,10 @@ public class Wasi
         return 0;
     }
     
-    public static int environ_sizes_get(int P_0, int P_1, Context context)
+    public unsafe static int environ_sizes_get(int * count, int P_1)
     {
         //throw new NotImplementedException("Not Implemented");
+        count[0] = 0;
         return 0;
     }
 
@@ -471,11 +472,11 @@ public class Wasi
     {
         throw new NotImplementedException("Not Implemented");
     }
-    public static int fd_prestat_get(int P_0, int P_1, Context context)
+    public static int fd_prestat_get(int fd, int P_1)
     {
-        throw new NotImplementedException("Not Implemented");
+        return 0;//throw new NotImplementedException("Not Implemented");
     }
-    public static int fd_prestat_dir_name(int P_0, int P_1, int P_2, Context context)
+    public static int fd_prestat_dir_name(int fd, CString path, int pathLen)
     {
         throw new NotImplementedException("Not Implemented");
     }

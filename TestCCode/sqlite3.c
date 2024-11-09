@@ -1,3 +1,4 @@
+#include "sqlite_pre.c"
 /******************************************************************************
 ** This file is an amalgamation of many separate C source files from SQLite
 ** version 3.37.0.  By combining all the individual C code files into this
@@ -378,7 +379,8 @@ extern "C" {
 # define SQLITE_EXTERN extern
 #endif
 #ifndef SQLITE_API
-# define SQLITE_API
+# define SQLITE_API __attribute__((visibility("default")))\
+__attribute__((used))
 #endif
 #ifndef SQLITE_CDECL
 # define SQLITE_CDECL
@@ -656,6 +658,7 @@ typedef sqlite_uint64 sqlite3_uint64;
 ** ^Calling sqlite3_close() or sqlite3_close_v2() with a NULL pointer
 ** argument is a harmless no-op.
 */
+
 SQLITE_API int sqlite3_close(sqlite3*);
 SQLITE_API int sqlite3_close_v2(sqlite3*);
 

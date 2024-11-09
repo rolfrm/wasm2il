@@ -184,13 +184,34 @@ namespace Wasm
         REF_NULL = 0xD0,
         REF_IS_NULL = 0xD1,
         REF_FUNC = 0xD2,
-        EXTENDED_1 = 0xFC,
-        EXTENDED_2 = 0xFD,
-        
-
+        EXTENDED_INSTRUCTION = 0xFC,
+        VECTOR_INSTRUCTION = 0xFD,
     }
 
-    public enum ExtendedInstructions
+    public enum ExtendedInstruction
+    {
+        I32_TRUNC_SAT_F32_S = 0,
+        I32_TRUNC_SAT_F32_U = 1,
+        I32_TRUNC_SAT_F64_S = 2,
+        I32_TRUNC_SAT_F64_U = 3,
+        I64_TRUNC_SAT_F32_S = 4,
+        I64_TRUNC_SAT_F32_U = 5,
+        I64_TRUNC_SAT_F64_S = 6,
+        I64_TRUNC_SAT_F64_U = 7,
+        MEMORY_INIT = 8,
+        DATA_DROP = 9,
+        MEMORY_COPY = 10,
+        MEMORY_FILL = 11,
+        TABLE_INIT = 12,
+        ELEM_DROP = 13,
+        TABLE_COPY = 14,
+        TABLE_GROW = 15,
+        TABLE_SIZE = 16,
+        TABLE_FILL = 17,
+    }
+        
+
+    public enum VectorInstructions
     {
         V128_LOAD = 0,
         V128_LOAD8X8_S = 1,
