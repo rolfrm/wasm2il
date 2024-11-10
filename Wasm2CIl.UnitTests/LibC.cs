@@ -1,4 +1,7 @@
+using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Wasm2Cil.UnitTests;
 
@@ -24,14 +27,528 @@ public class LibC
         for (int i = 0; i < c; i++)
             d[i] = (byte)value;
     }
-    
-    
-    public unsafe static void TestThing()
+
+    class ModuleContext 
     {
-        byte[] memory = { 10, 20, 30, 40, 50, 60, 70, 80 }; // Example array
-        fixed (byte* ptr = memory)
+        private readonly Type _ctx;
+        
+        private readonly MethodInfo malloc;
+        private readonly MethodInfo free;
+        private readonly FieldInfo memory;
+        public Type Ctx => _ctx;
+        public int ErrnoLocation { get; }
+        public Span<int> ErrorNo => MemoryMarshal.Cast<byte, int>(GetSpan(ErrnoLocation, 4));
+
+        public  ModuleContext(Type ctx)
         {
-            memcpy(ptr + 5, ptr, 5);
+            _ctx = ctx;
+            
+            malloc = ctx.GetMethod("malloc");
+            free = ctx.GetMethod("free");
+            memory = ctx.GetField("Memory");
+            ErrnoLocation = Malloc(4);
+        }
+        
+        private Dictionary<string, int> interned = new();
+        public int InternString(string str)
+        {
+            if (interned.TryGetValue(str, out var p))
+                return p;
+            var c = System.Text.Encoding.UTF8.GetByteCount(str);
+            p = Malloc(c + 1);
+                
+            var writeSpan = GetSpan(p, c + 1);
+            System.Text.Encoding.UTF8.GetBytes(str, writeSpan);
+            writeSpan[c] = 0;
+            interned[str] = p;
+            return p;
+        }
+
+        public int Malloc(int count) => (int)malloc.Invoke(null, new object[]{count});
+
+        public Span<byte> GetSpan(int p, int length) => ((byte[]) memory.GetValue(null)).AsSpan(p, length);
+
+        public byte[] GetHeap() => (byte[]) memory.GetValue(null);
+        public void SetHeap(byte[] setHeap) => memory.SetValue(null, setHeap);
+
+
+    }
+
+    private static Dictionary<Type, ModuleContext> modCtx = new(); 
+
+    static ModuleContext GetModuleContext(Type module)
+    {
+        if (!modCtx.TryGetValue(module, out var ctx))
+        {
+            ctx = new ModuleContext(module);
+            modCtx[module] = ctx;
+        }
+
+        return ctx;
+    }
+
+    private static Dictionary<Type, Dictionary<string, int>>
+        envLookup = new Dictionary<Type, Dictionary<string, int>>();
+    public static int getenv(HeapContext heapCtx, CString name)
+    {
+        var ctx = GetModuleContext(heapCtx.Module);
+        var name2 = name.ToString();
+        if (!envLookup.TryGetValue(heapCtx.Module, out var lookup))
+        {
+            envLookup[heapCtx.Module] = lookup = new();
+        }
+
+        if (!lookup.TryGetValue(name2, out var p))
+        {
+            
+            var env = Environment.GetEnvironmentVariable(name2);
+
+            if (env != null)
+            {
+                var c = System.Text.Encoding.UTF8.GetByteCount(env);
+                p = ctx.Malloc(c + 1);
+                
+                var writeSpan = ctx.GetSpan(p, c + 1);
+                System.Text.Encoding.UTF8.GetBytes(env, writeSpan);
+                writeSpan[c] = 0;
+            }
+            else
+            {
+                p = 0;
+            }
+            lookup[name2] = p;
+            
+        }
+        
+        return p;
+    }
+
+    public static long sysconf(SysConf name)
+    {
+        switch (name)
+        {
+            case SysConf.SC_PAGE_SIZE:
+                return 1 << 16;
+            default:
+                throw new NotImplementedException("");
+        }
+        return 0;
+    }
+
+    
+    public static unsafe int lstat(HeapContext heapCtx, CString pathname, Stat* statbuf)
+    {
+        var ctx = GetModuleContext(heapCtx.Module);
+        var path = pathname.ToString();
+        if (File.Exists(path))
+        {
+            ctx.ErrorNo[0] = 0;
+            return 0;
+        }
+        else
+        {
+            ctx.ErrorNo[0] = (int)Errno.ENOENT;
+            return -1;
+        }
+        
+    }
+
+    public static int __errno_location(HeapContext heapCtx)
+    {
+        return GetModuleContext(heapCtx.Module).ErrnoLocation;
+    }
+
+    public static int strerror(HeapContext heapCtx, int err)
+    {
+        return GetModuleContext(heapCtx.Module).InternString("no error");
+    } 
+
+
+    public static int getcwd(HeapContext ctx, int buf, uint size)
+    {
+        var strBuf = GetModuleContext(ctx.Module).GetSpan(buf, (int)size);
+        var e = System.Text.Encoding.UTF8.GetBytes(Directory.GetCurrentDirectory(), strBuf);
+        strBuf[e] = 0;
+        return buf;
+    }
+
+    public static int getpid()
+    {
+        return Process.GetCurrentProcess().Id;
+    }
+
+    private static  int _fd = 100;
+    private static Dictionary<int, FileStream> files = new Dictionary<int, FileStream>();
+    public static int open(HeapContext ctx, CString path, OpenFlags flags, OpenMode mode)
+    {
+        var x = GetModuleContext(ctx.Module);
+        var f = new FileStream(path.ToString(), FileMode.Create);
+        var fd = _fd++;
+        files[fd] = f;
+        return fd;
+    }
+
+    public static unsafe int fstat(int fd, Stat* stat)
+    {
+        stat[0].st_size = (int)files[fd].Length;
+
+        return 0;
+    }
+
+    public static int lseek(int fd, int offset, SeekOrigin whence)
+    {
+        var f = files[fd];
+        return (int)f.Seek(offset, whence switch 
+        {
+            SeekOrigin.SeekCur => System.IO.SeekOrigin.Current,
+            SeekOrigin.SeekEnd => System.IO.SeekOrigin.End,
+            SeekOrigin.SeekSet => System.IO.SeekOrigin.Begin,
+
+            _ => throw new ArgumentOutOfRangeException(nameof(whence), whence, null)
+        });
+    }
+
+    public static int read(HeapContext ctx, int fd, int p, int c)
+    {
+        
+        var x = GetModuleContext(ctx.Module).GetSpan(p, c);
+        return (int) files[fd].Read(x);
+    } 
+    
+    public static int sbrk(HeapContext _ctx, int increment)
+    {
+        var x = GetModuleContext(_ctx.Module);
+        if (increment == 0)
+        {
+            // Return the current heap size (simulated program break)
+            return x.GetHeap().Length;
+        }
+
+        if (increment > 0)
+        {
+            var h = x.GetHeap();
+            var lp = h.Length;
+            int newSize = h.Length + increment;
+            Array.Resize(ref h, newSize);
+            x.SetHeap(h);
+            return lp;
+        }
+        else
+        {
+            // Shrinking the heap (not commonly supported in traditional sbrk)
+            var h = x.GetHeap();
+
+            int newSize = Math.Max(0, h.Length + increment); // Prevent shrinking below 0
+            Array.Resize(ref h, newSize);
+            x.SetHeap(h);
+            return newSize;
         }
     }
+}
+
+public enum SysConf : int
+{
+    SC_ARG_MAX = 0,
+    SC_CHILD_MAX = 1,
+    SC_CLK_TCK = 2,
+    SC_NGROUPS_MAX = 3,
+    SC_OPEN_MAX = 4,
+    SC_STREAM_MAX = 5,
+    SC_TZNAME_MAX = 6,
+    SC_JOB_CONTROL = 7,
+    SC_SAVED_IDS = 8,
+    SC_REALTIME_SIGNALS = 9,
+    SC_PRIORITY_SCHEDULING = 10,
+    SC_TIMERS = 11,
+    SC_ASYNCHRONOUS_IO = 12,
+    SC_PRIORITIZED_IO = 13,
+    SC_SYNCHRONIZED_IO = 14,
+    SC_FSYNC = 15,
+    SC_MAPPED_FILES = 16,
+    SC_MEMLOCK = 17,
+    SC_MEMLOCK_RANGE = 18,
+    SC_MEMORY_PROTECTION = 19,
+    SC_MESSAGE_PASSING = 20,
+    SC_SEMAPHORES = 21,
+    SC_SHARED_MEMORY_OBJECTS = 22,
+    SC_AIO_LISTIO_MAX = 23,
+    SC_AIO_MAX = 24,
+    SC_AIO_PRIO_DELTA_MAX = 25,
+    SC_DELAYTIMER_MAX = 26,
+    SC_MQ_OPEN_MAX = 27,
+    SC_MQ_PRIO_MAX = 28,
+    SC_VERSION = 29,
+    SC_PAGE_SIZE = 30,
+    SC_PAGESIZE = 30, // Duplicate entry for aliasing
+    SC_RTSIG_MAX = 31,
+    SC_SEM_NSEMS_MAX = 32,
+    SC_SEM_VALUE_MAX = 33,
+    SC_SIGQUEUE_MAX = 34,
+    SC_TIMER_MAX = 35,
+    SC_BC_BASE_MAX = 36,
+    SC_BC_DIM_MAX = 37,
+    SC_BC_SCALE_MAX = 38,
+    SC_BC_STRING_MAX = 39,
+    SC_COLL_WEIGHTS_MAX = 40,
+    SC_EXPR_NEST_MAX = 42,
+    SC_LINE_MAX = 43,
+    SC_RE_DUP_MAX = 44,
+    SC_2_VERSION = 46,
+    SC_2_C_BIND = 47,
+    SC_2_C_DEV = 48,
+    SC_2_FORT_DEV = 49,
+    SC_2_FORT_RUN = 50,
+    SC_2_SW_DEV = 51,
+    SC_2_LOCALEDEF = 52,
+    SC_UIO_MAXIOV = 60,
+    SC_IOV_MAX = 60, // Duplicate entry for aliasing
+    SC_THREADS = 67,
+    SC_THREAD_SAFE_FUNCTIONS = 68,
+    SC_GETGR_R_SIZE_MAX = 69,
+    SC_GETPW_R_SIZE_MAX = 70,
+    SC_LOGIN_NAME_MAX = 71,
+    SC_TTY_NAME_MAX = 72,
+    SC_THREAD_DESTRUCTOR_ITERATIONS = 73,
+    SC_THREAD_KEYS_MAX = 74,
+    SC_THREAD_STACK_MIN = 75,
+    SC_THREAD_THREADS_MAX = 76,
+    SC_THREAD_ATTR_STACKADDR = 77,
+    SC_THREAD_ATTR_STACKSIZE = 78,
+    SC_THREAD_PRIORITY_SCHEDULING = 79,
+    SC_THREAD_PRIO_INHERIT = 80,
+    SC_THREAD_PRIO_PROTECT = 81,
+    SC_THREAD_PROCESS_SHARED = 82,
+    SC_NPROCESSORS_CONF = 83,
+    SC_NPROCESSORS_ONLN = 84,
+    SC_PHYS_PAGES = 85,
+    SC_AVPHYS_PAGES = 86,
+    SC_ATEXIT_MAX = 87,
+    SC_PASS_MAX = 88,
+    SC_XOPEN_VERSION = 89,
+    SC_XOPEN_XCU_VERSION = 90,
+}
+
+public enum Errno :int
+{
+    EPERM = 1,
+    ENOENT = 2,
+    ESRCH = 3,
+    EINTR = 4,
+    EIO = 5,
+    ENXIO = 6,
+    E2BIG = 7,
+    ENOEXEC = 8,
+    EBADF = 9,
+    ECHILD = 10,
+    EAGAIN = 11,
+    ENOMEM = 12,
+    EACCES = 13,
+    EFAULT = 14,
+    ENOTBLK = 15,
+    EBUSY = 16,
+    EEXIST = 17,
+    EXDEV = 18,
+    ENODEV = 19,
+    ENOTDIR = 20,
+    EISDIR = 21,
+    EINVAL = 22,
+    ENFILE = 23,
+    EMFILE = 24,
+    ENOTTY = 25,
+    ETXTBSY = 26,
+    EFBIG = 27,
+    ENOSPC = 28,
+    ESPIPE = 29,
+    EROFS = 30,
+    EMLINK = 31,
+    EPIPE = 32,
+    EDOM = 33,
+    ERANGE = 34,
+    EDEADLK = 35,
+    ENAMETOOLONG = 36,
+    ENOLCK = 37,
+    ENOSYS = 38,
+    ENOTEMPTY = 39,
+    ELOOP = 40,
+    EWOULDBLOCK = 11, // Same as EAGAIN
+    ENOMSG = 42,
+    EIDRM = 43,
+    ECHRNG = 44,
+    EL2NSYNC = 45,
+    EL3HLT = 46,
+    EL3RST = 47,
+    ELNRNG = 48,
+    EUNATCH = 49,
+    ENOCSI = 50,
+    EL2HLT = 51,
+    EBADE = 52,
+    EBADR = 53,
+    EXFULL = 54,
+    ENOANO = 55,
+    EBADRQC = 56,
+    EBADSLT = 57,
+    EDEADLOCK = 35, // Same as EDEADLK
+    EBFONT = 59,
+    ENOSTR = 60,
+    ENODATA = 61,
+    ETIME = 62,
+    ENOSR = 63,
+    ENONET = 64,
+    ENOPKG = 65,
+    EREMOTE = 66,
+    ENOLINK = 67,
+    EADV = 68,
+    ESRMNT = 69,
+    ECOMM = 70,
+    EPROTO = 71,
+    EMULTIHOP = 72,
+    EDOTDOT = 73,
+    EBADMSG = 74,
+    EOVERFLOW = 75,
+    ENOTUNIQ = 76,
+    EBADFD = 77,
+    EREMCHG = 78,
+    ELIBACC = 79,
+    ELIBBAD = 80,
+    ELIBSCN = 81,
+    ELIBMAX = 82,
+    ELIBEXEC = 83,
+    EILSEQ = 84,
+    ERESTART = 85,
+    ESTRPIPE = 86,
+    EUSERS = 87,
+    ENOTSOCK = 88,
+    EDESTADDRREQ = 89,
+    EMSGSIZE = 90,
+    EPROTOTYPE = 91,
+    ENOPROTOOPT = 92,
+    EPROTONOSUPPORT = 93,
+    ESOCKTNOSUPPORT = 94,
+    EOPNOTSUPP = 95,
+    ENOTSUP = 95, // Same as EOPNOTSUPP
+    EPFNOSUPPORT = 96,
+    EAFNOSUPPORT = 97,
+    EADDRINUSE = 98,
+    EADDRNOTAVAIL = 99,
+    ENETDOWN = 100,
+    ENETUNREACH = 101,
+    ENETRESET = 102,
+    ECONNABORTED = 103,
+    ECONNRESET = 104,
+    ENOBUFS = 105,
+    EISCONN = 106,
+    ENOTCONN = 107,
+    ESHUTDOWN = 108,
+    ETOOMANYREFS = 109,
+    ETIMEDOUT = 110,
+    ECONNREFUSED = 111,
+    EHOSTDOWN = 112,
+    EHOSTUNREACH = 113,
+    EALREADY = 114,
+    EINPROGRESS = 115,
+    ESTALE = 116,
+    EUCLEAN = 117,
+    ENOTNAM = 118,
+    ENAVAIL = 119,
+    EISNAM = 120,
+    EREMOTEIO = 121,
+    EDQUOT = 122,
+    ENOMEDIUM = 123,
+    EMEDIUMTYPE = 124,
+    ECANCELED = 125,
+    ENOKEY = 126,
+    EKEYEXPIRED = 127,
+    EKEYREVOKED = 128,
+    EKEYREJECTED = 129,
+    EOWNERDEAD = 130,
+    ENOTRECOVERABLE = 131,
+    ERFKILL = 132,
+    EHWPOISON = 133
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct Stat
+{
+    public uint st_dev;      // Device ID (32-bit)
+    public uint st_ino;      // Inode number (32-bit)
+    public ushort st_mode;   // File mode (permissions and type)
+    public ushort st_nlink;  // Number of hard links (16-bit)
+    public uint st_uid;      // User ID of the owner (32-bit)
+    public uint st_gid;      // Group ID of the owner (32-bit)
+    public uint st_rdev;     // Device ID for special files (32-bit)
+    public int st_size;      // Total size, in bytes (32-bit)
+    public int st_blksize;   // Block size for filesystem I/O (32-bit)
+    public int st_blocks;    // Number of 512B blocks allocated (32-bit)
+
+    // Timestamps (seconds since epoch)
+    public int st_atime;     // Last access time (32-bit)
+    public int st_atime_nsec; // Nanoseconds part (32-bit)
+    public int st_mtime;     // Last modification time (32-bit)
+    public int st_mtime_nsec; // Nanoseconds part (32-bit)
+    public int st_ctime;     // Last status change time (32-bit)
+    public int st_ctime_nsec; // Nanoseconds part (32-bit)
+}
+
+[Flags]
+public enum OpenFlags : int
+{
+    // File access modes
+    O_RDONLY = 0x0000,  // Open for reading only
+    O_WRONLY = 0x0001,  // Open for writing only
+    O_RDWR   = 0x0002,  // Open for reading and writing
+
+    // File creation flags
+    O_CREAT  = 0x0040,  // Create file if it does not exist
+    O_EXCL   = 0x0080,  // Ensure that file is created (fails if exists)
+    O_TRUNC  = 0x0100,  // Truncate file to zero length if it exists
+    O_APPEND = 0x0200,  // Open file in append mode
+
+    // File behavior flags
+    O_NONBLOCK = 0x0400, // Non-blocking mode
+    O_SYNC     = 0x0800, // Synchronized I/O
+    O_DIRECTORY = 0x1000, // File must be a directory (otherwise error)
+
+    // Mask to isolate file access modes
+    O_ACCMODE = O_RDONLY | O_WRONLY | O_RDWR
+}
+
+[Flags]
+public enum OpenMode : int
+{
+    // User permissions
+    S_IRUSR = 0x0100,  // Read permission for owner
+    S_IWUSR = 0x0080,  // Write permission for owner
+    S_IXUSR = 0x0040,  // Execute/search permission for owner
+
+    // Group permissions
+    S_IRGRP = 0x0020,  // Read permission for group
+    S_IWGRP = 0x0010,  // Write permission for group
+    S_IXGRP = 0x0008,  // Execute/search permission for group
+
+    // Other (world) permissions
+    S_IROTH = 0x0004,  // Read permission for others
+    S_IWOTH = 0x0002,  // Write permission for others
+    S_IXOTH = 0x0001,  // Execute/search permission for others
+
+    // Special modes
+    S_ISUID = 0x0800,  // Set-user-ID on execution
+    S_ISGID = 0x0400,  // Set-group-ID on execution
+    S_ISVTX = 0x0200,  // Save swapped text after use (sticky bit)
+
+    // Full permissions (read, write, execute for all)
+    S_IRWXU = S_IRUSR | S_IWUSR | S_IXUSR,  // User permissions
+    S_IRWXG = S_IRGRP | S_IWGRP | S_IXGRP,  // Group permissions
+    S_IRWXO = S_IROTH | S_IWOTH | S_IXOTH   // Others permissions
+}
+
+public enum SeekOrigin : int
+{
+    // Set the offset to an absolute position from the beginning of the file
+    SeekSet = 0,  // SEEK_SET
+
+    // Set the offset relative to the current position in the file
+    SeekCur = 1,  // SEEK_CUR
+
+    // Set the offset relative to the end of the file
+    SeekEnd = 2   // SEEK_END
 }

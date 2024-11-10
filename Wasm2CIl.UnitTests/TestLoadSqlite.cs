@@ -11,7 +11,6 @@ public class TestLoadSqlite
     public void LoadAndRunSqlite()
     {
         var transformer = new Transformer();
-        transformer.LoadImportModule("wasi_snapshot_preview1", typeof(Wasi));
         
         transformer.LoadImportModule("env", typeof(LibC));
         var asm = transformer.LoadWasmAssembly("sqlite3.wasm", "Sqlite");

@@ -25,6 +25,17 @@ namespace Wasm2Cil
     using instr = Wasm.Instruction;
     using IlInstr = OpCodes;
 
+    public struct HeapContext
+    {
+        public Type Module { get; private set; }
+
+        public static HeapContext Create(RuntimeTypeHandle module)
+        {
+            return new HeapContext{Module = Type.GetTypeFromHandle(module)};
+        }
+
+
+    }
     public class Transformer
     {
         private Dictionary<string, List<Type>> importModules = new Dictionary<string, List<Type>>();
@@ -94,7 +105,7 @@ namespace Wasm2Cil
                 TypeAttributes.AnsiClass | TypeAttributes.BeforeFieldInit | TypeAttributes.Class |
                 TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.Public,
                 asm.MainModule.TypeSystem.Object);
-
+            
             asm.MainModule.Types.Add(cls);
             def = asm;
 
@@ -340,9 +351,20 @@ namespace Wasm2Cil
                         var t = Types[(uint)imp.TypeId];
                         if (imp.Method == null)
                         {
+                            if (importModules.TryGetValue(imp.Module, out var imports))
+                            {
+                                var reference = def.MainModule.ImportReference(imports.GetMethod(imp.Name));
+                                reference = MaybeWrap(reference);
+                                imp.Method = reference;
+                            }
+                            
+                        }
+
+                        if (imp.Method == null)
+                        {
                             throw new InvalidOperationException("!");
                         }
-                        else
+                        
                         {
                             il.Emit(OpCodes.Ldftn, imp.Method);
                             var ftype = typeToFunc(t);
@@ -800,8 +822,7 @@ namespace Wasm2Cil
                             break;
                         case instr.CALL_INDIRECT:
                             var typeidx = reader.ReadU32Leb();
-                            var table = reader.ReadU8();
-                            Assert.AreEqual(0, table);
+                            var table = reader.ReadU32Leb();
                             var ftp = Types[typeidx];
                             // function ID is top of the stack.
                             // store id
@@ -1709,7 +1730,9 @@ namespace Wasm2Cil
             fcn2 = fcn;
             foreach (var param in fcn.Parameters)
             {
-                if (param.ParameterType.Name == "CString" || param.ParameterType.IsPointer)
+                if (param.ParameterType.Name == "CString" 
+                    || param.ParameterType.IsPointer
+                    || param.ParameterType.Name == "HeapContext")
                 {
                     fcn2 = WrapMethod(fcn2);
                     break;
@@ -1731,9 +1754,17 @@ namespace Wasm2Cil
             foreach (var p in m.Parameters)
             {
                 var p2 = new ParameterDefinition(p.Name, p.Attributes,  p.ParameterType);
-                
                 m2.Parameters.Add(p2);
-                if (p.ParameterType.Name == "CString")
+                if (p.ParameterType.Name == "HeapContext")
+                {
+                    p2.ParameterType = def.MainModule.ImportReference(typeof(Type));
+                    il2.Emit(OpCodes.Ldtoken, cls);
+                    il2.EmitCall(() => HeapContext.Create);
+                    argidx--;
+                    m2.Parameters.Remove(p2);
+
+                }
+                else if (p.ParameterType.Name == "CString")
                 {
                     p2.ParameterType = i32Type;
                     
