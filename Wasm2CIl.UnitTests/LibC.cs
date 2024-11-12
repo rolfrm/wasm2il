@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Wasm2Cil.UnitTests;
@@ -138,19 +137,7 @@ public class LibC
     
     public static unsafe int lstat(HeapContext heapCtx, CString pathname, Stat* statbuf)
     {
-        var ctx = GetModuleContext(heapCtx.Module);
-        var path = pathname.ToString();
-        if (File.Exists(path))
-        {
-            ctx.ErrorNo[0] = 0;
-            return 0;
-        }
-        else
-        {
-            ctx.ErrorNo[0] = (int)Errno.ENOENT;
-            return -1;
-        }
-        
+        return stat(heapCtx, pathname, statbuf);
     }
 
     public static int __errno_location(HeapContext heapCtx)
@@ -177,28 +164,76 @@ public class LibC
         return Process.GetCurrentProcess().Id;
     }
 
-    private static  int _fd = 100;
-    private static Dictionary<int, FileStream> files = new Dictionary<int, FileStream>();
+    private static  int _fd = 990;
+    public static Dictionary<int, FileStream> files = new ();
+    private static Dictionary<int, string> directories = new();
     public static int open(HeapContext ctx, CString path, OpenFlags flags, OpenMode mode)
     {
-        var x = GetModuleContext(ctx.Module);
-        var f = new FileStream(path.ToString(), FileMode.Create);
-        var fd = _fd++;
-        files[fd] = f;
-        return fd;
+        var p = path.ToString();
+        if (Directory.Exists(p))
+        {
+            var fd = _fd++;
+            directories[fd] = p;
+            return fd;    
+        }
+        else
+        {
+            var f = new FileStream(path.ToString(), FileMode.OpenOrCreate);
+            var fd = _fd++;
+            files[fd] = f;
+            return fd;
+        }
     }
 
-    public static unsafe int fstat(int fd, Stat* stat)
+    public static unsafe int fstat(HeapContext ctx, int fd, Stat* stat)
     {
-        stat[0].st_size = (int)files[fd].Length;
+        GetModuleContext(ctx.Module).ErrorNo[0] = 0;
+        var finfo = new FileInfo(files[fd].Name);
+        var r = _stat(finfo, stat, (ulong)files[fd].Length);
+            
+        return r;
+    }
 
+    static unsafe int _stat(FileInfo finfo, Stat* stat, ulong? length)
+    {
+        stat[0].st_size = length ?? ((ulong)finfo.Length);
+        stat[0].st_blksize = 4096;
+        stat[0].st_blocks = (int)Math.Ceiling((double)stat[0].st_size / 4096);
+        stat[0].st_ino = (uint)(files.FirstOrDefault(f => f.Value.Name == finfo.Name).Key) + 1000;
+        // 0x8000 regular file
+        // 0x1a4: -rw-r--r--
+        stat[0].st_mode = 0x8000 | 0x1a4; 
+        stat[0].st_dev = 1;
+        stat[0].st_rdev = 1;
+        stat[0].st_uid = 1;
+        stat[0].st_gid = 2;
+        stat[0].st_nlink = 0;
+        
+        stat[0].st_atim = Timespec.ConvertDateTimeToTimespec(finfo.LastAccessTime);
+        stat[0].st_mtim = Timespec.ConvertDateTimeToTimespec(finfo.LastWriteTime);
+        stat[0].st_ctim = Timespec.ConvertDateTimeToTimespec(finfo.LastWriteTime);
         return 0;
+    }
+    
+    
+    public static unsafe int stat(HeapContext ctx, CString path, Stat* stat)
+    {
+        var finfo = new FileInfo(path.ToString());
+        var x = GetModuleContext(ctx.Module);
+        x.ErrorNo[0] = 0;
+        if (!finfo.Exists)
+        {
+            x.ErrorNo[0] = (int)Errno.ENOENT;
+            return -1;
+        }
+
+        return _stat(finfo, stat, null);
     }
 
     public static int lseek(int fd, int offset, SeekOrigin whence)
     {
         var f = files[fd];
-        return (int)f.Seek(offset, whence switch 
+        var newoffset = (int)f.Seek(offset, whence switch 
         {
             SeekOrigin.SeekCur => System.IO.SeekOrigin.Current,
             SeekOrigin.SeekEnd => System.IO.SeekOrigin.End,
@@ -206,13 +241,23 @@ public class LibC
 
             _ => throw new ArgumentOutOfRangeException(nameof(whence), whence, null)
         });
+        return newoffset;
     }
 
-    public static int read(HeapContext ctx, int fd, int p, int c)
+    public static unsafe int read(int fd, byte * buffer, int count)
     {
-        
-        var x = GetModuleContext(ctx.Module).GetSpan(p, c);
-        return (int) files[fd].Read(x);
+        var str = files[fd];
+        var bufferSpan = new Span<byte>(buffer, count);
+        int readBytes = str.Read(bufferSpan);
+        return readBytes;
+    } 
+    
+    public static unsafe int write(int fd, byte * buffer, int count)
+    {
+        var str = files[fd];
+        var bufferSpan = new Span<byte>(buffer, count);
+        str.Write(bufferSpan);
+        return count;
     } 
     
     public static int sbrk(HeapContext _ctx, int increment)
@@ -233,17 +278,74 @@ public class LibC
             x.SetHeap(h);
             return lp;
         }
+        return x.GetHeap().Length;
+    }
+
+    public static unsafe int fcntl(int fd, FcntlCommand cmd2, int * commandsPtr)
+    {
+        if (cmd2 == FcntlCommand.F_SETLK)
+        {
+            // Just ignore set lock.
+        }
         else
         {
-            // Shrinking the heap (not commonly supported in traditional sbrk)
-            var h = x.GetHeap();
-
-            int newSize = Math.Max(0, h.Length + increment); // Prevent shrinking below 0
-            Array.Resize(ref h, newSize);
-            x.SetHeap(h);
-            return newSize;
+            throw new NotImplementedException("");
         }
+        return 0;
     }
+
+    public static int fsync(int fd)
+    {
+        if(files.TryGetValue(fd, out var f))
+            f.Flush();
+        return 0;
+    }
+
+    public static int close(int fd)
+    {
+        if (directories.TryGetValue(fd, out var _))
+        {
+            directories.Remove(fd);
+            return 0;
+        }
+        files[fd].Close();
+        files.Remove(fd);
+        return 0;
+    }
+
+    public static int unlink(CString path)
+    {
+        File.Delete(path.ToString());
+        return 0;
+    }
+
+    public static int fchmod(int fd, FilePermissions mode)
+    {
+        return 0;
+    }
+}
+
+[Flags]
+public enum FilePermissions
+{
+    S_ISUID = 0b_100_000_000_000, 
+    S_ISGID = 0b_010_000_000_000,
+    S_ISVTX = 0b_001_000_000_000,
+
+    S_IRUSR = 0b_000_100_000_000,
+    S_IWUSR = 0b_000_010_000_000,
+    S_IXUSR = 0b_000_001_000_000,
+    S_IRWXU = 0b_000_111_000_000, 
+
+    S_IRGRP = 0b_000_000_100_000,
+    S_IWGRP = 0b_000_000_010_000,
+    S_IXGRP = 0b_000_000_001_000,
+    S_IRWXG = 0b_000_000_111_000,
+
+    S_IROTH = 0b_000_000_000_100,
+    S_IWOTH = 0b_000_000_000_010,
+    S_IXOTH = 0b_000_000_000_001,
+    S_IRWXO = 0b_000_000_000_111
 }
 
 public enum SysConf : int
@@ -466,29 +568,83 @@ public enum Errno :int
     EHWPOISON = 133
 }
 
+
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
+public struct Timespec
+{
+    public int tv_sec;   // long (32-bit)
+    public int tv_nsec;  // long (32-bit)
+    
+    public static Timespec ConvertDateTimeToTimespec(DateTime dateTime)
+    {
+        // Get seconds since Unix epoch (January 1, 1970)
+        int seconds = (int)(dateTime.Subtract(new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds);
+        // Get nanoseconds
+        int nanoseconds = dateTime.Millisecond * 1_000_000;
+
+        return new Timespec
+        {
+            tv_sec = seconds,
+            tv_nsec = nanoseconds
+        };
+    }
+}
+
 [StructLayout(LayoutKind.Sequential)]
 public struct Stat
 {
-    public uint st_dev;      // Device ID (32-bit)
-    public uint st_ino;      // Inode number (32-bit)
-    public ushort st_mode;   // File mode (permissions and type)
-    public ushort st_nlink;  // Number of hard links (16-bit)
-    public uint st_uid;      // User ID of the owner (32-bit)
-    public uint st_gid;      // Group ID of the owner (32-bit)
-    public uint st_rdev;     // Device ID for special files (32-bit)
-    public int st_size;      // Total size, in bytes (32-bit)
-    public int st_blksize;   // Block size for filesystem I/O (32-bit)
-    public int st_blocks;    // Number of 512B blocks allocated (32-bit)
+    public uint st_dev;           // dev_t (32-bit)
+    public uint st_ino;           // ino_t (32-bit)
+    public uint st_nlink;         // nlink_t (32-bit)
 
-    // Timestamps (seconds since epoch)
-    public int st_atime;     // Last access time (32-bit)
-    public int st_atime_nsec; // Nanoseconds part (32-bit)
-    public int st_mtime;     // Last modification time (32-bit)
-    public int st_mtime_nsec; // Nanoseconds part (32-bit)
-    public int st_ctime;     // Last status change time (32-bit)
-    public int st_ctime_nsec; // Nanoseconds part (32-bit)
+    public uint st_mode;          // mode_t (32-bit)
+    public uint st_uid;           // uid_t (32-bit)
+    public uint st_gid;           // gid_t (32-bit)
+    public uint __pad0;           // unsigned int padding (32-bit)
+
+    public uint st_rdev;          // dev_t (32-bit)
+    public ulong st_size;           // off_t (32-bit)
+
+    public int st_blksize;        // blksize_t (32-bit)
+    public int st_blocks;         // blkcnt_t (32-bit)
+
+    // struct timespec (32-bit system: 8 bytes each)
+    public Timespec st_atim;      // Access time
+    public Timespec st_mtim;      // Modification time
+    public Timespec st_ctim;      // Change time
+
+    
+    public long __unused1;
+    public long __unused2;
+    public long __unused3;
 }
-
+[Flags]
+public enum OpenFlags : int
+{
+    O_RDONLY = 0,
+    O_WRONLY=1,
+    O_RDWR= 2,
+    O_CREAT = 64,
+    O_EXCL = 128,
+    O_NOCTTY = 256,
+    O_TRUNC = 512,
+    O_APPEND = 1024,
+    O_NONBLOCK = 2048,
+    O_DSYNC = 4096,
+    O_SYNC = 1052672,
+    O_RSYNC = 1052672,
+    O_DIRECTORY = 65536,
+    O_NOFOLLOW = 131072,
+    O_CLOEXEC = 0x1000000,
+    O_ASYNC = 0x10000,
+    O_DIRECT = 0x20000,
+    O_LARGEFILE = 303240,
+    O_NOATIME = 0x200000,
+    O_PATH = 0x4000000,
+    //O_TMPFILE = 0x80200000,
+    O_NDELAY = O_NONBLOCK
+}
+/*
 [Flags]
 public enum OpenFlags : int
 {
@@ -510,7 +666,7 @@ public enum OpenFlags : int
 
     // Mask to isolate file access modes
     O_ACCMODE = O_RDONLY | O_WRONLY | O_RDWR
-}
+}*/
 
 [Flags]
 public enum OpenMode : int
@@ -539,6 +695,29 @@ public enum OpenMode : int
     S_IRWXU = S_IRUSR | S_IWUSR | S_IXUSR,  // User permissions
     S_IRWXG = S_IRGRP | S_IWGRP | S_IXGRP,  // Group permissions
     S_IRWXO = S_IROTH | S_IWOTH | S_IXOTH   // Others permissions
+}
+
+public enum FcntlCommand
+{
+    F_DUPFD = 0,         // Duplicate file descriptor
+    F_GETFD = 1,         // Get file descriptor flags
+    F_SETFD = 2,         // Set file descriptor flags
+    F_GETFL = 3,         // Get file status flags
+    F_SETFL = 4,         // Set file status flags
+
+    F_GETLK = 5,         // Get record locking information
+    F_SETLK = 6,         // Set record locking (non-blocking)
+    F_SETLKW = 7,        // Set record locking and wait
+
+    F_SETOWN = 8,        // Set the owner of a socket
+    F_GETOWN = 9,        // Get the owner of a socket
+    F_SETSIG = 10,       // Set the signal to be sent
+    F_GETSIG = 11,       // Get the signal to be sent
+
+    F_SETOWN_EX = 15,    // Set extended owner information
+    F_GETOWN_EX = 16,    // Get extended owner information
+
+    F_GETOWNER_UIDS = 17 // Get owner UIDs (user IDs)
 }
 
 public enum SeekOrigin : int

@@ -18,27 +18,15 @@ using MethodDefinition = Mono.Cecil.MethodDefinition;
 using TypeAttributes = Mono.Cecil.TypeAttributes;
 using TypeDefinition = Mono.Cecil.TypeDefinition;
 using TypeReference = Mono.Cecil.TypeReference;
-using u32 = uint;
 
 namespace Wasm2Cil
 {
     using instr = Wasm.Instruction;
     using IlInstr = OpCodes;
 
-    public struct HeapContext
-    {
-        public Type Module { get; private set; }
-
-        public static HeapContext Create(RuntimeTypeHandle module)
-        {
-            return new HeapContext{Module = Type.GetTypeFromHandle(module)};
-        }
-
-
-    }
     public class Transformer
     {
-        private Dictionary<string, List<Type>> importModules = new Dictionary<string, List<Type>>();
+        readonly Dictionary<string, List<Type>> importModules = new ();
         public void LoadImportModule(string moduleName, Type type)
         {
             if (!importModules.TryGetValue(moduleName, out var typeList))
@@ -46,10 +34,12 @@ namespace Wasm2Cil
             typeList.Add(type);
         }
         
-        public WasmAssembly LoadWasmAssembly(string filePath, string name)
+        public WasmAssembly LoadWasmAssembly(string filePath, string name, string outDll = "tmp.dll")
         {
             using var file = File.OpenRead(filePath);
-            var path = "tmp.dll";
+            var path = outDll;
+            if (File.Exists(path))
+                File.Delete(path);
             using (var mem = new FileStream(path, FileMode.Create, FileAccess.ReadWrite))
             {
                 Transform(file, name, mem);
@@ -101,7 +91,7 @@ namespace Wasm2Cil
             intPtrType = asm.MainModule.TypeSystem.IntPtr;
             voidPtrType = asm.MainModule.TypeSystem.Void.MakePointerType();
             v128Type = asm.MainModule.ImportReference(typeof(Vector128<byte>));
-            cls = new TypeDefinition(asmName, "Code",
+            cls = new TypeDefinition(asmName, "C",
                 TypeAttributes.AnsiClass | TypeAttributes.BeforeFieldInit | TypeAttributes.Class |
                 TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.Public,
                 asm.MainModule.TypeSystem.Object);

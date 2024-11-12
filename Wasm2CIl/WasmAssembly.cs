@@ -34,7 +34,7 @@ public class WasmAssembly
         return (byte[]) code.GetField("Memory").GetValue(null);
     }
 
-    int StringToHeap(string str)
+    public int StringToHeap(string str)
     {
         var bc = System.Text.Encoding.UTF8.GetByteCount(str);
         int s = Malloc(bc + 1);

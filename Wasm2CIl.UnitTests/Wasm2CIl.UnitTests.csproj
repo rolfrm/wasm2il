@@ -12,10 +12,13 @@
     <ItemGroup>
         <WatFile Include="WatFiles/w1.wat"/>
         <WatFile Include="WatFiles/w2.wat"/>
-        <None Include="sqlite3.wasm">
-            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-        </None>
     </ItemGroup>
+
+<!--    <ItemGroup>
+      <Reference Include="Sqlite">
+        <HintPath>..\Sqlite.Wasm.dll</HintPath>
+      </Reference>
+    </ItemGroup>-->
 
     <Target Name="WatToWasm" BeforeTargets="Build"
             Inputs="%(WatFile.Identity)"
