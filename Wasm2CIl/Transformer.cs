@@ -1628,6 +1628,37 @@ namespace Wasm2Cil
                             var instr2 = (VectorInstructions) reader.ReadU32Leb();
                             switch (instr2)
                             {
+                                case VectorInstructions.V128_STORE:
+                                case VectorInstructions.V128_LOAD:
+                                {
+                                    il.Emit(IlInstr.Stloc, heapaddr);
+
+                                    il.Emit(IlInstr.Ldsfld, memoryField);
+                                    il.Emit(IlInstr.Ldloc, heapaddr);
+                                    var align2 = reader.ReadU32Leb(); // align
+                                    var offset3 = reader.ReadU32Leb();
+                                    
+                                    if (offset3 != 0)
+                                    {
+                                        il.Emit(IlInstr.Ldc_I8, offset3);
+                                        il.Emit(IlInstr.Add);
+                                    }
+                                    il.Emit(IlInstr.Ldelema, def.MainModule.TypeSystem.Byte);
+                                    var stvar2 = getVariable(v128Type);
+                                    if (instr2 == VectorInstructions.V128_STORE)
+                                    {
+                                        il.Emit(IlInstr.Ldloc, stvar2);
+                                        il.Emit(IlInstr.Stind_Ref);
+                                        pop();
+                                    }
+                                    else
+                                    {
+                                        il.Emit(IlInstr.Ldind_Ref);
+                                        push(v128Type);
+                                    }
+
+                                    break;
+                                }
                                 case VectorInstructions.V128_CONST:
                                 {
                                     void LoadV128ConstCode()
@@ -1687,7 +1718,7 @@ namespace Wasm2Cil
                                     il.EmitCall(() => Lib.MaxF32);
                                     break;
                                 default:
-                                    throw new Exception("Unsupported exception!");
+                                    throw new Exception("Unsupported opcode!");
                                 
                             }
 

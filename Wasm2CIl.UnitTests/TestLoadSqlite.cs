@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Wasm2Cil;
 using Wasm2Cil.UnitTests;
@@ -48,7 +49,7 @@ public class TestLoadSqlite
         var transformer = new Transformer();
         
         transformer.LoadImportModule("env", typeof(LibC));
-        var asm = transformer.LoadWasmAssembly("sqlite3.wasm", "Sqlite");//, "Sqlite.Wasm.dll");
+        var asm = transformer.LoadWasmAssembly("sqlite3.wasm", "SqliteWasm", "SqliteWasm.dll");
         
         var db = asm.Malloc(4);
         var rc00 = asm.Invoke("sqlite3_initialize");
@@ -111,26 +112,64 @@ public class TestLoadSqlite
         asm.Invoke("sqlite3_close", db);
     }
     
-    [Test]
+    //[Test]
     public void LoadAndRunSqlite2()
     {
-        /*Sqlite.Wasm.Code.sqlite3_initialize();
-        var w = new WasmAssembly(typeof(Sqlite.Wasm.Code).Assembly);
-        var str = w.StringToHeap("./test.sqlite");
+        SqliteWasm.C.sqlite3_initialize();
+        var w = new WasmAssembly(typeof(SqliteWasm.C).Assembly);
+        File.Delete("./test.3.sqlite");
+        var str = w.StringToHeap("./test.3.sqlite");
         var db = w.Malloc(4);
-        int ok = Sqlite.Wasm.Code.sqlite3_open(str, db);
+        int ok = SqliteWasm.C.sqlite3_open(str, db);
+        var db2 = w.GetHeapObject<int>(db);
+        var sql2 = "CREATE TABLE IF NOT EXISTS Users (ID INT PRIMARY KEY NOT NULL, Name TEXT NOT NULL);";
+        var sql2p = w.StringToHeap(sql2);
+        int ok3 = SqliteWasm.C.sqlite3_exec(db2, sql2p, 0, 0, 0);
+
+        var insertStmt = "INSERT INTO Users (ID, Name) VALUES (?, ?);";
+        var stmt0 = w.Malloc(4);
+        SqliteWasm.C.sqlite3_prepare_v2(db2, w.StringToHeap(insertStmt), -1, stmt0, 0);
+        var stmt0_ = w.GetHeapObject<int>(stmt0);
+        var t = w.StringToHeap("TEstTest");
+
+        var sw = Stopwatch.StartNew();
+        int ok5 = SqliteWasm.C.sqlite3_exec(db2, w.StringToHeap("BEGIN TRANSACTION;"), 0, 0, 0);
+        for (int i = 0; i < 3000000; i++)
+        {
+            SqliteWasm.C.sqlite3_bind_int(stmt0_, 1, i);
+            SqliteWasm.C.sqlite3_bind_text(stmt0_, 2,  t, -1, 0);
+            SqliteWasm.C.sqlite3_step(stmt0_);
+            SqliteWasm.C.sqlite3_reset(stmt0_);
+            //SqliteWasm.C.sqlite3_clear_bindings(stmt0_);
+        }
+        int ok6 = SqliteWasm.C.sqlite3_exec(db2, w.StringToHeap("COMMIT;"), 0, 0, 0);
+        Console.WriteLine($"time: {sw.Elapsed.TotalSeconds}");
+        // pre optimize takes about 9.96s
         var sql  = "SELECT ID, Name FROM Users;";
         var str2 = w.StringToHeap(sql);
         var stmt = w.Malloc(4);
         
-        var db2 = w.GetHeapObject<int>(db);
-        int ok2 = Sqlite.Wasm.Code.sqlite3_prepare_v2(db2, str2, -1, stmt, 0);
+        
+        int ok2 = SqliteWasm.C.sqlite3_prepare_v2(db2, str2, -1, stmt, 0);
+        var stmt_ = w.GetHeapObject<int>(stmt);
         if (ok2 != 0)
         {
             
-            var err = Sqlite.Wasm.Code.sqlite3_errmsg(db2);
+            var err = SqliteWasm.C.sqlite3_errmsg(db2);
             var errstr = w.GetHeapString(err);
-        }*/
+        }
+
+        int j = 0;
+        while (true)
+        {
+            int rc3 = SqliteWasm.C.sqlite3_step(stmt_);
+            if (rc3 != 100)
+                break;
+            j++;
+        }
+        Console.WriteLine($"Step: {j}");
+
+        SqliteWasm.C.sqlite3_close(db);
     }
 
 }

@@ -1,11 +1,22 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 
 namespace Wasm2Cil.UnitTests;
 
 public class LibC
 {
+    private static byte[] x;
+    public unsafe static void Test(Vector128<byte> vec)
+    {
+        fixed(byte * b = &x[4])
+        {
+            ((Vector128<byte>*)b)[0] = vec;    
+        }
+        
+        
+    }
     public static int strlen(CString p)
     {
         return p.Length;
@@ -286,6 +297,9 @@ public class LibC
         if (cmd2 == FcntlCommand.F_SETLK)
         {
             // Just ignore set lock.
+        }else if (cmd2 == FcntlCommand.F_GETLK)
+        {
+            
         }
         else
         {

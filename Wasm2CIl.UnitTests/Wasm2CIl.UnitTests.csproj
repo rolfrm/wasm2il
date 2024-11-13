@@ -5,6 +5,10 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
+    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+      <Optimize>true</Optimize>
+    </PropertyGroup>
+
     <ItemGroup>
       <ProjectReference Include="../Wasm2CIl/Wasm2CIl.csproj" />
     </ItemGroup>
@@ -14,11 +18,12 @@
         <WatFile Include="WatFiles/w2.wat"/>
     </ItemGroup>
 
-<!--    <ItemGroup>
-      <Reference Include="Sqlite">
-        <HintPath>..\Sqlite.Wasm.dll</HintPath>
+    <ItemGroup>
+      <Reference Include="SqliteWasm">
+        <HintPath>..\SqliteWasm.dll</HintPath>
       </Reference>
-    </ItemGroup>-->
+    </ItemGroup>
+
 
     <Target Name="WatToWasm" BeforeTargets="Build"
             Inputs="%(WatFile.Identity)"
