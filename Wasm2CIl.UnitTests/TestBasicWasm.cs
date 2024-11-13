@@ -8,7 +8,7 @@ namespace Wasm2Cil.UnitTests;
 [TestFixture]
 public class TestBasicWasm
 {
-    //[Test]
+    [Test]
     public void LoadAndRunBasic()
     {
         var transformer = new Transformer();
@@ -97,7 +97,7 @@ public class TestBasicWasm
         
         var p = (int)asm.Invoke("test_memfill", 10, 16);
         var h = asm.GetHeap();
-        var arr = h.AsSpan(p, 10).ToArray();
+        var arr = h.Slice(p, 10).ToArray();
         Assert.IsTrue(arr.SequenceEqual(Enumerable.Repeat((byte)16, 10)));
     }
     
@@ -110,7 +110,7 @@ public class TestBasicWasm
         
         var p = (int)asm.Invoke("test_memfill2", 10, 16);
         var h = asm.GetHeap();
-        var arr = h.AsSpan(p, 10).ToArray();
+        var arr = h.Slice(p, 10).ToArray();
         Assert.IsTrue(arr.SequenceEqual(Enumerable.Repeat((byte)16, 10)));
     }
 }

@@ -29,16 +29,17 @@ public class WasmAssembly
         free.Invoke(null, new object[]{ptr});
     }
 
-    public byte[] GetHeap()
+    public unsafe Span<byte> GetHeap()
     {
-        return (byte[]) code.GetField("Memory").GetValue(null);
+        return  new Span<byte>((System.Reflection.Pointer.Unbox(code.GetField("Memory").GetValue(null))), 
+            (int)code.GetField("MemorySize").GetValue(null));
     }
 
     public int StringToHeap(string str)
     {
         var bc = System.Text.Encoding.UTF8.GetByteCount(str);
         int s = Malloc(bc + 1);
-        var span = GetHeap().AsSpan(s, bc + 1);
+        var span = GetHeap().Slice(s, bc + 1);
         span[bc] = 0;
         System.Text.Encoding.UTF8.GetBytes(str, span);
         return s;
@@ -68,7 +69,7 @@ public class WasmAssembly
 
     public Span<byte> GetHeapSpan(int i, int len)
     {
-        return GetHeap().AsSpan(i, len);
+        return GetHeap().Slice(i, len);
     }
 
     public T GetHeapObject<T>(int ptr) where T: struct
@@ -81,6 +82,7 @@ public class WasmAssembly
 
     public string GetHeapString(int ptr)
     {
+        
         return new CString(GetHeap(), ptr).ToString();
     }
 }

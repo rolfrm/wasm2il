@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics.Wasm;
@@ -8,6 +9,18 @@ namespace Wasm2Cil;
 
 public static class Lib
 {
+    public unsafe static byte* Alloc(int size)
+    {
+        var b = (byte*) Marshal.AllocHGlobal(size);
+        Unsafe.InitBlockUnaligned(b, 0, (uint)size);
+        return b;
+    } 
+    
+    public unsafe static byte* Realloc(byte* ptr, int size)
+    {
+        return (byte*) Marshal.ReAllocHGlobal((IntPtr)ptr, size);
+    } 
+    
     public static unsafe void MemoryFill(void* loc, int value, int N)
     {
         byte * p = (byte*)loc;
@@ -134,25 +147,36 @@ public static class Lib
     }
 }
 
-public struct CString
+public ref struct CString
 {
     private readonly int offset;
-    private readonly byte[] heap;
+    private readonly Span<byte> heap;
 
-    public CString(byte[] heap, int offset)
+    public CString(Span<byte> heap, int offset)
     {
         this.heap = heap;
         this.offset = offset;
+    }
+    
+    unsafe public CString(byte * heap, int offset)
+    {
+        this.heap = new Span<byte>(heap + offset,1024 * 1024);
+        this.offset = 0;
     }
 
     public static CString New(byte[] heap, int offset)
     {
         return new CString(heap, offset);
     }
+    
+    public static unsafe CString New2(byte * heap, int offset)
+    {
+        return new CString(heap, offset);
+    }
 
     public string ToString()
     {
-        var span = heap.AsSpan(offset, Length);
+        var span = heap.Slice(offset, Length);
         return System.Text.Encoding.UTF8.GetString(span);
     }
 

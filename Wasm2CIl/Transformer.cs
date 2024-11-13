@@ -1,9 +1,7 @@
 using System.Linq.Expressions;
 using System.Numerics;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
-using System.Runtime.Intrinsics.X86;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
@@ -64,6 +62,7 @@ namespace Wasm2Cil
         AssemblyDefinition def;
         TypeDefinition cls;
         FieldDefinition memoryField;
+        private FieldDefinition memoryFieldSize;
         FieldDefinition functionTable;
 
         TypeReference f32Type, f64Type, i64Type, i32Type, voidType, byteType, intPtrType, voidPtrType;
@@ -100,10 +99,16 @@ namespace Wasm2Cil
             def = asm;
 
             memoryField = new FieldDefinition("Memory", FieldAttributes.Static | FieldAttributes.Public,
-                asm.MainModule.TypeSystem.Byte.MakeArrayType());
+                asm.MainModule.TypeSystem.Byte.MakePointerType());
             memoryField.IsStatic = true;
             // todo: Figure out how to init based on data.
             cls.Fields.Add(memoryField);
+            
+            memoryFieldSize = new FieldDefinition("MemorySize", FieldAttributes.Static | FieldAttributes.Public,
+                asm.MainModule.TypeSystem.Int32);
+            memoryFieldSize.IsStatic = true;
+            
+            cls.Fields.Add(memoryFieldSize);
 
             functionTable = new FieldDefinition("FunctionTable", FieldAttributes.Static | FieldAttributes.Private,
                 asm.MainModule.TypeSystem.Object.MakeArrayType());
@@ -514,8 +519,9 @@ namespace Wasm2Cil
                     {
                         il.Emit(IlInstr.Dup);
                         il.Emit(IlInstr.Ldc_I4, (int) i2 + offset);
+                        il.Emit(IlInstr.Add);
                         il.Emit(IlInstr.Ldc_I4, (int) bc[i2]);
-                        il.Emit(IlInstr.Stelem_I1);
+                        il.Emit(IlInstr.Stind_I1);
                     }
 
                     acc += 1;
@@ -988,6 +994,7 @@ namespace Wasm2Cil
                             il.Emit(IlInstr.Conv_I4);
                             break;
                         case instr.MEMORY_GROW:
+                            /*
                             x = reader.ReadU8();
                             Assert.AreEqual(0, x);
                             pop(1);
@@ -1019,8 +1026,10 @@ namespace Wasm2Cil
                                 typeof(uint));
                             il.Emit(IlInstr.Call, mcpy);
                             //il.Emit(IlInstr.Cpblk); // copy!
+                            
                             il.Emit(IlInstr.Stsfld, memoryField); // store tue duplicate.
-                            il.Emit(IlInstr.Ldloc, getVariable(i32Type));
+                            il.Emit(IlInstr.Ldloc, getVariable(i32Type));*/
+                            throw new NotSupportedException();
                             break;
                         case instr.I32_LOAD:
                         case instr.I32_LOAD8_S:
@@ -1069,10 +1078,19 @@ namespace Wasm2Cil
                                 pop();
                             }
 
-                            il.Emit(IlInstr.Stloc, heapaddr);
-
-                            il.Emit(IlInstr.Ldsfld, memoryField);
-                            il.Emit(IlInstr.Ldloc, heapaddr);
+                            var lastI = il.Body.Instructions.LastOrDefault();
+                            if (lastI.OpCode == OpCodes.Ldc_I4 && object.Equals(lastI.Operand, 0))
+                            {
+                                il.Replace(lastI, il.Create(IlInstr.Ldsfld, memoryField));    
+                                
+                            }
+                            else
+                            {
+                                il.Emit(IlInstr.Ldsfld, memoryField);
+                                il.Emit(IlInstr.Add);
+                            }
+                            
+                            
                             // adjust according to the offset 
                             if (offset != 0)
                             {
@@ -1080,8 +1098,6 @@ namespace Wasm2Cil
                                 il.Emit(IlInstr.Add);
                             }
 
-                            // get the address of element N (pop the address from the stack)
-                            il.Emit(IlInstr.Ldelema, def.MainModule.TypeSystem.Byte);
                             switch (instr)
                             {
                                 // pop address, value. store value in address according to size.
@@ -1764,8 +1780,12 @@ namespace Wasm2Cil
             return fcn2;
         }
 
-        MethodReference WrapMethod(MethodReference m)
+        unsafe MethodReference WrapMethod(MethodReference m)
         {
+            if (cls.Methods.FirstOrDefault(x => x.Name == m.Name + "__wrap") is { } ext)
+            {
+                return ext;
+            }
             var m2 = new MethodDefinition(m.Name + "__wrap",
                 MethodAttributes.Static | MethodAttributes.Public,
                 m.ReturnType);
@@ -1791,15 +1811,15 @@ namespace Wasm2Cil
                     
                     il2.Emit(OpCodes.Ldsfld, memoryField);
                     il2.Emit(OpCodes.Ldarg, argidx);
-                    il2.EmitCall(() => CString.New);
+                    il2.EmitCall(() => CString.New2);
                 }else if (p.ParameterType.IsPointer)
                 {
                     p2.ParameterType = i32Type;
                     
                     il2.Emit(OpCodes.Ldsfld, memoryField);
                     il2.Emit(OpCodes.Ldarg, argidx);
-                    il2.Emit(OpCodes.Ldelema, byteType);
-                    il2.Emit(OpCodes.Conv_U);
+                    il2.Emit(OpCodes.Add);
+                    //il2.Emit(OpCodes.Conv_U);
                     
                 }
                 else
@@ -1942,7 +1962,7 @@ namespace Wasm2Cil
         }
 
 
-        void ReadMemorySection(BinReader reader)
+        unsafe void ReadMemorySection(BinReader reader)
         {
             var memCount = reader.ReadU32Leb();
             Assert.AreEqual<uint>(1, memCount);
@@ -1955,9 +1975,11 @@ namespace Wasm2Cil
                     Log.WriteLine("Memory: {0} pages", min);
                     var cctoril = cls.GetStaticConstructor().Body.GetILProcessor();
                     cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
-                    cctoril.Emit(OpCodes.Ldc_I8, (long) min * page_size);
-                    cctoril.Emit(OpCodes.Newarr, def.MainModule.TypeSystem.Byte);
+                    cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
+                    cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
+                    cctoril.EmitCall(()=> Lib.Alloc);
                     cctoril.Emit(OpCodes.Stsfld, memoryField);
+                    cctoril.Emit(OpCodes.Stsfld, memoryFieldSize);
                     cctoril.Emit(OpCodes.Ret);
                 }
                 else if (type == 1)
@@ -1968,9 +1990,12 @@ namespace Wasm2Cil
                         max * page_size);
                     var cctoril = cls.GetStaticConstructor().Body.GetILProcessor();
                     cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
-                    cctoril.Emit(OpCodes.Ldc_I8, (long) max * page_size);
-                    cctoril.Emit(OpCodes.Newarr, def.MainModule.TypeSystem.Byte);
+                    cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
+                    cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
+                    cctoril.EmitCall(()=> Lib.Alloc);
                     cctoril.Emit(OpCodes.Stsfld, memoryField);
+                    cctoril.Emit(OpCodes.Stsfld, memoryFieldSize);
+                    
                     cctoril.Emit(OpCodes.Ret);
                 }
             }

@@ -9,10 +9,12 @@ sqlite3.wasm: sqlite3.c sqlite3.h
              -I$(MUSL_INCLUDE)  -fvisibility=hidden \
              -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_RANDOMNESS -DHAVE_UTIME -DSQLITE_OMIT_WAL -DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_THREADSAFE=0 -DSQLITE_ENABLE_SETLK_TIMEOUT \
               ./libc.wasm sqlite3.c -Wl,--allow-undefined -Wl,--no-entry\
-              -Wl,--export=sqlite3_open -Wl,--export=sqlite3_close -Wl,--export=sqlite3_exec -Wl,--export=sqlite3_prepare_v2 \
+              -Wl,--export=sqlite3_open -Wl,--export=sqlite3_open_v2 -Wl,--export=sqlite3_close -Wl,--export=sqlite3_exec -Wl,--export=sqlite3_prepare_v2 \
               -Wl,--export=sqlite3_step -Wl,--export=sqlite3_finalize -Wl,--export=sqlite3_errmsg -Wl,--export=sqlite3_free \
               -Wl,--export=sqlite3_column_text -Wl,--export=sqlite3_column_int -Wl,--export=sqlite3_column_count \
-              -Wl,--export=sqlite3_bind_text -Wl,--export=sqlite3_bind_int -Wl,--export=sqlite3_reset -Wl,--export=sqlite3_changes
+              -Wl,--export=sqlite3_bind_text -Wl,--export=sqlite3_bind_int -Wl,--export=sqlite3_reset -Wl,--export=sqlite3_changes\
+              -Wl,--export=sqlite3_memory_used
+              
 
 sqlite3.wat: sqlite3.wasm
 	wasm2wat sqlite3.wasm > sqlite3.wat

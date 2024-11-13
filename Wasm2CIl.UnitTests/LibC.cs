@@ -12,9 +12,12 @@ public class LibC
     {
         fixed(byte * b = &x[4])
         {
-            ((Vector128<byte>*)b)[0] = vec;    
+            ((Vector128<byte>*)b)[1] = vec;    
         }
-        
+        fixed(byte * b = &x[4])
+        {
+            b[10] = 5;    
+        }
         
     }
     public static int strlen(CString p)
@@ -56,10 +59,13 @@ public class LibC
             malloc = ctx.GetMethod("malloc");
             free = ctx.GetMethod("free");
             memory = ctx.GetField("Memory");
+            memorySize = ctx.GetField("MemorySize");
             ErrnoLocation = Malloc(4);
         }
         
         private Dictionary<string, int> interned = new();
+        private readonly FieldInfo memorySize;
+
         public int InternString(string str)
         {
             if (interned.TryGetValue(str, out var p))
@@ -76,10 +82,16 @@ public class LibC
 
         public int Malloc(int count) => (int)malloc.Invoke(null, new object[]{count});
 
-        public Span<byte> GetSpan(int p, int length) => ((byte[]) memory.GetValue(null)).AsSpan(p, length);
+        public Span<byte> GetSpan(int p, int length) => GetHeap().Slice(p, length);
+        public unsafe byte* GetHeapRaw() => (byte*) Pointer.Unbox(memory.GetValue(null));
+        public unsafe int GetHeapSize() => (int)memorySize.GetValue(null);
+        public unsafe Span<byte> GetHeap() => new Span<byte>((byte*)Pointer.Unbox(memory.GetValue(null)), (int)memorySize.GetValue(null));
 
-        public byte[] GetHeap() => (byte[]) memory.GetValue(null);
-        public void SetHeap(byte[] setHeap) => memory.SetValue(null, setHeap);
+        public unsafe void SetHeap(byte* setHeap, int size)
+        {
+            memory.SetValue(null, Pointer.Box(setHeap, typeof(byte*)));
+            memorySize.SetValue(null, size);
+        }
 
 
     }
@@ -271,7 +283,7 @@ public class LibC
         return count;
     } 
     
-    public static int sbrk(HeapContext _ctx, int increment)
+    public unsafe static int sbrk(HeapContext _ctx, int increment)
     {
         var x = GetModuleContext(_ctx.Module);
         if (increment == 0)
@@ -282,11 +294,13 @@ public class LibC
 
         if (increment > 0)
         {
-            var h = x.GetHeap();
-            var lp = h.Length;
-            int newSize = h.Length + increment;
-            Array.Resize(ref h, newSize);
-            x.SetHeap(h);
+            var r = x.GetHeapRaw();
+            
+            var lp = x.GetHeapSize();
+            int newSize = lp + increment;
+
+            r = Lib.Realloc(r, newSize);
+            x.SetHeap(r, newSize);
             return lp;
         }
         return x.GetHeap().Length;

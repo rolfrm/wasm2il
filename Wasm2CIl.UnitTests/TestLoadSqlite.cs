@@ -112,7 +112,7 @@ public class TestLoadSqlite
         asm.Invoke("sqlite3_close", db);
     }
     
-    //[Test]
+    [Test]
     public void LoadAndRunSqlite2()
     {
         SqliteWasm.C.sqlite3_initialize();
@@ -145,6 +145,7 @@ public class TestLoadSqlite
         int ok6 = SqliteWasm.C.sqlite3_exec(db2, w.StringToHeap("COMMIT;"), 0, 0, 0);
         Console.WriteLine($"time: {sw.Elapsed.TotalSeconds}");
         // pre optimize takes about 9.96s
+        // after removing bounds checks I got it down to 7.38s
         var sql  = "SELECT ID, Name FROM Users;";
         var str2 = w.StringToHeap(sql);
         var stmt = w.Malloc(4);
@@ -170,6 +171,7 @@ public class TestLoadSqlite
         Console.WriteLine($"Step: {j}");
 
         SqliteWasm.C.sqlite3_close(db);
+        
     }
 
 }
