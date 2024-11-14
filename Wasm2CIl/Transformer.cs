@@ -1,6 +1,8 @@
 using System.Linq.Expressions;
 using System.Numerics;
 using System.Reflection;
+using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
@@ -13,6 +15,8 @@ using FieldDefinition = Mono.Cecil.FieldDefinition;
 using Instruction = Mono.Cecil.Cil.Instruction;
 using MethodAttributes = Mono.Cecil.MethodAttributes;
 using MethodDefinition = Mono.Cecil.MethodDefinition;
+using OpCode = Mono.Cecil.Cil.OpCode;
+using OpCodes = Mono.Cecil.Cil.OpCodes;
 using TypeAttributes = Mono.Cecil.TypeAttributes;
 using TypeDefinition = Mono.Cecil.TypeDefinition;
 using TypeReference = Mono.Cecil.TypeReference;
@@ -25,11 +29,17 @@ namespace Wasm2Cil
     public class Transformer
     {
         readonly Dictionary<string, List<Type>> importModules = new ();
+        private List<Type> overrideModules = new();
         public void LoadImportModule(string moduleName, Type type)
         {
             if (!importModules.TryGetValue(moduleName, out var typeList))
                 importModules[moduleName] = typeList = new List<Type>();
             typeList.Add(type);
+        }
+        
+        public void LoadOverrideModule(Type type)
+        {
+            overrideModules.Add(type);
         }
         
         public WasmAssembly LoadWasmAssembly(string filePath, string name, string outDll = "tmp.dll")
@@ -53,6 +63,8 @@ namespace Wasm2Cil
         Dictionary<uint, Global> globals = new Dictionary<uint, Global>();
         Dictionary<uint, ImportFunc> ExportFunc = new Dictionary<uint, ImportFunc>();
         private Dictionary<uint, ImportFunc> ImportFuncs = new();
+        private Dictionary<uint, ImportFunc> OverrideFuncs = null;
+
         Dictionary<uint, ExportTable> ExportTables = new Dictionary<uint, ExportTable>();
 
         Dictionary<uint, TypeId> Types = new Dictionary<uint, TypeId>();
@@ -239,6 +251,36 @@ namespace Wasm2Cil
             }
             reader.Position = elementLoc;
             ReadElementSection(reader);
+
+            OverrideFuncs = new();
+            Dictionary<string, uint> declaredFunctions = new();
+            foreach (var item in FuncDecl)
+            {
+                if (item.Value?.ImportName is string name)
+                {
+                    declaredFunctions[name] = item.Key;
+                }
+                
+            }
+            foreach (var type in overrideModules)
+            {
+                foreach (var method in type.GetMethods())
+                {
+                    if (declaredFunctions.TryGetValue(method.Name, out var id))
+                    {
+                        OverrideFuncs[id] = new ImportFunc()
+                        {
+                            Index = id,
+                            CustomName = method.Name,
+                            Method = def.MainModule.ImportReference(method),
+                            Name = method.Name,
+                            Module = "??",
+                            TypeId = FuncDecl[id].TypeId
+                        };
+                    }
+                }
+            }
+            
 
             reader.Position = codeLoc;
             ReadCodeSection(reader);
@@ -590,6 +632,11 @@ namespace Wasm2Cil
                 }
 
                 return importFun.Method;
+            }
+
+            if (OverrideFuncs.TryGetValue(func - (uint) ImportFuncs.Count, out var reference))
+            {
+                return reference.Method;
             }
 
             var decl = FuncDecl[func - (uint) ImportFuncs.Count];
@@ -1789,6 +1836,12 @@ namespace Wasm2Cil
             var m2 = new MethodDefinition(m.Name + "__wrap",
                 MethodAttributes.Static | MethodAttributes.Public,
                 m.ReturnType);
+            ConstructorInfo methodImplConstructor = typeof(MethodImplAttribute).GetConstructor(new Type[] { typeof(MethodImplOptions) });
+            // Create a CustomAttributeBuilder with the MethodImplOptions value
+            var attr = new CustomAttribute(def.MainModule.ImportReference(methodImplConstructor));
+            attr.ConstructorArguments.Add(new CustomAttributeArgument(def.MainModule.ImportReference(typeof(MethodImplOptions)), MethodImplOptions.AggressiveInlining));
+            m2.CustomAttributes.Add(attr);
+            
             cls.Methods.Add(m2);
             var il2 = m2.Body.GetILProcessor();
             int argidx = 0;
@@ -1829,8 +1882,16 @@ namespace Wasm2Cil
 
                 argidx += 1;
             }
+
             
             il2.Emit(OpCodes.Call, m);
+            if (m.ReturnType.IsPointer)
+            {
+                il2.Emit(OpCodes.Ldsfld, memoryField);
+                il2.Emit(OpCodes.Sub);
+                il2.Emit(OpCodes.Conv_I4);
+                m2.ReturnType = this.i32Type;
+            }
             il2.Emit(OpCodes.Ret);
             return m2;
         }

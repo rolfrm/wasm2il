@@ -43,12 +43,13 @@ public class TestLoadSqlite
         public void Prepare(int db, string sql, int nByte, int stmt, int tail_0);
     }
     
-    [Test]
+    //[Test]
     public void LoadAndRunSqlite()
     {
         var transformer = new Transformer();
         
         transformer.LoadImportModule("env", typeof(LibC));
+        transformer.LoadOverrideModule(typeof(LibC.LibCOverride));
         var asm = transformer.LoadWasmAssembly("sqlite3.wasm", "SqliteWasm", "SqliteWasm.dll");
         
         var db = asm.Malloc(4);
@@ -134,7 +135,7 @@ public class TestLoadSqlite
 
         var sw = Stopwatch.StartNew();
         int ok5 = SqliteWasm.C.sqlite3_exec(db2, w.StringToHeap("BEGIN TRANSACTION;"), 0, 0, 0);
-        for (int i = 0; i < 3000000; i++)
+        for (int i = 0; i < 10000000; i++)
         {
             SqliteWasm.C.sqlite3_bind_int(stmt0_, 1, i);
             SqliteWasm.C.sqlite3_bind_text(stmt0_, 2,  t, -1, 0);

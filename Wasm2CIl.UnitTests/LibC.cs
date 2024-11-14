@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Numerics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 
@@ -7,6 +9,80 @@ namespace Wasm2Cil.UnitTests;
 
 public class LibC
 {
+    public class LibCOverride
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void * memcpy(void* dst, void* src, int c)
+        {
+            Buffer.MemoryCopy(src, dst, c, c);
+            return dst;
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void memfill(void * dst, int value, int c)
+        {
+            Span<byte> span = new Span<byte>((byte*)dst, c);
+
+            // Fill the span with the byte value
+            span.Fill((byte)(value & 0xFF));  // Clamp to byte range 0-255
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void* memmove(void* dst, void* src, int c)
+        {
+            // Use Buffer.MemoryCopy, which safely handles overlapping memory regions
+            Buffer.MemoryCopy(src, dst, c, c);
+
+            // Return the number of bytes moved, similar to C-style memmove.
+            return dst;
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void* memset(void* dst, byte value, uint count)
+        {
+            Unsafe.InitBlockUnaligned(dst, value, count);
+            
+            return dst;
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe int memcmp(void* ptr1, void* ptr2, int count)
+        {
+            byte* b1 = (byte*)ptr1;
+            byte* b2 = (byte*)ptr2;
+
+            int vectorSize = Vector<byte>.Count;
+            int i = 0;
+
+            // Compare using SIMD for larger blocks
+            while (i <= count - vectorSize)
+            {
+                var v1 = Unsafe.Read<Vector<byte>>(b1 + i);
+                var v2 = Unsafe.Read<Vector<byte>>(b2 + i);
+
+                if (v1 != v2)
+                {
+                    // If the vectors differ, fall back to element-wise comparison
+                    for (int j = 0; j < vectorSize; j++)
+                    {
+                        int diff = b1[i + j] - b2[i + j];
+                        if (diff != 0) return diff;
+                    }
+                }
+
+                i += vectorSize;
+            }
+
+            // Compare remaining bytes
+            for (; i < count; i++)
+            {
+                int diff = b1[i] - b2[i];
+                if (diff != 0) return diff;
+            }
+
+            return 0;
+        }
+        
+    }
     private static byte[] x;
     public unsafe static void Test(Vector128<byte> vec)
     {
