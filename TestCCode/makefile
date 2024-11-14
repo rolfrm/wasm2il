@@ -3,9 +3,9 @@ SYSROOT_LIB=$(SYSROOT)/lib/wasm32-wasi
 #MUSL_INCLUDE=/Users/bruger/code/work/musl/include
 MUSL_INCLUDE=/Users/bruger/code/minlibc/include
 all: ../bin/Debug/net6.0/code.wasm
-# -msimd128  -mtail-call ./libc.wasm -mbulk-memory -mtail-call  -msimd128 -mbulk-memory -msimd128 
+# -msimd128  -mtail-call ./libc.wasm-mtail-call  -msimd128 -mbulk-memory -msimd128 
 sqlite3.wasm: sqlite3.c sqlite3.h
-	clang --target=wasm32-unknown-unknown  -flto -fbuiltin -mllvm -inline-threshold=1000 -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -O3\
+	clang --target=wasm32-unknown-unknown  -mbulk-memory -flto -fbuiltin -mllvm -inline-threshold=1000 -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -O3\
              -I$(MUSL_INCLUDE)  -fvisibility=hidden \
              -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_RANDOMNESS -DHAVE_UTIME -DSQLITE_OMIT_WAL -DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_THREADSAFE=0 -DSQLITE_ENABLE_SETLK_TIMEOUT \
               ./libc.wasm sqlite3.c -Wl,--allow-undefined -Wl,--no-entry\

@@ -43,7 +43,7 @@ public class TestLoadSqlite
         public void Prepare(int db, string sql, int nByte, int stmt, int tail_0);
     }
     
-    //[Test]
+    [Test]
     public void LoadAndRunSqlite()
     {
         var transformer = new Transformer();

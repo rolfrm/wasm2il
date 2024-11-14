@@ -23,36 +23,13 @@ public static class Lib
     
     public static unsafe void MemoryFill(void* loc, int value, int N)
     {
-        byte * p = (byte*)loc;
-        for (int i = 0; i < N; i++)
-            p[i] = (byte) value;
+        Unsafe.InitBlock(loc, (byte) value, (uint)N);
 
     }
 
     public static unsafe void MemoryCopy(void* dst, void* src, int N)
     {
-        byte* dest = (byte*)dst;
-        byte* source = (byte*)src;
-
-        // Copy by 8-byte chunks for better performance
-        long* destLong = (long*)dest;
-        long* sourceLong = (long*)source;
-        int longLength = N / sizeof(long);
-
-        for (int i = 0; i < longLength; i++)
-        {
-            var b = sourceLong[i];
-            var b2 = destLong[i];
-            destLong[i] = b;
-        }
-
-        // Copy remaining bytes (if N is not divisible by 8)
-        dest += longLength * sizeof(long);
-        source += longLength * sizeof(long);
-        for (int i = 0; i < N % sizeof(long); i++)
-        {
-            dest[i] = source[i];
-        }
+        Buffer.MemoryCopy(src, dst, N, N);
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
