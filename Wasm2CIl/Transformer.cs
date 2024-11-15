@@ -28,20 +28,21 @@ namespace Wasm2Cil
 
     public class Transformer
     {
-        readonly Dictionary<string, List<Type>> importModules = new ();
+        readonly Dictionary<string, List<Type>> importModules = new();
         private List<Type> overrideModules = new();
+
         public void LoadImportModule(string moduleName, Type type)
         {
             if (!importModules.TryGetValue(moduleName, out var typeList))
                 importModules[moduleName] = typeList = new List<Type>();
             typeList.Add(type);
         }
-        
+
         public void LoadOverrideModule(Type type)
         {
             overrideModules.Add(type);
         }
-        
+
         public WasmAssembly LoadWasmAssembly(string filePath, string name, string outDll = "tmp.dll")
         {
             using var file = File.OpenRead(filePath);
@@ -57,7 +58,7 @@ namespace Wasm2Cil
             var asm = Assembly.Load(File.ReadAllBytes(path));
             return new WasmAssembly(asm);
         }
-        
+
         const string magicHeader = "\0asm";
         const uint page_size = 1 << 16;
         Dictionary<uint, Global> globals = new Dictionary<uint, Global>();
@@ -79,6 +80,7 @@ namespace Wasm2Cil
 
         TypeReference f32Type, f64Type, i64Type, i32Type, voidType, byteType, intPtrType, voidPtrType;
         private TypeReference v128Type;
+
         MethodReference resolveTypeConstructor(Type t, params Type[] argTypes)
         {
             return def.MainModule.ImportReference(
@@ -92,7 +94,7 @@ namespace Wasm2Cil
         {
             var asmName2 = new AssemblyNameDefinition(asmName, Version.Parse("1.0.0"));
             var asm = AssemblyDefinition.CreateAssembly(asmName2, "Test", ModuleKind.Dll);
-            
+
             f32Type = asm.MainModule.TypeSystem.Single;
             f64Type = asm.MainModule.TypeSystem.Double;
             i64Type = asm.MainModule.TypeSystem.Int64;
@@ -106,7 +108,7 @@ namespace Wasm2Cil
                 TypeAttributes.AnsiClass | TypeAttributes.BeforeFieldInit | TypeAttributes.Class |
                 TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.Public,
                 asm.MainModule.TypeSystem.Object);
-            
+
             asm.MainModule.Types.Add(cls);
             def = asm;
 
@@ -115,11 +117,11 @@ namespace Wasm2Cil
             memoryField.IsStatic = true;
             // todo: Figure out how to init based on data.
             cls.Fields.Add(memoryField);
-            
+
             memoryFieldSize = new FieldDefinition("MemorySize", FieldAttributes.Static | FieldAttributes.Public,
                 asm.MainModule.TypeSystem.Int32);
             memoryFieldSize.IsStatic = true;
-            
+
             cls.Fields.Add(memoryFieldSize);
 
             functionTable = new FieldDefinition("FunctionTable", FieldAttributes.Static | FieldAttributes.Private,
@@ -137,7 +139,7 @@ namespace Wasm2Cil
 
         public void Transform(Stream str, string asmName, string filePath)
         {
-            using var outFile = new FileStream (filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
+            using var outFile = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
             Transform(str, asmName, outFile);
         }
 
@@ -207,12 +209,11 @@ namespace Wasm2Cil
                 Assert.AreEqual(next, str.Position);
             }
 
-            
+
             foreach (var kv in ImportFuncs
                          .Where(x => x.Value.Method == null)
                          .ToArray())
             {
-                
                 var imp = kv.Value;
                 if (this.importModules.TryGetValue(imp.Module, out var importedModule) == false)
                 {
@@ -224,6 +225,7 @@ namespace Wasm2Cil
                 {
                     continue;
                 }
+
                 Log.WriteLine($"Warning: Import not defined {imp.Name} by module {imp.Module}.");
                 var type = Types[(uint) imp.TypeId];
                 var m = new MethodDefinition(imp.Name, MethodAttributes.Public | MethodAttributes.Static,
@@ -235,11 +237,11 @@ namespace Wasm2Cil
 
                 // throw exception
                 m.Body.InitLocals = true;
-                
+
                 var il = m.Body.GetILProcessor();
-                
+
                 // let's implemented 
-                
+
                 il.Emit(IlInstr.Nop);
                 il.Emit(IlInstr.Ldstr, "Not Implemented");
                 il.Emit(IlInstr.Newobj, resolveTypeConstructor(typeof(NotImplementedException), typeof(string)));
@@ -247,8 +249,8 @@ namespace Wasm2Cil
                 cls.Methods.Add(m);
                 imp.Method = m;
                 ImportFuncs[kv.Key] = imp;
-                
             }
+
             reader.Position = elementLoc;
             ReadElementSection(reader);
 
@@ -260,8 +262,8 @@ namespace Wasm2Cil
                 {
                     declaredFunctions[name] = item.Key;
                 }
-                
             }
+
             foreach (var type in overrideModules)
             {
                 foreach (var method in type.GetMethods())
@@ -280,12 +282,12 @@ namespace Wasm2Cil
                     }
                 }
             }
-            
+
 
             reader.Position = codeLoc;
             ReadCodeSection(reader);
             def.Write(outStream);
-            Log.WriteLine($"Output written to {outStream}" );
+            Log.WriteLine($"Output written to {outStream}");
             def.Dispose();
         }
 
@@ -363,6 +365,7 @@ namespace Wasm2Cil
                     var ext2 = reader.ReadU8();
                     instr2 = (instr) (0xFD00 | ext2);
                 }
+
                 Assert.AreEqual(Wasm.Instruction.I32_CONST, instr2);
                 var offset = reader.ReadU32Leb();
                 var end = (instr) reader.ReadU8();
@@ -385,7 +388,7 @@ namespace Wasm2Cil
                     if (funcId < ImportFuncs.Count)
                     {
                         var imp = ImportFuncs[funcId];
-                        var t = Types[(uint)imp.TypeId];
+                        var t = Types[(uint) imp.TypeId];
                         if (imp.Method == null)
                         {
                             if (importModules.TryGetValue(imp.Module, out var imports))
@@ -394,14 +397,13 @@ namespace Wasm2Cil
                                 reference = MaybeWrap(reference);
                                 imp.Method = reference;
                             }
-                            
                         }
 
                         if (imp.Method == null)
                         {
                             throw new InvalidOperationException("!");
                         }
-                        
+
                         {
                             il.Emit(OpCodes.Ldftn, imp.Method);
                             var ftype = typeToFunc(t);
@@ -596,7 +598,7 @@ namespace Wasm2Cil
                 var importFun = ImportFuncs[func];
                 if (importFun.Method == null)
                 {
-                    if(importModules.TryGetValue(importFun.Module, out var type2))
+                    if (importModules.TryGetValue(importFun.Module, out var type2))
                     {
                         var m3 = type2.GetMethod(importFun.Name);
                         if (m3 != null)
@@ -604,9 +606,9 @@ namespace Wasm2Cil
                             var m2 = def.MainModule.ImportReference(m3);
                             importFun.Method = m2;
                             return m2;
-
                         }
                     }
+
                     var type = Types[(uint) importFun.TypeId];
                     var method = methodFromName(importFun.Name);
                     if (method != null)
@@ -712,15 +714,15 @@ namespace Wasm2Cil
                             wasi.GetMethod(nameof(Wasi.GetContext))));
                     il2.Emit(IlInstr.Call, wasiMethod2);
                     il2.Emit(IlInstr.Ret);
-                    
-                   
+
+
                     for (uint i2 = 0; i2 < ftype.ParamCount; i2++)
                     {
                         var parameter = new ParameterDefinition(ftype.ParamTypes[i2]);
                         parameter.Name = "param" + i2;
                         m2.Parameters.Add(parameter);
                     }
-                    
+
 
                     m1 = m2;
                     Log.WriteLine("Override: {0}", wasiMethod);
@@ -801,7 +803,7 @@ namespace Wasm2Cil
                 while (next > reader.Position)
                 {
                     var instr = (instr) reader.ReadU8();
-                
+
                     TypeReference instrType()
                     {
                         var s = instr.ToString();
@@ -907,12 +909,12 @@ namespace Wasm2Cil
                             break;
                         case instr.IF:
                             blockType = reader.ReadU8();
-                            {
-                                endLabel = il.Create(OpCodes.Nop);
-                                il.Emit(IlInstr.Brfalse, endLabel);
-                                blk = new LabelType {Type = blockType, EndLabel = endLabel, StartLabel = null};
-                                labelStack.Add(blk);
-                            }
+                        {
+                            endLabel = il.Create(OpCodes.Nop);
+                            il.Emit(IlInstr.Brfalse, endLabel);
+                            blk = new LabelType {Type = blockType, EndLabel = endLabel, StartLabel = null};
+                            labelStack.Add(blk);
+                        }
                             break;
                         case instr.ELSE:
                             endLabel = il.Create(OpCodes.Nop);
@@ -1073,7 +1075,7 @@ namespace Wasm2Cil
                                 typeof(uint));
                             il.Emit(IlInstr.Call, mcpy);
                             //il.Emit(IlInstr.Cpblk); // copy!
-                            
+
                             il.Emit(IlInstr.Stsfld, memoryField); // store tue duplicate.
                             il.Emit(IlInstr.Ldloc, getVariable(i32Type));*/
                             throw new NotSupportedException();
@@ -1128,16 +1130,15 @@ namespace Wasm2Cil
                             var lastI = il.Body.Instructions.LastOrDefault();
                             if (lastI.OpCode == OpCodes.Ldc_I4 && object.Equals(lastI.Operand, 0))
                             {
-                                il.Replace(lastI, il.Create(IlInstr.Ldsfld, memoryField));    
-                                
+                                il.Replace(lastI, il.Create(IlInstr.Ldsfld, memoryField));
                             }
                             else
                             {
                                 il.Emit(IlInstr.Ldsfld, memoryField);
                                 il.Emit(IlInstr.Add);
                             }
-                            
-                            
+
+
                             // adjust according to the offset 
                             if (offset != 0)
                             {
@@ -1269,7 +1270,7 @@ namespace Wasm2Cil
                             pop();
                             push(i32Type);
                             break;
-                        
+
                         case instr.F32_REINTERPRET_I32:
                             m = typeof(BitConverter).GetMethod(nameof(BitConverter.Int32BitsToSingle));
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
@@ -1282,7 +1283,7 @@ namespace Wasm2Cil
                             pop();
                             push(f64Type);
                             break;
-                        
+
                         case instr.F64_PROMOTE_F32:
                             il.Emit(IlInstr.Conv_R8);
                             pop(1);
@@ -1680,13 +1681,11 @@ namespace Wasm2Cil
                                     break;
                                 default:
                                     throw new NotImplementedException();
-                                    
                             }
 
                             break;
 
-                            
-                            
+
                         case instr.VECTOR_INSTRUCTION:
                             var instr2 = (VectorInstructions) reader.ReadU32Leb();
                             switch (instr2)
@@ -1700,12 +1699,13 @@ namespace Wasm2Cil
                                     il.Emit(IlInstr.Ldloc, heapaddr);
                                     var align2 = reader.ReadU32Leb(); // align
                                     var offset3 = reader.ReadU32Leb();
-                                    
+
                                     if (offset3 != 0)
                                     {
                                         il.Emit(IlInstr.Ldc_I8, offset3);
                                         il.Emit(IlInstr.Add);
                                     }
+
                                     il.Emit(IlInstr.Ldelema, def.MainModule.TypeSystem.Byte);
                                     var stvar2 = getVariable(v128Type);
                                     if (instr2 == VectorInstructions.V128_STORE)
@@ -1726,13 +1726,14 @@ namespace Wasm2Cil
                                 {
                                     void LoadV128ConstCode()
                                     {
-                                        Span<byte> buffer = stackalloc byte[16]; 
+                                        Span<byte> buffer = stackalloc byte[16];
                                         reader.Read(buffer);
                                         foreach (var elem in buffer)
                                         {
-                                            il.Emit(IlInstr.Ldc_I4, (int)elem);
+                                            il.Emit(IlInstr.Ldc_I4, (int) elem);
                                             il.Emit(IlInstr.Conv_I1);
                                         }
+
                                         il.EmitCall(() => Lib.CreateVector128);
                                         push(v128Type);
                                     }
@@ -1741,19 +1742,19 @@ namespace Wasm2Cil
                                 }
 
                                     break;
-                                
+
                                 case VectorInstructions.I8X16_SHUFFLE:
 
                                     void LoadV128ShuffleCode()
                                     {
-                                        Span<byte> buffer = stackalloc byte[16]; 
+                                        Span<byte> buffer = stackalloc byte[16];
                                         reader.Read(buffer);
                                         foreach (var elem in buffer)
                                         {
-                                            il.Emit(IlInstr.Ldc_I4, (int)elem);
+                                            il.Emit(IlInstr.Ldc_I4, (int) elem);
                                             il.Emit(IlInstr.Conv_I1);
                                         }
-                                        
+
                                         il.EmitCall(() => Lib.CreateVector128);
                                         il.EmitCall(() => Lib.ShuffleVectors);
                                         pop();
@@ -1761,10 +1762,17 @@ namespace Wasm2Cil
 
                                     LoadV128ShuffleCode();
                                     break;
+
+                                case VectorInstructions.I8X16_EQ:
+                                    il.EmitCall(() => Lib.i8x16_eq);
+                                    break;
+                                case VectorInstructions.I8X16_NE:
+                                    il.EmitCall(() => Lib.i8x16_ne);
+                                    break;
                                 case VectorInstructions.F32X4_Add:
                                     il.EmitCall(() => Lib.MulF32);
                                     break;
-                        
+
                                 case VectorInstructions.F32X4_SUB:
                                     il.EmitCall(() => Lib.MulF32);
                                     break;
@@ -1780,15 +1788,96 @@ namespace Wasm2Cil
                                 case VectorInstructions.F32X4_MAX:
                                     il.EmitCall(() => Lib.MaxF32);
                                     break;
-                                default:
-                                    throw new Exception("Unsupported opcode!");
+                                case VectorInstructions.I32X4_REPLACE_LANE:
+                                {
+                                    var laneIndex = reader.ReadU8();
+                                    switch (laneIndex)
+                                    {
+                                        case 0:
+                                            il.EmitCall(() => Lib.ReplaceLane0);
+                                            break;
+                                        case 1:
+                                            il.EmitCall(() => Lib.ReplaceLane1);
+                                            break;
+                                        case 2:
+                                            il.EmitCall(() => Lib.ReplaceLane2);
+                                            break;
+                                        case 3:
+                                            il.EmitCall(() => Lib.ReplaceLane3);
+                                            break;
+                                        default:
+                                            throw new NotSupportedException();
+                                    }
+                                }
+                                    break;
+                                case VectorInstructions.I32X4_EXTRACT_LANE:
+                                {
+                                    var laneIndex = reader.ReadU8();
+                                    switch (laneIndex)
+                                    {
+                                        case 0:
+                                            il.EmitCall(() => Lib.i32x4_ExtractLane0);
+                                            break;
+                                        case 1:
+                                            il.EmitCall(() => Lib.i32x4_ExtractLane1);
+                                            break;
+                                        case 2:
+                                            il.EmitCall(() => Lib.i32x4_ExtractLane2);
+                                            break;
+                                        case 3:
+                                            il.EmitCall(() => Lib.i32x4_ExtractLane3);
+                                            break;
+                                        default:
+                                            throw new NotSupportedException();
+                                    }
+                                }
+                                    break;
+                                case VectorInstructions.V128_LOAD32_ZERO:
+                                    il.EmitCall(() => Lib.LoadVec128_i32_zero);
+                                    break;
+                                case VectorInstructions.V128_LOAD64_ZERO:
+                                    il.EmitCall(() => Lib.LoadVec128_i64_zero);
+                                    break;
+                                case VectorInstructions.V128_NOT:
+                                    il.EmitCall(() => Lib.LoadVec128_not);
+                                    break;
+                                case VectorInstructions.V128_AND:
+                                    il.EmitCall(() => Lib.LoadVec128_and);
+                                    break;
+                                case VectorInstructions.V128_OR:
+                                    il.EmitCall(() => Lib.LoadVec128_or);
+                                    break;
+                                case VectorInstructions.V128_XOR:
+                                    il.EmitCall(() => Lib.LoadVec128_xor);
+                                    break;
                                 
+                                case VectorInstructions.I8X16_SHR_U:
+                                    il.EmitCall(() => Lib.i8x16_shr_u);
+                                    break;
+                                
+                                case VectorInstructions.I32X4_extend_low_i16x8_u:
+                                case VectorInstructions.I16X8_EXTEND_LOW_I8x16_S:
+                                    il.EmitCall(() => Lib.not_implemented_vec128_vec128);
+                                    break;
+                                
+                                case VectorInstructions.I32X4_SHL:
+                                    il.EmitCall(() => Lib.i32x4_shl);
+                                    break;
+                                case VectorInstructions.I32X4_SHR_S:
+                                case VectorInstructions.I32X4_SHR_U:
+                                    il.EmitCall(() => Lib.i32x4_shr);
+                                    break;
+                                case VectorInstructions.I32X4_ADD:
+                                    il.EmitCall(() => Lib.i32x4_add);
+                                    break;
+                                default:
+                                    throw new Exception("Unsupported opcode: " + instr2 + "   " + instr2.ToString("X"));
                             }
 
                             break;
                         case instr.I64_TRUNC_F32_S:
                         case instr.I64_TRUNC_F32_U:
-                        
+
                         default:
                             throw new Exception("Unsupported instruction: " + instr);
                     }
@@ -1814,7 +1903,7 @@ namespace Wasm2Cil
             fcn2 = fcn;
             foreach (var param in fcn.Parameters)
             {
-                if (param.ParameterType.Name == "CString" 
+                if (param.ParameterType.Name == "CString"
                     || param.ParameterType.IsPointer
                     || param.ParameterType.Name == "HeapContext")
                 {
@@ -1833,21 +1922,24 @@ namespace Wasm2Cil
             {
                 return ext;
             }
+
             var m2 = new MethodDefinition(m.Name + "__wrap",
                 MethodAttributes.Static | MethodAttributes.Public,
                 m.ReturnType);
-            ConstructorInfo methodImplConstructor = typeof(MethodImplAttribute).GetConstructor(new Type[] { typeof(MethodImplOptions) });
+            ConstructorInfo methodImplConstructor =
+                typeof(MethodImplAttribute).GetConstructor(new Type[] {typeof(MethodImplOptions)});
             // Create a CustomAttributeBuilder with the MethodImplOptions value
             var attr = new CustomAttribute(def.MainModule.ImportReference(methodImplConstructor));
-            attr.ConstructorArguments.Add(new CustomAttributeArgument(def.MainModule.ImportReference(typeof(MethodImplOptions)), MethodImplOptions.AggressiveInlining));
+            attr.ConstructorArguments.Add(new CustomAttributeArgument(
+                def.MainModule.ImportReference(typeof(MethodImplOptions)), MethodImplOptions.AggressiveInlining));
             m2.CustomAttributes.Add(attr);
-            
+
             cls.Methods.Add(m2);
             var il2 = m2.Body.GetILProcessor();
             int argidx = 0;
             foreach (var p in m.Parameters)
             {
-                var p2 = new ParameterDefinition(p.Name, p.Attributes,  p.ParameterType);
+                var p2 = new ParameterDefinition(p.Name, p.Attributes, p.ParameterType);
                 m2.Parameters.Add(p2);
                 if (p.ParameterType.Name == "HeapContext")
                 {
@@ -1856,24 +1948,23 @@ namespace Wasm2Cil
                     il2.EmitCall(() => HeapContext.Create);
                     argidx--;
                     m2.Parameters.Remove(p2);
-
                 }
                 else if (p.ParameterType.Name == "CString")
                 {
                     p2.ParameterType = i32Type;
-                    
+
                     il2.Emit(OpCodes.Ldsfld, memoryField);
                     il2.Emit(OpCodes.Ldarg, argidx);
                     il2.EmitCall(() => CString.New2);
-                }else if (p.ParameterType.IsPointer)
+                }
+                else if (p.ParameterType.IsPointer)
                 {
                     p2.ParameterType = i32Type;
-                    
+
                     il2.Emit(OpCodes.Ldsfld, memoryField);
                     il2.Emit(OpCodes.Ldarg, argidx);
                     il2.Emit(OpCodes.Add);
                     //il2.Emit(OpCodes.Conv_U);
-                    
                 }
                 else
                 {
@@ -1883,7 +1974,7 @@ namespace Wasm2Cil
                 argidx += 1;
             }
 
-            
+
             il2.Emit(OpCodes.Call, m);
             if (m.ReturnType.IsPointer)
             {
@@ -1892,6 +1983,7 @@ namespace Wasm2Cil
                 il2.Emit(OpCodes.Conv_I4);
                 m2.ReturnType = this.i32Type;
             }
+
             il2.Emit(OpCodes.Ret);
             return m2;
         }
@@ -1937,7 +2029,7 @@ namespace Wasm2Cil
             }
         }
 
-        
+
         TypeReference ByteToTypeReference(byte b)
         {
             switch (b)
@@ -2038,7 +2130,7 @@ namespace Wasm2Cil
                     cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
                     cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
                     cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
-                    cctoril.EmitCall(()=> Lib.Alloc);
+                    cctoril.EmitCall(() => Lib.Alloc);
                     cctoril.Emit(OpCodes.Stsfld, memoryField);
                     cctoril.Emit(OpCodes.Stsfld, memoryFieldSize);
                     cctoril.Emit(OpCodes.Ret);
@@ -2053,21 +2145,21 @@ namespace Wasm2Cil
                     cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
                     cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
                     cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
-                    cctoril.EmitCall(()=> Lib.Alloc);
+                    cctoril.EmitCall(() => Lib.Alloc);
                     cctoril.Emit(OpCodes.Stsfld, memoryField);
                     cctoril.Emit(OpCodes.Stsfld, memoryFieldSize);
-                    
+
                     cctoril.Emit(OpCodes.Ret);
                 }
             }
         }
-        
+
         unsafe void EmitCall(ILProcessor gen, Expression expr)
         {
             var f =
                 (((expr as LambdaExpression).Body as UnaryExpression).Operand as MethodCallExpression).Object as
                 ConstantExpression;
-            var method = (MethodInfo)f.Value;
+            var method = (MethodInfo) f.Value;
             var declType = gen.Body.Method.DeclaringType;
             var reference = declType.Module.ImportReference(method);
             reference = MaybeWrap(reference);

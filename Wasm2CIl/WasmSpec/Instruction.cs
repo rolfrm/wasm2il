@@ -250,8 +250,26 @@ namespace Wasm
         F32X4_REPLACE_LANE = 32,
         F64X2_EXTRACT_LANE = 33,
         F64X2_REPLACE_LANE = 34,
+        
+        I8X16_EQ = 35,
+        I8X16_NE = 36,
+        I8X16_LT_S = 37,
+        I8X16_LT_U = 38,
+        I8X16_GT_S = 39,
+        I8X16_GT_U = 40,
+        I8X16_LE_S = 41,
+        I8X16_LE_U = 42,
+        I8X16_GE_S = 43,
+        I8X16_GE_U = 44,
+        
 
-
+        V128_NOT = 77,
+        V128_AND = 78,
+        V128_ANDNOT = 79,
+        V128_OR = 80,
+        V128_XOR = 81,
+        V128_BITSELECT = 82,
+        V128_ANY_TRUE = 83,
         
         V128_LOAD8_LANE = 84,
         V128_LOAD16_LANE = 85,
@@ -265,6 +283,17 @@ namespace Wasm
         V128_LOAD32_ZERO = 92,
         V128_LOAD64_ZERO = 93,
         
+        I8X16_SHR_U = 109,
+        
+        I16X8_EXTEND_HIGH_I8x16_S = 136,
+        I16X8_EXTEND_LOW_I8x16_S = 137,
+        
+        I32X4_extend_low_i16x8_u = 169,
+        
+        I32X4_SHL = 171,
+        I32X4_SHR_S = 172,
+        I32X4_SHR_U = 173,
+        I32X4_ADD = 174,
         
         
         F32X4_Add = 228,

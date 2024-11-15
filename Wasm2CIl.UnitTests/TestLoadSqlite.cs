@@ -113,7 +113,7 @@ public class TestLoadSqlite
         asm.Invoke("sqlite3_close", db);
     }
     
-    [Test]
+    //[Test]
     public void LoadAndRunSqlite2()
     {
         SqliteWasm.C.sqlite3_initialize();

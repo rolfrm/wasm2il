@@ -33,6 +33,18 @@ public static class Lib
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector128<byte> i8x16_eq(Vector128<byte> a, Vector128<byte> b)
+    {
+        return Vector128.Equals(a, b);
+    }
+    
+    public static Vector128<byte> i8x16_ne(Vector128<byte> a, Vector128<byte> b)
+    {
+        // maybe?
+        return Vector128.Equals(a, b) ^ Vector128<byte>.One;
+    }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector128<byte> AddF32(Vector128<byte> a, Vector128<byte> b)
     {
         return (a.AsSingle() + b.AsSingle()).AsByte();
@@ -121,6 +133,98 @@ public static class Lib
 
             return result1;
         }
+    }
+
+    public static Vector128<byte> ReplaceLane0(Vector128<byte> _vector, int newValue) =>  ReplaceLane(_vector, 0, newValue);
+    public static Vector128<byte> ReplaceLane1(Vector128<byte> _vector, int newValue) =>  ReplaceLane(_vector, 1, newValue);
+    public static Vector128<byte> ReplaceLane2(Vector128<byte> _vector, int newValue) =>  ReplaceLane(_vector, 2, newValue);
+    public static Vector128<byte> ReplaceLane3(Vector128<byte> _vector, int newValue) =>  ReplaceLane(_vector, 3, newValue);
+    public static Vector128<byte> ReplaceLane(Vector128<byte> _vector, int laneIndex, int newValue)
+    {
+        Vector128<int> vector = _vector.AsInt32();
+        // Ensure the lane index is valid
+        if (laneIndex < 0 || laneIndex > 3)
+            throw new ArgumentOutOfRangeException(nameof(laneIndex), "Lane index must be between 0 and 3.");
+        /*if (Sse2.IsSupported)
+        {
+            switch (laneIndex)
+            {
+                case 0: return Sse3.Insert(vector, newValue, 0);
+                case 1: return Sse2.Insert(vector, newValue, 1);
+                case 2: return Sse2.Insert(vector, newValue, 2);
+                case 3: return Sse2.Insert(vector, newValue, 3);
+                default: return vector;
+            }
+        }*/
+
+        if (AdvSimd.IsSupported)
+        {
+            // Replace the specific lane using AdvSimd.Insert
+            return laneIndex switch
+            {
+                0 => AdvSimd.Insert(vector, 0, newValue).AsByte(),
+                1 => AdvSimd.Insert(vector, 1, newValue).AsByte(),
+                2 => AdvSimd.Insert(vector, 2, newValue).AsByte(),
+                3 => AdvSimd.Insert(vector, 3, newValue).AsByte(),
+                _ => vector.AsByte() // Default case (should never happen due to range check)
+            };
+        }
+
+        throw new NotSupportedException();
+    }
+    
+    public static int i32x4_ExtractLane0(Vector128<byte> _vector, int newValue) =>  _vector.AsInt32().GetElement(0);
+    public static int i32x4_ExtractLane1(Vector128<byte> _vector, int newValue) =>  _vector.AsInt32().GetElement(1);
+    public static int i32x4_ExtractLane2(Vector128<byte> _vector, int newValue) =>  _vector.AsInt32().GetElement(2);
+    public static int i32x4_ExtractLane3(Vector128<byte> _vector, int newValue) =>  _vector.AsInt32().GetElement(3);
+    
+    public unsafe static Vector128<byte> LoadVec128_i32_zero(int * i1)
+    {
+        return Vector128.CreateScalar(*i1).AsByte();
+    }
+    public unsafe static Vector128<byte> LoadVec128_i64_zero(long *i1)
+    {
+        return Vector128.CreateScalar(*i1).AsByte();
+    }
+    public static Vector128<byte> LoadVec128_not(Vector128<byte> a)
+    {
+        // maybe?
+        return Vector128.AndNot(a, Vector128<byte>.Zero);
+    }
+    public static Vector128<byte> LoadVec128_and(Vector128<byte> a, Vector128<byte> b)
+    {
+        return a & b;
+    }
+    public static Vector128<byte> LoadVec128_or(Vector128<byte> a, Vector128<byte> b)
+    {
+        return a | b;
+    }
+    public static Vector128<byte> LoadVec128_xor(Vector128<byte> a, Vector128<byte> b)
+    {
+        return a ^ b;
+    }
+    
+    public static Vector128<byte> i8x16_shr_u(Vector128<byte> a, int b)
+    {
+        return (a << b);
+    }
+    
+    public static Vector128<byte> i32x4_shl(Vector128<byte> a, int b)
+    {
+        return (a.AsInt32() << b).AsByte();
+    }
+    public static Vector128<byte> i32x4_shr(Vector128<byte> a, int b)
+    {
+        return (a.AsInt32() >> b).AsByte();
+    }
+    public static Vector128<byte> i32x4_add(Vector128<byte> a, Vector128<byte> b)
+    {
+        return (a.AsInt32() ^ b.AsInt32()).AsByte();
+    }
+
+    public static Vector128<byte> not_implemented_vec128_vec128(Vector128<byte> a)
+    {
+        throw new NotImplementedException();
     }
 }
 
