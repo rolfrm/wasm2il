@@ -8,10 +8,21 @@ namespace Wasm2Cil.UnitTests;
 [TestFixture]
 public class TestBasicWasm
 {
+
+    public class _Env
+    {
+        public static void assert(int x)
+        {
+            if (x == 0)
+                throw new Exception("??");
+        }
+    }
+    
     [Test]
     public void LoadAndRunBasic()
     {
         var transformer = new Transformer();
+        transformer.LoadImportModule("env", typeof(_Env));
         using var file = File.OpenRead("w1.wasm");
         transformer.Transform(file, "W1", "./w1.dll");
         
@@ -22,6 +33,7 @@ public class TestBasicWasm
         var multiply = type.GetMethod("multiply");
         var multiplyVec = type.GetMethod("multiply_vec");
         var tryVec = type.GetMethod("try_vec");
+        var test = type.GetMethod("test");
         var a = (int)incf.Invoke(null, []);
         var b= (int)incf.Invoke(null, []);
         var c= (int)incf.Invoke(null, []);
@@ -33,6 +45,7 @@ public class TestBasicWasm
         Assert.AreEqual(c, 75603);
         Assert.AreEqual(d, 15);
         Assert.AreEqual(e.AsSingle().AsVector4(), new Vector4(5, 8, 9, 8));
+        test.Invoke(null, []);
     }
     
 

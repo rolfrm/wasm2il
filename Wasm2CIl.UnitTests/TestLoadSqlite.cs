@@ -43,7 +43,7 @@ public class TestLoadSqlite
         public void Prepare(int db, string sql, int nByte, int stmt, int tail_0);
     }
     
-    [Test]
+    //[Test]
     public void LoadAndRunSqlite()
     {
         var transformer = new Transformer();
@@ -113,7 +113,7 @@ public class TestLoadSqlite
         asm.Invoke("sqlite3_close", db);
     }
     
-    //[Test]
+    [Test]
     public void LoadAndRunSqlite2()
     {
         SqliteWasm.C.sqlite3_initialize();
@@ -144,6 +144,8 @@ public class TestLoadSqlite
             //SqliteWasm.C.sqlite3_clear_bindings(stmt0_);
         }
         int ok6 = SqliteWasm.C.sqlite3_exec(db2, w.StringToHeap("COMMIT;"), 0, 0, 0);
+        if (ok6 == 11)
+            throw new Exception("Database corrupt!");
         Console.WriteLine($"time: {sw.Elapsed.TotalSeconds}");
         // pre optimize takes about 9.96s
         // after removing bounds checks I got it down to 7.38s

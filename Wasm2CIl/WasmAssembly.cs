@@ -60,7 +60,7 @@ public class WasmAssembly
             }
         }
         var m = code.GetMethod(methodName);
-        var result = m
+            var result = m
             .Invoke(null, args);
         foreach (var ptr in toFree)
             Free(ptr);

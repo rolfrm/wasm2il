@@ -427,6 +427,11 @@ public class LibC
     {
         return 0;
     }
+
+    public static int geteuid()
+    {
+        return 5;
+    }
 }
 
 [Flags]

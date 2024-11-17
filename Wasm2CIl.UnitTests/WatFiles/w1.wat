@@ -2,6 +2,7 @@
    (import "console" "log" (func $log (param i32)))
   (import "env" "strlen" (func $strlen (param i32) (result i32)))	
   (import "env" "memcpy" (func $memcpy (param i32)(param i32)(param i32) (result i32)))	
+  (import "env" "assert" (func $assert (param i32)))
  (import "env" "memfill" (func $memfill (param i32)(param i32)(param i32)))	
 	(func $multiply (param $lhs i32) (param $rhs i32) (result i32)
     local.get $lhs
@@ -104,6 +105,161 @@
     ;; just leak it :)
   )
   
+  (func $test_v128_load32_lane
+      (local $v v128)
+      
+      (local.set $v (v128.const i32x4 3 3 3 3))
+      (v128.load32_lane 2 (i32.const 53) (local.get $v))
+      (local.set $v)
+         
+      (call $assert
+        (i32.eq
+          (i32x4.extract_lane 2 (local.get $v))
+          (i32.const 0x44)))
+      
+      (local.set $v (v128.const i32x4 1 2 3 43))
+      (v128.store32_lane 3 (i32.const 53) (local.get $v))
+      
+      (call $assert
+        (i32.eq
+          (i32x4.extract_lane 3 (local.get $v))
+          (i32.const 43)))
+             
+    )
+    
+     (func $test_v128_load8_splat
+         (local $v v128)
+         (local.set $v (v128.load8_splat (i32.const 50)))
+         (call $assert
+               (i64.eq
+                 (i64x2.extract_lane 1 (local.get $v))
+                 (i64.const 0x0404040404040404)
+               ))
+          (call $assert
+             (i8x16.all_true
+             (i8x16.eq 
+                (i8x16.splat (i32.const 4))
+                        (local.get $v)
+                        )))
+     )
+     
+     (func $test_i32x4_replace_lane
+         (local $v v128)
+        
+         (local.set $v (v128.const i32x4 1 2 3 4))
+         (local.set $v (i32x4.replace_lane 2 (local.get $v) (i32.const 42)))
+         (call $assert
+               (i32.eq
+                 (i32x4.bitmask
+                   (i32x4.eq (local.get $v) (v128.const i32x4 1 2 42 4))
+                 )
+                 (i32.const 15) 
+               )
+             ))
+    (func $test_v128_load64_zero
+        (local $v v128)
+    
+        (local.set $v (v128.load64_zero (i32.const 100)))
+    
+        (call $assert
+          (i64.eq
+            (i64x2.extract_lane 0 (local.get $v))
+            (i64.const 0x0807060504030201)
+          )
+          
+        )
+        (call $assert
+          (i64.eq
+            (i64x2.extract_lane 1 (local.get $v))
+            (i64.const 0)
+          )
+        )
+      )
+      
+      (func $test_i16x8_extend_low_i8x16_u
+          (local $v v128)
+              (local $result v128)
+          
+              ;; Initialize the vector with 16 bytes
+              (local.set $v (v128.const i8x16 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16))
+          
+              ;; Extend the lower 8 bytes to 16-bit unsigned integers
+              (local.set $result (i16x8.extend_low_i8x16_u (local.get $v)))
+          
+              ;; Check the lanes of the result
+              (call $assert
+                (i32.eq
+                  (i32x4.extract_lane 0 (local.get $result))
+                  (i32.const 0x00020001)
+                )
+              )
+              (call $assert
+                (i32.eq
+                  (i32x4.extract_lane 1 (local.get $result))
+                  (i32.const 0x00040003)
+                )
+              )
+              (call $assert
+                (i32.eq
+                  (i32x4.extract_lane 2 (local.get $result))
+                  (i32.const 0x00060005)
+                )
+              )
+              (call $assert
+                (i32.eq
+                  (i32x4.extract_lane 3 (local.get $result))
+                  (i32.const 0x00080007)
+                )
+              )
+          )
+          
+           (func $test_v128_not
+              (local $v v128)
+              (local $result v128)
+          
+              ;; Initialize the vector
+              (local.set $v (v128.const i32x4 0xFFFFFFFF 0x00000000 0x12345678 0x87654321))
+          
+              ;; Perform bitwise NOT
+              (local.set $result (v128.not (local.get $v)))
+          
+              ;; Assert results
+              (call $assert
+                (i32.eq
+                  (i32x4.extract_lane 0 (local.get $result))
+                  (i32.const 0x00000000)
+                )
+              )
+              (call $assert
+                (i32.eq
+                  (i32x4.extract_lane 1 (local.get $result))
+                  (i32.const 0xFFFFFFFF)
+                )
+              )
+              (call $assert
+                (i32.eq
+                  (i32x4.extract_lane 2 (local.get $result))
+                  (i32.const 0xEDCBA987)
+                )
+              )
+              (call $assert
+                (i32.eq
+                  (i32x4.extract_lane 3 (local.get $result))
+                  (i32.const 0x789ABCDE)
+                )
+              )
+            )
+    
+    (func $test
+        call $test_v128_load32_lane
+        call $test_v128_load8_splat
+        call $test_i32x4_replace_lane
+        call $test_v128_load64_zero
+        call $test_i16x8_extend_low_i8x16_u
+        call $test_v128_not
+    )
+  
+  
   (export "multiply" (func $multiply))
   (export "multiply_vec" (func $multiply_vec))
   (export "incf" (func $incf))
@@ -115,11 +271,16 @@
   (export "test_memcpy" (func $test_memcpy))
   (export "test_memfill" (func $test_memfill))
   (export "test_memfill2" (func $test_memfill2))
+  (export "test" (func $test))
 
   (global $a (mut i32) (i32.const 75600))
   (global $a2 (mut i32) (i32.const -64))
   (global $a3 (mut i32) (i32.const -75600))
+  (global $test_value (mut i32) (i32.const 0x05050505))
   (global $heap_ptr (mut i32) (i32.const 1024))
   (memory $mem 4) 
   (data (i32.const 0) "Hello, World!")
+  
+  (data (i32.const 50) "\04\00\00\44\00\00\00\88\99\AA\BB\CC\DD\EE\FF\00")
+  (data (i32.const 100) "\01\02\03\04\05\06\07\08\11\22\33\44\55\66\77\88")
   )
