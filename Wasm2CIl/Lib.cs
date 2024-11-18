@@ -96,67 +96,67 @@ public static class Lib
         => Vector128.LessThan(a, b);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i32x4_lt_u(Vector128<byte> a, Vector128<byte> b)
-        => Vector128.LessThan(a.AsUInt32(), b.AsUInt32()).AsByte();
+    public static Vector128<uint> i32x4_lt_u(Vector128<uint> a, Vector128<uint> b)
+        => Vector128.LessThan(a, b);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector128<int> i32x4_gt_s(Vector128<int> a, Vector128<int> b)
         => Vector128.GreaterThan(a, b);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i32x4_gt_u(Vector128<byte> a, Vector128<byte> b)
-        => Vector128.GreaterThan(a.AsUInt32(), b.AsUInt32()).AsByte();
+    public static Vector128<uint> i32x4_gt_u(Vector128<uint> a, Vector128<uint> b)
+        => Vector128.GreaterThan(a, b);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i32x4_le_s(Vector128<byte> a, Vector128<byte> b)
-        => Vector128.LessThanOrEqual(a.AsInt32(), b.AsInt32()).AsByte();
+    public static Vector128<int> i32x4_le_s(Vector128<int> a, Vector128<int> b)
+        => Vector128.LessThanOrEqual(a, b);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i32x4_le_u(Vector128<byte> a, Vector128<byte> b)
-        => Vector128.LessThanOrEqual(a.AsUInt32(), b.AsUInt32()).AsByte();
+    public static Vector128<uint> i32x4_le_u(Vector128<uint> a, Vector128<uint> b)
+        => Vector128.LessThanOrEqual(a, b);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i32x4_ge_s(Vector128<byte> a, Vector128<byte> b)
-        => Vector128.GreaterThanOrEqual(a.AsInt32(), b.AsInt32()).AsByte();
+    public static Vector128<int> i32x4_ge_s(Vector128<int> a, Vector128<int> b)
+        => Vector128.GreaterThanOrEqual(a, b);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i32x4_ge_u(Vector128<byte> a, Vector128<byte> b)
-        => Vector128.GreaterThanOrEqual(a.AsUInt32(), b.AsUInt32()).AsByte();
+    public static Vector128<uint> i32x4_ge_u(Vector128<uint> a, Vector128<uint> b)
+        => Vector128.GreaterThanOrEqual(a, b);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> f32x4_add(Vector128<byte> a, Vector128<byte> b)
+    public static Vector128<float> f32x4_add(Vector128<float> a, Vector128<float> b)
     {
-        return (a.AsSingle() + b.AsSingle()).AsByte();
+        return a + b;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> f32x4_sub(Vector128<byte> a, Vector128<byte> b)
+    public static Vector128<float> f32x4_sub(Vector128<float> a, Vector128<float> b)
     {
-        return (a.AsSingle() - b.AsSingle()).AsByte();
+        return a - b;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> f32x4_mul(Vector128<byte> a, Vector128<byte> b)
+    public static Vector128<float> f32x4_mul(Vector128<float> a, Vector128<float> b)
     {
-        return (a.AsSingle() * b.AsSingle()).AsByte();
+        return a * b;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> f32x4_div(Vector128<byte> a, Vector128<byte> b)
+    public static Vector128<float> f32x4_div(Vector128<float> a, Vector128<float> b)
     {
-        return (a.AsSingle() / b.AsSingle()).AsByte();
+        return a / b;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> f32x4_min(Vector128<byte> a, Vector128<byte> b)
+    public static Vector128<float> f32x4_min(Vector128<float> a, Vector128<float> b)
     {
-        return Vector128.Min(a.AsSingle(), b.AsSingle()).AsByte();
+        return Vector128.Min(a, b);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> f32x4_max(Vector128<byte> a, Vector128<byte> b)
+    public static Vector128<float> f32x4_max(Vector128<float> a, Vector128<float> b)
     {
-        return Vector128.Max(a.AsSingle(), b.AsSingle()).AsByte();
+        return Vector128.Max(a, b);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -216,45 +216,45 @@ public static class Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static sbyte i8x16_extract_lane_s(Vector128<byte> vector, int lane) => vector.AsSByte().GetElement(lane);
+    public static sbyte i8x16_extract_lane_s(Vector128<sbyte> vector, int lane) => vector.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static byte i8x16_extract_lane_u(Vector128<byte> vector, int lane) => vector.AsByte().GetElement(lane);
+    public static byte i8x16_extract_lane_u(Vector128<byte> vector, int lane) => vector.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector128<byte> i8x16_replace_lane(Vector128<byte> vector, byte value, int lane)
-        => vector.WithElement(lane, value).AsByte();
+        => vector.WithElement(lane, value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static short i16x8_extract_lane_s(Vector128<byte> vector, int lane) => vector.AsInt16().GetElement(lane);
+    public static short i16x8_extract_lane_s(Vector128<short> vector, int lane) => vector.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ushort i16x8_extract_lane_u(Vector128<byte> vector, int lane) => vector.AsUInt16().GetElement(lane);
+    public static ushort i16x8_extract_lane_u(Vector128<ushort> vector, int lane) => vector.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i16x8_replace_lane(Vector128<byte> vector, short value, int lane)
-        => vector.AsInt16().WithElement(lane, value).AsByte();
+    public static Vector128<short> i16x8_replace_lane(Vector128<short> vector, short value, int lane)
+        => vector.WithElement(lane, value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int i32x4_extract_lane(Vector128<byte> vector, int lane) => vector.AsInt32().GetElement(lane);
+    public static int i32x4_extract_lane(Vector128<int> vector, int lane) => vector.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector128<int> i32x4_replace_lane(Vector128<int> vector, int value, int lane)
         => vector.WithElement(lane, value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static long i64x2_extract_lane(Vector128<byte> vector, int lane) => vector.AsInt64().GetElement(lane);
+    public static long i64x2_extract_lane(Vector128<long> vector, int lane) => vector.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i64x2_replace_lane(Vector128<byte> vector, long value, int lane)
-        => vector.AsInt64().WithElement(lane, value).AsByte();
+    public static Vector128<long> i64x2_replace_lane(Vector128<long> vector, long value, int lane)
+        => vector.WithElement(lane, value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float f32x4_extract_lane(Vector128<byte> vector, int lane) => vector.AsSingle().GetElement(lane);
+    public static float f32x4_extract_lane(Vector128<float> vector, int lane) => vector.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> f32x4_replace_lane(Vector128<byte> vector, int value, int lane)
-        => vector.AsSingle().WithElement(lane, value).AsByte();
+    public static Vector128<float> f32x4_replace_lane(Vector128<float> vector, int value, int lane)
+        => vector.WithElement(lane, value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static double f64x2_extract_lane(Vector128<double> vector, int lane) => vector.GetElement(lane);
@@ -271,36 +271,20 @@ public static class Lib
         Vector128.CreateScalar(*i1);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> v128_not(Vector128<byte> a)
-    {
-        var b = a ^ Vector128<byte>.AllBitsSet;
-        return b;
-    }
+    public static Vector128<byte> v128_not(Vector128<byte> a) =>  a ^ Vector128<byte>.AllBitsSet;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> v128_and(Vector128<byte> a, Vector128<byte> b)
-    {
-        return a & b;
-    }
-
+    public static Vector128<byte> v128_and(Vector128<byte> a, Vector128<byte> b) =>  a & b;
+    
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> v128_andnot(Vector128<byte> a, Vector128<byte> b)
-    {
-        return Vector128.AndNot(a, b);
-    }
-
+    public static Vector128<byte> v128_andnot(Vector128<byte> a, Vector128<byte> b) => Vector128.AndNot(a, b);
+    
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> v128_or(Vector128<byte> a, Vector128<byte> b)
-    {
-        return a | b;
-    }
-
+    public static Vector128<byte> v128_or(Vector128<byte> a, Vector128<byte> b) => a | b;
+    
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> v128_xor(Vector128<byte> a, Vector128<byte> b)
-    {
-        return a ^ b;
-    }
-
+    public static Vector128<byte> v128_xor(Vector128<byte> a, Vector128<byte> b) =>  a ^ b;
+    
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector128<byte> v128_bitselect(Vector128<byte> a, Vector128<byte> b, Vector128<byte> mask)
     {
@@ -655,33 +639,33 @@ public static class Lib
     public static Vector128<long> i64x2_eq(Vector128<long> a, Vector128<long> b) =>  Vector128.Equals(a, b);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i64x2_ne(Vector128<byte> a, Vector128<byte> b)
+    public static Vector128<long> i64x2_ne(Vector128<long> a, Vector128<long> b)
     {
-        return Vector128.OnesComplement(Vector128.Equals(a.AsInt64(), b.AsInt64())).AsByte();
+        return Vector128.OnesComplement(Vector128.Equals(a, b));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i64x2_lt_s(Vector128<byte> a, Vector128<byte> b)
+    public static Vector128<long> i64x2_lt_s(Vector128<long> a, Vector128<long> b)
     {
-        return Vector128.LessThan(a.AsInt64(), b.AsInt64()).AsByte();
+        return Vector128.LessThan(a, b);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i64x2_gt_s(Vector128<byte> a, Vector128<byte> b)
+    public static Vector128<long> i64x2_gt_s(Vector128<long> a, Vector128<long> b)
     {
-        return Vector128.GreaterThan(a.AsInt64(), b.AsInt64()).AsByte();
+        return Vector128.GreaterThan(a, b);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i64x2_le_s(Vector128<byte> a, Vector128<byte> b)
+    public static Vector128<long> i64x2_le_s(Vector128<long> a, Vector128<long> b)
     {
-        return Vector128.LessThanOrEqual(a.AsInt64(), b.AsInt64()).AsByte();
+        return Vector128.LessThanOrEqual(a, b);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i64x2_ge_s(Vector128<byte> a, Vector128<byte> b)
+    public static Vector128<long> i64x2_ge_s(Vector128<long> a, Vector128<long> b)
     {
-        return Vector128.GreaterThanOrEqual(a.AsInt64(), b.AsInt64()).AsByte();
+        return Vector128.GreaterThanOrEqual(a, b);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -725,56 +709,56 @@ public static class Lib
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i8x16_splat(byte a) => Vector128.Create(a).AsByte();
+    public static Vector128<byte> i8x16_splat(byte a) => Vector128.Create(a);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i16x8_splat(short a) => Vector128.Create(a).AsByte();
+    public static Vector128<short> i16x8_splat(short a) => Vector128.Create(a);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i32x4_splat(int a) => Vector128.Create(a).AsByte();
+    public static Vector128<int> i32x4_splat(int a) => Vector128.Create(a);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i64x2_splat(long a) => Vector128.Create(a).AsByte();
+    public static Vector128<long> i64x2_splat(long a) => Vector128.Create(a);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static Vector128<byte> v128_load8_splat(byte* a) => Vector128.Create(*a).AsByte();
+    public unsafe static Vector128<byte> v128_load8_splat(byte* a) => Vector128.Create(*a);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static Vector128<byte> v128_load16_splat(short* a) => Vector128.Create(*a).AsByte();
+    public unsafe static Vector128<short> v128_load16_splat(short* a) => Vector128.Create(*a);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static Vector128<byte> v128_load32_splat(int* a) => Vector128.Create(*a).AsByte();
+    public unsafe static Vector128<int> v128_load32_splat(int* a) => Vector128.Create(*a);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static Vector128<byte> v128_load64_splat(long* a) => Vector128.Create(*a).AsByte();
+    public unsafe static Vector128<long> v128_load64_splat(long* a) => Vector128.Create(*a);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static Vector128<byte> v128_load8_lane(byte* a, int lane, Vector128<byte> v) =>
         v.WithElement(lane, *a);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static Vector128<byte> v128_load16_lane(short* a, int lane, Vector128<byte> v) =>
-        v.AsInt16().WithElement(lane, *a).AsByte();
+    public unsafe static Vector128<short> v128_load16_lane(short* a, int lane, Vector128<short> v) =>
+        v.WithElement(lane, *a);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static Vector128<byte> v128_load32_lane(int* a, int lane, Vector128<byte> v) =>
-        v.AsInt32().WithElement(lane, *a).AsByte();
+    public unsafe static Vector128<int> v128_load32_lane(int* a, int lane, Vector128<int> v) =>
+        v.WithElement(lane, *a);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static Vector128<byte> v128_load64_lane(long* a, int lane, Vector128<byte> v) =>
-        v.AsInt64().WithElement(lane, *a).AsByte();
+    public unsafe static Vector128<long> v128_load64_lane(long* a, int lane, Vector128<long> v) =>
+        v.WithElement(lane, *a);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe static void v128_store8_lane(byte* a, int lane, Vector128<byte> v) => *a = v.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void v128_store16_lane(short* a, int lane, Vector128<byte> v) => *a = v.GetElement(lane);
+    public unsafe static void v128_store16_lane(short* a, int lane, Vector128<short> v) => *a = v.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void v128_store32_lane(int* a, int lane, Vector128<byte> v) => *a = v.GetElement(lane);
+    public unsafe static void v128_store32_lane(int* a, int lane, Vector128<int> v) => *a = v.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe static void v128_store64_lane(long* a, int lane, Vector128<byte> v) => *a = v.GetElement(lane);
+    public unsafe static void v128_store64_lane(long* a, int lane, Vector128<long> v) => *a = v.GetElement(lane);
 
     public static Vector128<byte> not_implemented_vec128_vec128(Vector128<byte> a)
     {
