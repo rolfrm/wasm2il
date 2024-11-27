@@ -11,6 +11,11 @@ public class LibC
 {
     public class LibCOverride
     {
+        //FILE *f, const char *fmt, va_list *ap, union arg *nl_arg, int *nl_type)
+        //public unsafe static int printf_core(int f, CString fmt, int param2, int param3, int param4)
+        //{
+        //    return 0;
+        //}
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe void * memcpy(void* dst, void* src, int c)
         {
@@ -159,6 +164,7 @@ public class LibC
         public int Malloc(int count) => (int)malloc.Invoke(null, new object[]{count});
 
         public Span<byte> GetSpan(int p, int length) => GetHeap().Slice(p, length);
+        public Span<T> GetSpan<T>(int p) where T: struct => MemoryMarshal.Cast<byte, T>(GetHeap().Slice(p, Marshal.SizeOf<T>()));
         public unsafe byte* GetHeapRaw() => (byte*) Pointer.Unbox(memory.GetValue(null));
         public unsafe int GetHeapSize() => (int)memorySize.GetValue(null);
         public unsafe Span<byte> GetHeap() => new Span<byte>((byte*)Pointer.Unbox(memory.GetValue(null)), (int)memorySize.GetValue(null));
@@ -432,6 +438,73 @@ public class LibC
     {
         return 5;
     }
+
+    public static int getuid()
+    {
+        return 996;
+    }
+
+    // int atexit(void (*func)(void));
+    public static int atexit(int func)
+    {
+
+        return 0;
+    }
+
+
+    public static unsafe int fopen(HeapContext ctx, CString path, CString mode)
+    {
+        var x = GetModuleContext(ctx.Module);
+        var p = x.Malloc(4);
+        var idspan = x.GetSpan<int>(p);
+        return 0;
+    }
+
+    public static int __lockfile(int filePtr)
+    {
+        return 1; // ok
+    }
+
+    public static void __unlockfile(int fileptr)
+    {
+        
+    }
+
+    public static int __towrite(int fptr)
+    {
+        return 0;
+    }
+
+    public static int putchar(int v)
+    {
+        return v;
+    }
+
+    public static void __errr(CString cstr)
+    {
+        Console.WriteLine(cstr.ToString());
+    }
+
+    public unsafe static int __fwritex(byte * data, int len, int file)
+    {
+        var span = new ReadOnlySpan<byte>(data, len);
+        var str = System.Text.Encoding.UTF8.GetString(span);
+        Console.Write(str);
+
+        return 0;
+    }
+    public unsafe static int strnlen(byte * data, int len)
+    {
+        for (int i = 0; i < len; i++)
+        {
+            if (data[i] == 0)
+                return i;
+        }
+
+        return -1;
+    }
+    
+    
 }
 
 [Flags]

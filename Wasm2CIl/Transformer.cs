@@ -245,7 +245,7 @@ namespace Wasm2Cil
                 // let's implemented 
 
                 il.Emit(IlInstr.Nop);
-                il.Emit(IlInstr.Ldstr, "Not Implemented");
+                il.Emit(IlInstr.Ldstr, imp.Name + " not Implemented");
                 il.Emit(IlInstr.Newobj, resolveTypeConstructor(typeof(NotImplementedException), typeof(string)));
                 il.Emit(IlInstr.Throw);
                 cls.Methods.Add(m);
@@ -469,6 +469,18 @@ namespace Wasm2Cil
                         case 7:
                             baseType = typeof(Action<,,,,,,>);
                             break;
+                        case 8:
+                            baseType = typeof(Action<,,,,,,,>);
+                            break;
+                        case 9:
+                            baseType = typeof(Action<,,,,,,,,>);
+                            break;
+                        case 10:
+                            baseType = typeof(Action<,,,,,,,,,>);
+                            break;
+                        default:
+                            throw new NotSupportedException();
+                            
                     }
                 }
                 else
@@ -496,6 +508,20 @@ namespace Wasm2Cil
                         case 6:
                             baseType = typeof(Func<,,,,,,>);
                             break;
+                        case 7:
+                            baseType = typeof(Func<,,,,,,,>);
+                            break;
+                        case 8:
+                            baseType = typeof(Func<,,,,,,,,>);
+                            break;
+                        case 9:
+                            baseType = typeof(Func<,,,,,,,,,>);
+                            break;
+                        case 10:
+                            baseType = typeof(Func<,,,,,,,,,,>);
+                            break;
+                        default:
+                            throw new NotSupportedException();
                     }
                 }
 
@@ -626,7 +652,8 @@ namespace Wasm2Cil
                         type.ReturnType);
                     m.Body.InitLocals = true;
                     var il = m.Body.GetILProcessor();
-                    il.Emit(IlInstr.Ldstr, "Not Implemented");
+                    
+                    il.Emit(IlInstr.Ldstr, importFun.Name + " not Implemented");
                     il.Emit(IlInstr.Newobj, resolveTypeConstructor(typeof(NotImplementedException), typeof(string)));
                     il.Emit(IlInstr.Throw);
                     importFun.Method = m;

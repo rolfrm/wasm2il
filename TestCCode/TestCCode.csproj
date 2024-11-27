@@ -8,6 +8,7 @@
 
     <ItemGroup>
       <ClCompile Include="compare.c" />
+      <ClCompile Include="crypto.c" />
       <ClCompile Include="sqlite_pre.c" />
     </ItemGroup>
 

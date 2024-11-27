@@ -2,10 +2,11 @@ SYSROOT=/Users/bruger/code/work/wasi-libc/sysroot
 SYSROOT_LIB=$(SYSROOT)/lib/wasm32-wasi
 #MUSL_INCLUDE=/Users/bruger/code/work/musl/include
 MUSL_INCLUDE=/Users/bruger/code/minlibc/include
+SSL_PATH=/Users/bruger/code/extern/openssl/include
 all: ../bin/Debug/net6.0/code.wasm
 # -msimd128  -mtail-call ./libc.wasm-mtail-call  -msimd128 -mbulk-memory -msimd128 
 sqlite3.wasm: sqlite3.c sqlite3.h
-	clang --target=wasm32-unknown-unknown -msimd128  -mbulk-memory -flto -fbuiltin -mllvm -inline-threshold=1000 -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -O3\
+        clang --target=wasm32-unknown-unknown -msimd128  -mbulk-memory -flto -fbuiltin -mllvm -inline-threshold=1000 -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -O3\
              -I$(MUSL_INCLUDE)  -fvisibility=hidden \
              -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_RANDOMNESS -DHAVE_UTIME -DSQLITE_OMIT_WAL -DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_THREADSAFE=0 -DSQLITE_ENABLE_SETLK_TIMEOUT \
               ./libc.wasm sqlite3.c -Wl,--allow-undefined -Wl,--no-entry\
@@ -16,12 +17,16 @@ sqlite3.wasm: sqlite3.c sqlite3.h
               -Wl,--export=sqlite3_memory_used
               
 
-sqlite3.wat: sqlite3.wasm
+sqlite3.wat: sqlite3.wasm libc.wasm
 	wasm2wat sqlite3.wasm > sqlite3.wat
     
+crypto.wasm: crypto.c libc.wasm 
+	clang --target=wasm32-unknown-unknown ./libc.wasm ./libcrypto.wasm -Wl,--no-entry  -nostdlib  -O3 crypto.c -I$(SSL_PATH) -I$(MUSL_INCLUDE) -o crypto.wasm -Wl,--export=main -Wl,--export=set_stdout\
+	 -Wl,--error-limit=0 -Wl,--allow-undefined
+    
 code1.bc: Code1.c
-	clang --target=wasm32-wasi -c -o code1.bc -Oz Code1.c -fdeclspec\
-             --sysroot $(SYSROOT)
+	clang --target=wasm32-wasi -v -c -o code1.bc -Oz Code1.c -fdeclspec\
+             --sysroot $(SYSROOT) 
 
 #code.wasm: code1.bc sqlite3.bc
 #	wasm-ld -export-all --allow-undefined -error-limit=0 -L$(SYSROOT)/lib/wasm32-wasi/ $(SYSROOT_LIB)/libc.a  $^  $(SYSROOT_LIB)/crt1.o  -o code.wasm -no-entry 

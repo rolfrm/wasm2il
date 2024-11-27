@@ -259,8 +259,10 @@
         call $test_v128_not
     )
   
+     
   
   (export "multiply" (func $multiply))
+  (export "test_v128_load32_lane" (func $test_v128_load32_lane))
   (export "multiply_vec" (func $multiply_vec))
   (export "incf" (func $incf))
   (export "testLog" (func $testLog))

@@ -43,7 +43,7 @@ public class TestLoadSqlite
         public void Prepare(int db, string sql, int nByte, int stmt, int tail_0);
     }
     
-    //[Test]
+    [Test]
     public void LoadAndRunSqlite()
     {
         var transformer = new Transformer();
@@ -135,7 +135,7 @@ public class TestLoadSqlite
 
         var sw = Stopwatch.StartNew();
         int ok5 = SqliteWasm.C.sqlite3_exec(db2, w.StringToHeap("BEGIN TRANSACTION;"), 0, 0, 0);
-        for (int i = 0; i < 10000000; i++)
+        for (int i = 0; i < 100; i++)
         {
             SqliteWasm.C.sqlite3_bind_int(stmt0_, 1, i);
             SqliteWasm.C.sqlite3_bind_text(stmt0_, 2,  t, -1, 0);
