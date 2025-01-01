@@ -6,6 +6,8 @@ namespace Wasm2Cil.OperatingSystem;
 public interface IProcess
 {
     int WaitForExit();
+    void ResolveImport(ResolveImportEventArgs resolveImportEventArgs); 
+    IProcess Parent { get; }
 }
 
 class Process : IProcess
@@ -26,11 +28,17 @@ class Process : IProcess
             Thread.Sleep(100);
         return ExitCode;
     }
-    
-    
+
+    public void ResolveImport(ResolveImportEventArgs resolveImportEventArgs)
+    {
+        Parent?.ResolveImport(resolveImportEventArgs);
+
+    }
+
+    IProcess IProcess.Parent => this.Parent;
 }
 
-public class OS : IProcess
+public class OS : IProcess 
 {
     [ThreadStatic] public static OS Current;
     ImmutableList<Process> processes = ImmutableList<Process>.Empty;
@@ -42,8 +50,8 @@ public class OS : IProcess
         var parentProcess = ProcessByThread(Thread.CurrentThread);
         Current = this;
         var tform = new Transformer();
-        tform.LoadImportModule("fs", typeof(Fs));
-        tform.LoadImportModule("sys", typeof(Sys));
+        tform.OnResolveImport += TformOnOnResolveImport;
+        
         using var fstr = wasm.GetCodeStream();
         var asm = tform.LoadWasmAssembly(fstr, name, "os-tmp.dll");
 
@@ -69,7 +77,18 @@ public class OS : IProcess
         trd.Start();
         return thisProcess;
     }
-   
+
+    private void TformOnOnResolveImport(object? sender, ResolveImportEventArgs e)
+    {
+        var parentProcess = ProcessByThread(Thread.CurrentThread);
+        parentProcess.ResolveImport(e);
+        if (!e.Handled)
+        {
+            parentProcess.Parent?.ResolveImport(e);
+        }
+
+    }
+
     /*
     public IProcess StartProcess(Type app, string name, string[] arguments)
     {
@@ -93,4 +112,25 @@ public class OS : IProcess
     {
         throw new Exception("Invalid operation");
     }
+
+    public void ResolveImport(ResolveImportEventArgs resolveImportEventArgs)
+    {
+        MethodInfo? method;
+        switch (resolveImportEventArgs.ModuleName)
+        {
+            case "fs": method = typeof(Fs).GetMethod(resolveImportEventArgs.Name); break;
+            case "sys": method = typeof(Sys).GetMethod(resolveImportEventArgs.Name); break;
+                default: method = null;
+                break;
+        }
+
+        if (method != null)
+        {
+            resolveImportEventArgs.Result = method;
+            resolveImportEventArgs.Handled = true;
+        }
+        
+    }
+
+    public IProcess Parent => null;
 }

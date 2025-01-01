@@ -26,6 +26,14 @@ namespace Wasm2Cil
     using instr = Wasm.Instruction;
     using IlInstr = OpCodes;
 
+    public class ResolveImportEventArgs : EventArgs
+    {
+        public string ModuleName { get; set; }
+        public string Name { get; set; }
+        public object Result { get; set; }
+        public bool Handled { get; set; }
+    }
+
     public class Transformer
     {
         readonly Dictionary<string, List<Type>> importModules = new();
@@ -38,8 +46,25 @@ namespace Wasm2Cil
             typeList.Add(type);
         }
 
+        public event EventHandler<ResolveImportEventArgs> OnResolveImport;
+
         public MethodInfo ResolveImportedMethod(string moduleName, string name)
         {
+            if (OnResolveImport != null)
+            {
+                ResolveImportEventArgs resolveEventArgs = new ResolveImportEventArgs()
+                {
+                    Name = name,
+                    ModuleName = moduleName,
+                };
+                OnResolveImport?.Invoke(this, resolveEventArgs);
+                if (resolveEventArgs.Handled)
+                {
+                    return (MethodInfo) resolveEventArgs.Result;
+                }
+            }
+
+
             if (importModules.TryGetValue(moduleName, out var t))
             {
                 foreach (var type in t)
@@ -47,7 +72,6 @@ namespace Wasm2Cil
                     if (type.GetMethod(name) is MethodInfo m)
                         return m;
                 }
-                
             }
 
             return null;
@@ -70,7 +94,7 @@ namespace Wasm2Cil
                 File.WriteAllBytes(outDll, mem.ToArray());
             return new WasmAssembly(asm);
         }
-        
+
         public WasmAssembly LoadWasmAssembly(string filePath, string name, string outDll = "tmp.dll")
         {
             using var file = File.OpenRead(filePath);
@@ -122,7 +146,7 @@ namespace Wasm2Cil
         {
             var asmName2 = new AssemblyNameDefinition(asmName, Version.Parse("1.0.0"));
             var asm = AssemblyDefinition.CreateAssembly(asmName2, "Test", ModuleKind.Dll);
-            
+
             f32Type = asm.MainModule.TypeSystem.Single;
             f64Type = asm.MainModule.TypeSystem.Double;
             i64Type = asm.MainModule.TypeSystem.Int64;
@@ -244,9 +268,9 @@ namespace Wasm2Cil
                          .ToArray())
             {
                 var imp = kv.Value;
-                
+
                 var method = ResolveImportedMethod(imp.Module, imp.Name);
-              
+
 
                 if (method != null)
                 {
@@ -309,13 +333,13 @@ namespace Wasm2Cil
                     }
                 }
             }
-            
+
 
             reader.Position = codeLoc;
             ReadCodeSection(reader);
             def.Write(outStream);
-            
-            
+
+
             Log.WriteLine($"Output written to {outStream}");
             def.Dispose();
         }
@@ -506,7 +530,6 @@ namespace Wasm2Cil
                             break;
                         default:
                             throw new NotSupportedException();
-                            
                     }
                 }
                 else
@@ -654,16 +677,16 @@ namespace Wasm2Cil
                 var importFun = ImportFuncs[func];
                 if (importFun.Method == null)
                 {
-                    if (importModules.TryGetValue(importFun.Module, out var type2))
+                    var m3 = ResolveImportedMethod(importFun.Module, importFun.Name);
+
+
+                    if (m3 != null)
                     {
-                        var m3 = type2.GetMethod(importFun.Name);
-                        if (m3 != null)
-                        {
-                            var m2 = def.MainModule.ImportReference(m3);
-                            importFun.Method = m2;
-                            return m2;
-                        }
+                        var m2 = def.MainModule.ImportReference(m3);
+                        importFun.Method = m2;
+                        return m2;
                     }
+
 
                     var type = Types[(uint) importFun.TypeId];
                     var method = methodFromName(importFun.Name);
@@ -678,7 +701,7 @@ namespace Wasm2Cil
                         type.ReturnType);
                     m.Body.InitLocals = true;
                     var il = m.Body.GetILProcessor();
-                    
+
                     il.Emit(IlInstr.Ldstr, importFun.Name + " not Implemented");
                     il.Emit(IlInstr.Newobj, resolveTypeConstructor(typeof(NotImplementedException), typeof(string)));
                     il.Emit(IlInstr.Throw);
@@ -1199,7 +1222,7 @@ namespace Wasm2Cil
                             // adjust according to the offset 
                             if (offset != 0)
                             {
-                                il.Emit(IlInstr.Ldc_I4, (int)offset);
+                                il.Emit(IlInstr.Ldc_I4, (int) offset);
                                 il.Emit(IlInstr.Add);
                             }
 
@@ -1756,7 +1779,7 @@ namespace Wasm2Cil
                                         il.Emit(IlInstr.Stloc, stvar);
                                         pop();
                                     }
-                                
+
                                     il.Emit(IlInstr.Ldsfld, memoryField);
                                     il.Emit(IlInstr.Add);
                                     var align2 = reader.ReadU32Leb(); // align
@@ -1764,7 +1787,7 @@ namespace Wasm2Cil
 
                                     if (offset3 != 0)
                                     {
-                                        il.Emit(IlInstr.Ldc_I4, (int)offset3);
+                                        il.Emit(IlInstr.Ldc_I4, (int) offset3);
                                         il.Emit(IlInstr.Add);
                                     }
 
@@ -1802,7 +1825,7 @@ namespace Wasm2Cil
                                 }
 
                                     break;
-                                
+
 
                                 case VectorInstructions.I8X16_SHUFFLE:
 
@@ -1830,8 +1853,8 @@ namespace Wasm2Cil
                                 case VectorInstructions.I8X16_NE:
                                     il.EmitCall(() => Lib.i8x16_ne);
                                     break;
-                                
-                                
+
+
                                 case VectorInstructions.I16X8_EQ:
                                     il.EmitCall(() => Lib.i16x8_eq);
                                     break;
@@ -1862,8 +1885,8 @@ namespace Wasm2Cil
                                 case VectorInstructions.I16X8_GE_U:
                                     il.EmitCall(() => Lib.i16x8_ge_u);
                                     break;
-                                
-                                
+
+
                                 case VectorInstructions.I32X4_EQ:
                                     il.EmitCall(() => Lib.i32x4_eq);
                                     break;
@@ -1894,8 +1917,8 @@ namespace Wasm2Cil
                                 case VectorInstructions.I32X4_GE_U:
                                     il.EmitCall(() => Lib.i32x4_ge_u);
                                     break;
-                                    
-                                
+
+
                                 case VectorInstructions.F32X4_Add:
                                     il.EmitCall(() => Lib.f32x4_mul);
                                     break;
@@ -1949,7 +1972,7 @@ namespace Wasm2Cil
                                     }
                                 }
                                     break;
-                                
+
                                 case VectorInstructions.I8X16_EXTRACT_LANE_S:
                                 case VectorInstructions.I8X16_EXTRACT_LANE_U:
                                 case VectorInstructions.I16X8_EXTRACT_LANE_S:
@@ -1960,7 +1983,7 @@ namespace Wasm2Cil
                                 case VectorInstructions.F64X2_EXTRACT_LANE:
                                 {
                                     var idx = reader.ReadU8();
-                                    il.Emit(OpCodes.Ldc_I4, (int)idx);
+                                    il.Emit(OpCodes.Ldc_I4, (int) idx);
                                     switch (instr2)
                                     {
                                         case VectorInstructions.I8X16_EXTRACT_LANE_S:
@@ -1993,11 +2016,10 @@ namespace Wasm2Cil
                                         case VectorInstructions.F64X2_EXTRACT_LANE:
                                             il.EmitCall(() => Lib.f64x2_extract_lane);
                                             break;
-                                            
+
                                         default:
                                             throw new UnreachableException();
                                     }
-                                    
                                 }
                                     break;
                                 case VectorInstructions.V128_LOAD64_ZERO:
@@ -2013,7 +2035,8 @@ namespace Wasm2Cil
                                         il.Emit(OpCodes.Ldc_I4, (int) offset3);
                                         il.Emit(OpCodes.Add);
                                     }
-                                    switch(instr2)
+
+                                    switch (instr2)
                                     {
                                         case VectorInstructions.V128_LOAD64_ZERO:
                                             il.EmitCall(() => Lib.vec128_load64_zero);
@@ -2024,6 +2047,7 @@ namespace Wasm2Cil
                                         default:
                                             throw new NotSupportedException();
                                     }
+
                                     push(v128Type);
                                     break;
                                 }
@@ -2048,7 +2072,7 @@ namespace Wasm2Cil
                                 case VectorInstructions.V128_ANY_TRUE:
                                     il.EmitCall(() => Lib.v128_any_true);
                                     break;
-                                
+
                                 case VectorInstructions.I8X16_ABS:
                                     il.EmitCall(() => Lib.i8x16_abs);
                                     break;
@@ -2096,11 +2120,11 @@ namespace Wasm2Cil
                                 case VectorInstructions.I8X16_SUB:
                                     il.EmitCall(() => Lib.i8x16_sub);
                                     break;
-                                
+
                                 case VectorInstructions.I8X16_MUL:
                                     il.EmitCall(() => Lib.i8x16_mul);
                                     break;
-                                
+
                                 case VectorInstructions.I16X8_SHL:
                                     il.EmitCall(() => Lib.i16x8_shl);
                                     break;
@@ -2113,7 +2137,7 @@ namespace Wasm2Cil
                                 case VectorInstructions.I16X8_ADD:
                                     il.EmitCall(() => Lib.i16x8_add);
                                     break;
-                                    
+
                                 case VectorInstructions.I16X8_EXTEND_LOW_I8x16_S:
                                     il.EmitCall(() => Lib.i16x8_extend_low_i8x16_s);
                                     break;
@@ -2125,11 +2149,11 @@ namespace Wasm2Cil
                                 case VectorInstructions.I16X8_EXTEND_LOW_I8x16_U:
                                     il.EmitCall(() => Lib.i16x8_extend_low_i8x16_u);
                                     break;
-        
+
                                 case VectorInstructions.I16X8_EXTEND_HIGH_I8x16_U:
                                     il.EmitCall(() => Lib.i16x8_extend_high_i8x16_u);
                                     break;
-                                
+
                                 case VectorInstructions.I32X4_EXTADD_PAIRWISE_I16X8_S:
                                     il.EmitCall(() => Lib.i32x4_extadd_pairwise_i16x8_s);
                                     break;
@@ -2197,8 +2221,8 @@ namespace Wasm2Cil
                                 case VectorInstructions.I32X4_MAX_U:
                                     il.EmitCall(() => Lib.i32x4_max_u);
                                     break;
-                                
-                                
+
+
                                 case VectorInstructions.I64X2_ABS:
                                     il.EmitCall(() => Lib.i64x2_abs);
                                     break;
@@ -2254,7 +2278,7 @@ namespace Wasm2Cil
                                 case VectorInstructions.I64X2_MUL:
                                     il.EmitCall(() => Lib.i64x2_mul);
                                     break;
-                                
+
                                 case VectorInstructions.I64X2_EQ:
                                     il.EmitCall(() => Lib.i64x2_eq);
                                     break;
@@ -2294,8 +2318,8 @@ namespace Wasm2Cil
                                 case VectorInstructions.I64X2_EXTMUL_HIGH_I32X4_U:
                                     il.EmitCall(() => Lib.i64x2_extmul_high_i32x4_u);
                                     break;
-                                
-                                
+
+
                                 case VectorInstructions.I8X16_SPLAT:
                                     il.EmitCall(() => Lib.i8x16_splat);
                                     push(v128Type);
@@ -2313,11 +2337,10 @@ namespace Wasm2Cil
                                     push(v128Type);
                                     break;
                                 case VectorInstructions.V128_LOAD8_SPLAT:
-                                case VectorInstructions.V128_LOAD16_SPLAT:  
+                                case VectorInstructions.V128_LOAD16_SPLAT:
                                 case VectorInstructions.V128_LOAD32_SPLAT:
                                 case VectorInstructions.V128_LOAD64_SPLAT:
                                 {
-
                                     var __t = pop();
                                     var align2 = reader.ReadU32Leb();
                                     var offset3 = reader.ReadU32Leb();
@@ -2345,10 +2368,9 @@ namespace Wasm2Cil
                                             break;
                                         default:
                                             throw new NotImplementedException();
-                                        
                                     }
+
                                     push(v128Type);
-                                    
                                 }
                                     break;
 
@@ -2361,11 +2383,10 @@ namespace Wasm2Cil
                                 case VectorInstructions.V128_STORE32_LANE:
                                 case VectorInstructions.V128_STORE64_LANE:
                                 {
-                                    
                                     stvar = getVariable(v128Type);
                                     il.Emit(IlInstr.Stloc, stvar);
                                     pop();
-                                    
+
                                     var align2 = reader.ReadU32Leb();
                                     var offset3 = reader.ReadU32Leb();
                                     var lane = reader.ReadU8();
@@ -2376,10 +2397,10 @@ namespace Wasm2Cil
                                         il.Emit(OpCodes.Ldc_I4, (int) offset3);
                                         il.Emit(OpCodes.Add);
                                     }
-                                    
-                                    il.Emit(IlInstr.Ldc_I4, (int)lane);
+
+                                    il.Emit(IlInstr.Ldc_I4, (int) lane);
                                     il.Emit(IlInstr.Ldloc, stvar);
-                                    
+
                                     switch (instr2)
                                     {
                                         case VectorInstructions.V128_LOAD8_LANE:
@@ -2398,7 +2419,7 @@ namespace Wasm2Cil
                                             il.EmitCall(() => Lib.v128_load64_lane);
                                             push(this.i64Type);
                                             break;
-                                        
+
                                         case VectorInstructions.V128_STORE8_LANE:
                                             il.EmitCall(() => Lib.v128_store8_lane);
                                             break;

@@ -84,6 +84,11 @@ public class WasmAssembly
         return result;
     }
 
+    public MethodInfo GetMethod(string name)
+    {
+        return this.code.GetMethod(name);
+    }
+
     public Span<byte> GetHeapSpan(int i, int len)
     {
         return GetHeap().Slice(i, len);
