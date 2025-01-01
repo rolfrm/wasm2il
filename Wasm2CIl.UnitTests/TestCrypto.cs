@@ -15,7 +15,13 @@ public class TestCrypto
         transformer.LoadOverrideModule(typeof(LibC.LibCOverride));
         var asm = transformer.LoadWasmAssembly("crypto.wasm", "CryptoWasm", "CryptoWasm.dll");
         asm.Invoke("set_stdout", 12345);
-        int err = (int) asm.Invoke("main", 0, 0);
+        int b = asm.StringToHeap("Hello, OpenSSL!");
+        int c = asm.StringToHeap("Hello, OpenSSL!!");
+        int d = asm.StringToHeap("jajajaja");
+        int err = (int) asm.Invoke("hashstr", b);
+        err = (int) asm.Invoke("hashstr", c);
+        err = (int) asm.Invoke("hashstr", d);
+        err = (int) asm.Invoke("hashstr", b);
 
     }
     

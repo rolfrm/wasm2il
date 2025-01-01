@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Numerics;
 using System.Reflection;
-using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using Mono.Cecil;
@@ -39,11 +38,39 @@ namespace Wasm2Cil
             typeList.Add(type);
         }
 
+        public MethodInfo ResolveImportedMethod(string moduleName, string name)
+        {
+            if (importModules.TryGetValue(moduleName, out var t))
+            {
+                foreach (var type in t)
+                {
+                    if (type.GetMethod(name) is MethodInfo m)
+                        return m;
+                }
+                
+            }
+
+            return null;
+        }
+
         public void LoadOverrideModule(Type type)
         {
             overrideModules.Add(type);
         }
 
+        public WasmAssembly LoadWasmAssembly(Stream stream, string name, string outDll = "tmp.dll")
+        {
+            var path = outDll;
+            if (File.Exists(path))
+                File.Delete(path);
+            var mem = new MemoryStream();
+            Transform(stream, name, mem);
+            var asm = Assembly.Load(mem.ToArray());
+            if (outDll != null)
+                File.WriteAllBytes(outDll, mem.ToArray());
+            return new WasmAssembly(asm);
+        }
+        
         public WasmAssembly LoadWasmAssembly(string filePath, string name, string outDll = "tmp.dll")
         {
             using var file = File.OpenRead(filePath);
@@ -217,13 +244,11 @@ namespace Wasm2Cil
                          .ToArray())
             {
                 var imp = kv.Value;
-                if (this.importModules.TryGetValue(imp.Module, out var importedModule) == false)
-                {
-                    Log.WriteLine($"Warning: Import module not defined {imp.Module}");
-                    continue;
-                }
+                
+                var method = ResolveImportedMethod(imp.Module, imp.Name);
+              
 
-                if (importedModule.GetMethod(imp.Name) != null)
+                if (method != null)
                 {
                     continue;
                 }
@@ -395,9 +420,10 @@ namespace Wasm2Cil
                         var t = Types[(uint) imp.TypeId];
                         if (imp.Method == null)
                         {
-                            if (importModules.TryGetValue(imp.Module, out var imports))
+                            var method = ResolveImportedMethod(imp.Module, imp.Name);
+                            if (method != null)
                             {
-                                var reference = def.MainModule.ImportReference(imports.GetMethod(imp.Name));
+                                var reference = def.MainModule.ImportReference(method);
                                 reference = MaybeWrap(reference);
                                 imp.Method = reference;
                             }

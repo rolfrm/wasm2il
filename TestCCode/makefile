@@ -21,9 +21,16 @@ sqlite3.wat: sqlite3.wasm libc.wasm
 	wasm2wat sqlite3.wasm > sqlite3.wat
     
 crypto.wasm: crypto.c libc.wasm 
-	clang --target=wasm32-unknown-unknown ./libc.wasm ./libcrypto.wasm -Wl,--no-entry  -nostdlib  -O3 crypto.c -I$(SSL_PATH) -I$(MUSL_INCLUDE) -o crypto.wasm -Wl,--export=main -Wl,--export=set_stdout\
+	clang --target=wasm32-unknown-unknown ./libc.wasm ./libcrypto.wasm -Wl,--no-entry  -nostdlib  -O3 crypto.c -I$(SSL_PATH) -I$(MUSL_INCLUDE) -o crypto.wasm -Wl,--export=hashstr -Wl,--export=set_stdout\
 	 -Wl,--error-limit=0 -Wl,--allow-undefined
+
+cat.wasm: cat.c
+	clang --target=wasm32-unknown-unknown -nostdlib -O3  -Wl,--export=main -Wl,--allow-undefined -Wl,--no-entry -ffreestanding cat.c -o cat.wasm
     
+simple_call.wasm: simple_call.c
+	clang --target=wasm32-unknown-unknown -nostdlib -O3  -Wl,--export=main -Wl,--allow-undefined -Wl,--no-entry -ffreestanding simple_call.c -o simple_call.wasm
+     
+   
 code1.bc: Code1.c
 	clang --target=wasm32-wasi -v -c -o code1.bc -Oz Code1.c -fdeclspec\
              --sysroot $(SYSROOT) 

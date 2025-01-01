@@ -11,6 +11,7 @@
 
     <ItemGroup>
       <ProjectReference Include="../Wasm2CIl/Wasm2CIl.csproj" />
+      <ProjectReference Include="..\Wasm2Cil.OperatingSystem\Wasm2Cil.OperatingSystem.csproj" />
     </ItemGroup>
 
     <ItemGroup>

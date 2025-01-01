@@ -17,13 +17,13 @@ void set_stdout(FILE * ptr)
 
 void __errr(const char * str);
 
-int main() {
+int hashstr(const char * input) {
     // Input data to be hashed
-    const char *input = "Hello, OpenSSL!";
+    
     __errr(input);
     
     // Output buffer for the hash
-    unsigned char hash[SHA256_DIGEST_LENGTH];
+    unsigned char hash[SHA512_DIGEST_LENGTH];
 
     // Initialize OpenSSL library
     OpenSSL_add_all_algorithms();
@@ -37,7 +37,7 @@ int main() {
     }
 
     // Select the SHA-256 hashing algorithm
-    const EVP_MD *md = EVP_sha256();
+    const EVP_MD *md = EVP_sha512();
 
     // Initialize the digest context for hashing
     if (EVP_DigestInit_ex(mdctx, md, NULL) != 1) {

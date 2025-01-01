@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wasm2CIl.UnitTests", "Wasm2
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wasm2Cil.Compare", "Wasm2Cil.Compare\Wasm2Cil.Compare.csproj", "{B0BB209C-9941-47CF-9783-055A192898EC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wasm2Cil.OperatingSystem", "Wasm2Cil.OperatingSystem\Wasm2Cil.OperatingSystem.csproj", "{5B119ECA-B5EF-4F62-B6E0-D0DFF3627236}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{B0BB209C-9941-47CF-9783-055A192898EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B0BB209C-9941-47CF-9783-055A192898EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B0BB209C-9941-47CF-9783-055A192898EC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5B119ECA-B5EF-4F62-B6E0-D0DFF3627236}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5B119ECA-B5EF-4F62-B6E0-D0DFF3627236}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5B119ECA-B5EF-4F62-B6E0-D0DFF3627236}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5B119ECA-B5EF-4F62-B6E0-D0DFF3627236}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

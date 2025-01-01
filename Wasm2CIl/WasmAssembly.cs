@@ -20,13 +20,30 @@ public class WasmAssembly
 
     public int Malloc(int len)
     {
+        if (malloc == null)
+        {
+            return FakeMalloc(len);
+        }
         int ptr = (int)malloc.Invoke(null, new object[]{len});
         return ptr;
     }
 
     void Free(int ptr)
     {
+        if(malloc == null) 
+            // leak
         free.Invoke(null, new object[]{ptr});
+    }
+
+    public unsafe int FakeMalloc(int len)
+    {
+        var p = new IntPtr(Pointer.Unbox(code.GetField("Memory").GetValue(null))); 
+        int memSize = (int)code.GetField("MemorySize").GetValue(null);
+        
+        p = Marshal.ReAllocHGlobal(p, memSize + len);
+        code.GetField("Memory").SetValue(null, Pointer.Box(p.ToPointer(), typeof(byte*)));
+        code.GetField("MemorySize").SetValue(null, memSize + len);
+        return memSize;
     }
 
     public unsafe Span<byte> GetHeap()
@@ -70,6 +87,10 @@ public class WasmAssembly
     public Span<byte> GetHeapSpan(int i, int len)
     {
         return GetHeap().Slice(i, len);
+    }
+    public Span<T> GetHeapSpan<T>(int i, int len) where T: struct
+    {
+        return MemoryMarshal.Cast<byte, T>(GetHeap().Slice(i, len * Marshal.SizeOf<T>()));
     }
 
     public T GetHeapObject<T>(int ptr) where T: struct

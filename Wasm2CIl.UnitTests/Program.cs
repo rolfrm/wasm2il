@@ -16,15 +16,21 @@ public class Program
 {
     public static void Main()
     {
+        var args = Environment.GetCommandLineArgs().Skip(1).ToHashSet();
+        
         foreach (var type in Assembly.GetCallingAssembly().ExportedTypes)
         {
             if (type.IsAbstract) continue;
             if (type.GetCustomAttribute<TestFixtureAttribute>() != null)
             {
                 var instance = Activator.CreateInstance(type);
-                Console.WriteLine($"TestFixture {type}");
+                
                 foreach (var method in type.GetMethods())
                 {
+                    if (args.Count > 0 && !(args.Contains(method.Name) || args.Contains(type.Name)))
+                    {
+                        continue;
+                    }
                     if (method.GetCustomAttribute<TestAttribute>() != null)
                     {
                         Console.WriteLine($"Test {method}");
