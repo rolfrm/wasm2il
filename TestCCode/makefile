@@ -28,9 +28,18 @@ cat.wasm: cat.c
 	clang --target=wasm32-unknown-unknown -nostdlib -O3  -Wl,--export=main -Wl,--allow-undefined -Wl,--no-entry -ffreestanding cat.c -o cat.wasm
     
 simple_call.wasm: simple_call.c
-	clang --target=wasm32-unknown-unknown -nostdlib -O3  -Wl,--export=main -Wl,--allow-undefined -Wl,--no-entry -ffreestanding simple_call.c -o simple_call.wasm
+	clang --target=wasm32-unknown-unknown -nostdlib -O3  -Wl,--export=main -Wl,--export=__provide_overrides__ -Wl,--allow-undefined -Wl,--no-entry -ffreestanding simple_call.c -o simple_call.wasm
      
-   
+simple_call2.wasm: simple_call2.c
+	clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory  -Wl,--export=main -Wl,--export=__provide_overrides2__ -Wl,--export=__provide_overrides__ -Wl,--export=__caller_heap__ -Wl,--allow-undefined -Wl,--no-entry -ffreestanding simple_call2.c -o simple_call2.wasm 
+  
+term_text.wasm: TermText.c
+	clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory  -Wl,--export=main -Wl,--export=__provide_overrides2__ -Wl,--export=__provide_overrides__ -Wl,--export=__caller_heap__ -Wl,--allow-undefined -Wl,--no-entry -ffreestanding TermText.c -o term_text.wasm
+
+term_text_test.wasm: term_text_test.c
+	clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory  -Wl,--export=main -Wl,--export=__provide_overrides2__ -Wl,--export=__provide_overrides__ -Wl,--export=__caller_heap__ -Wl,--allow-undefined -Wl,--no-entry -ffreestanding term_text_test.c -o term_text_test.wasm 
+      
+      
 code1.bc: Code1.c
 	clang --target=wasm32-wasi -v -c -o code1.bc -Oz Code1.c -fdeclspec\
              --sysroot $(SYSROOT) 

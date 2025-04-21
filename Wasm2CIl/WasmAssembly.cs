@@ -6,10 +6,14 @@ namespace Wasm2Cil;
 
 public class WasmAssembly
 {
+    public string Name => code.Name;
     private readonly Assembly asm;
     private readonly Type code;
     private MethodInfo malloc;
     private MethodInfo free;
+
+    public Assembly Assembly => asm;
+    
     public WasmAssembly(Assembly asm)
     {
         this.asm = asm;
@@ -24,15 +28,16 @@ public class WasmAssembly
         {
             return FakeMalloc(len);
         }
-        int ptr = (int)malloc.Invoke(null, new object[]{len});
+        int ptr = (int)malloc.Invoke(null, [len]);
         return ptr;
     }
 
-    void Free(int ptr)
+    public void Free(int ptr)
     {
-        if(malloc == null) 
+        if (malloc == null)
+            return;
             // leak
-        free.Invoke(null, new object[]{ptr});
+        free.Invoke(null, [ptr]);
     }
 
     public unsafe int FakeMalloc(int len)
@@ -77,7 +82,7 @@ public class WasmAssembly
             }
         }
         var m = code.GetMethod(methodName);
-            var result = m
+        var result = m
             .Invoke(null, args);
         foreach (var ptr in toFree)
             Free(ptr);
@@ -87,6 +92,11 @@ public class WasmAssembly
     public MethodInfo GetMethod(string name)
     {
         return this.code.GetMethod(name);
+    }
+    
+    public FieldInfo GetField(string name)
+    {
+        return this.code.GetField(name);
     }
 
     public Span<byte> GetHeapSpan(int i, int len)
@@ -110,5 +120,11 @@ public class WasmAssembly
     {
         
         return new CString(GetHeap(), ptr).ToString();
+    }
+
+    public object LookupFunction(int i)
+    {
+        var ftable = (Array)code.GetField("FunctionTable", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+        return ftable.GetValue(i);
     }
 }

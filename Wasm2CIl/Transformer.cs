@@ -28,10 +28,12 @@ namespace Wasm2Cil
 
     public class ResolveImportEventArgs : EventArgs
     {
+        public TypeDefinition TypeBuilder { get; set; }
         public string ModuleName { get; set; }
         public string Name { get; set; }
         public object Result { get; set; }
         public bool Handled { get; set; }
+        public ModuleDefinition ModuleDefinition { get; set; }
     }
 
     public class Transformer
@@ -48,7 +50,7 @@ namespace Wasm2Cil
 
         public event EventHandler<ResolveImportEventArgs> OnResolveImport;
 
-        public MethodInfo ResolveImportedMethod(string moduleName, string name)
+        public object ResolveImportedMethod(string moduleName, string name)
         {
             if (OnResolveImport != null)
             {
@@ -56,11 +58,14 @@ namespace Wasm2Cil
                 {
                     Name = name,
                     ModuleName = moduleName,
+                    
+                    TypeBuilder = cls,
+                    ModuleDefinition = def.MainModule
                 };
                 OnResolveImport?.Invoke(this, resolveEventArgs);
                 if (resolveEventArgs.Handled)
                 {
-                    return (MethodInfo) resolveEventArgs.Result;
+                    return resolveEventArgs.Result;
                 }
             }
 
@@ -82,13 +87,13 @@ namespace Wasm2Cil
             overrideModules.Add(type);
         }
 
-        public WasmAssembly LoadWasmAssembly(Stream stream, string name, string outDll = "tmp.dll")
+        public WasmAssembly LoadWasmAssembly(Stream stream, string name, string outDll = "tmp.dll", string version = "1.0.0")
         {
             var path = outDll;
             if (File.Exists(path))
                 File.Delete(path);
             var mem = new MemoryStream();
-            Transform(stream, name, mem);
+            Transform(stream, name, mem, version);
             var asm = Assembly.Load(mem.ToArray());
             if (outDll != null)
                 File.WriteAllBytes(outDll, mem.ToArray());
@@ -142,9 +147,9 @@ namespace Wasm2Cil
 
         // note there are also globals which are added dynamically depending on need.
 
-        void Init(string asmName)
+        void Init( string asmName, Version version)
         {
-            var asmName2 = new AssemblyNameDefinition(asmName, Version.Parse("1.0.0"));
+            var asmName2 = new AssemblyNameDefinition(asmName, version);
             var asm = AssemblyDefinition.CreateAssembly(asmName2, "Test", ModuleKind.Dll);
 
             f32Type = asm.MainModule.TypeSystem.Single;
@@ -196,8 +201,9 @@ namespace Wasm2Cil
             Transform(str, asmName, outFile);
         }
 
-        public void Transform(Stream str, string asmName, Stream outStream)
+        public void Transform(Stream str, string asmName, Stream outStream, string versionStr = "1.0.0")
         {
+            var version = Version.Parse(versionStr);
             var reader = new BinReader(str);
             var header = reader.ReadStrl(4);
             if (magicHeader != header)
@@ -208,7 +214,7 @@ namespace Wasm2Cil
                 throw new Exception("Unsupported wasm version");
             Log.WriteLine("Wasm Version: {0}", string.Join(" ", wasmVersion));
 
-            Init(asmName);
+            Init(asmName, version);
             long codeLoc = 0;
             long elementLoc = 0;
             while (!reader.ReadToEnd())
@@ -447,7 +453,7 @@ namespace Wasm2Cil
                             var method = ResolveImportedMethod(imp.Module, imp.Name);
                             if (method != null)
                             {
-                                var reference = def.MainModule.ImportReference(method);
+                                var reference = method is MethodReference mr ? mr :def.MainModule.ImportReference((MethodInfo)method);
                                 reference = MaybeWrap(reference);
                                 imp.Method = reference;
                             }
@@ -663,8 +669,6 @@ namespace Wasm2Cil
             public Instruction? StartLabel;
         }
 
-        private Dictionary<string, MethodReference?> methodCache = new Dictionary<string, MethodReference?>();
-
         MethodReference? methodFromName(string name)
         {
             return null;
@@ -682,7 +686,26 @@ namespace Wasm2Cil
 
                     if (m3 != null)
                     {
-                        var m2 = def.MainModule.ImportReference(m3);
+                        var type2 = Types[(uint) importFun.TypeId];
+                        
+                        var m2 =  m3 is MethodReference mr ? mr :def.MainModule.ImportReference((MethodInfo)m3);
+
+                        m2 = MaybeWrap(m2);
+                        
+                        if (m2.ReturnType.FullName == (voidType.FullName) && (type2.ReturnCount != 0))
+                        {
+                            throw new Exception($"Type signature of {importFun.Name} does not match declared type. (return arguments)");
+                        }
+                        if (m2.ReturnType.FullName != (voidType.FullName) && (type2.ReturnCount == 0))
+                        {
+                            throw new Exception($"Type signature of {importFun.Name} does not match declared type. (return arguments)");
+                        }
+
+                        if (type2.ParamCount != m2.Parameters.Count)
+                        {
+                            throw new Exception($"Type signature of {importFun.Name} does not match declared type. (parameter count)");
+                        }
+
                         importFun.Method = m2;
                         return m2;
                     }
@@ -2494,7 +2517,7 @@ namespace Wasm2Cil
                 MethodAttributes.Static | MethodAttributes.Public,
                 m.ReturnType);
             ConstructorInfo methodImplConstructor =
-                typeof(MethodImplAttribute).GetConstructor(new Type[] {typeof(MethodImplOptions)});
+                typeof(MethodImplAttribute).GetConstructor([typeof(MethodImplOptions)]);
             // Create a CustomAttributeBuilder with the MethodImplOptions value
             var attr = new CustomAttribute(def.MainModule.ImportReference(methodImplConstructor));
             attr.ConstructorArguments.Add(new CustomAttributeArgument(

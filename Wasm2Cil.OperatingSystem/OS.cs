@@ -6,36 +6,8 @@ namespace Wasm2Cil.OperatingSystem;
 public interface IProcess
 {
     int WaitForExit();
-    void ResolveImport(ResolveImportEventArgs resolveImportEventArgs); 
+    void ResolveImport(ResolveImportEventArgs args); 
     IProcess Parent { get; }
-}
-
-class Process : IProcess
-{
-    public Thread thread;
-    public int ExitCode;
-    public readonly IProcess Parent;
-
-    public Process(IProcess parent, Thread thread)
-    {
-        this.thread = thread;
-        this.Parent = parent;
-    }
-
-    public int WaitForExit()
-    {
-        while(thread.IsAlive)
-            Thread.Sleep(100);
-        return ExitCode;
-    }
-
-    public void ResolveImport(ResolveImportEventArgs resolveImportEventArgs)
-    {
-        Parent?.ResolveImport(resolveImportEventArgs);
-
-    }
-
-    IProcess IProcess.Parent => this.Parent;
 }
 
 public class OS : IProcess 
@@ -44,7 +16,26 @@ public class OS : IProcess
     ImmutableList<Process> processes = ImmutableList<Process>.Empty;
 
     IProcess ProcessByThread(Thread trd) => (IProcess)processes.FirstOrDefault(p => p.thread == trd) ?? this;
-    
+
+    public void Load()
+    {
+        AppDomain.CurrentDomain.AssemblyResolve += CurrentDomainOnAssemblyResolve;
+    }
+
+    private Assembly? CurrentDomainOnAssemblyResolve(object? sender, ResolveEventArgs args)
+    {
+        foreach (var proc in processes)
+        {
+            var name = args.Name;
+            var name2 = proc.Assembly.Assembly.FullName;
+            if (name == name2)
+                return proc.Assembly.Assembly;
+        }
+        
+
+        return null;
+    }
+
     public IProcess StartProcess(IWasmCode wasm, string name, string[] arguments)
     {
         var parentProcess = ProcessByThread(Thread.CurrentThread);
@@ -53,7 +44,10 @@ public class OS : IProcess
         tform.OnResolveImport += TformOnOnResolveImport;
         
         using var fstr = wasm.GetCodeStream();
-        var asm = tform.LoadWasmAssembly(fstr, name, "os-tmp.dll");
+
+        var vCounter = processes.Count(p => (p.Parent as Process)?.Assembly.Name == name);
+        
+        var asm = tform.LoadWasmAssembly(fstr, name, $"{name}.dll", $"{vCounter + 1}.0.0");
 
         int argc = arguments.Length + 1;
         int argvp = asm.Malloc(argc * 4);
@@ -71,8 +65,9 @@ public class OS : IProcess
             thisProcess.ExitCode = exitCode;
             ImmutableInterlocked.Update(ref processes, p=> p.Remove(thisProcess));
         });
+
         
-        thisProcess = new Process(parentProcess, trd);
+        thisProcess = new Process(parentProcess, trd, asm);
         ImmutableInterlocked.Update(ref processes, p => p.Add(thisProcess));
         trd.Start();
         return thisProcess;
@@ -113,24 +108,62 @@ public class OS : IProcess
         throw new Exception("Invalid operation");
     }
 
-    public void ResolveImport(ResolveImportEventArgs resolveImportEventArgs)
+    public void ResolveImport(ResolveImportEventArgs args)
     {
         MethodInfo? method;
-        switch (resolveImportEventArgs.ModuleName)
+        switch (args.ModuleName)
         {
-            case "fs": method = typeof(Fs).GetMethod(resolveImportEventArgs.Name); break;
-            case "sys": method = typeof(Sys).GetMethod(resolveImportEventArgs.Name); break;
-                default: method = null;
-                break;
+            case "fs": method = typeof(Fs).GetMethod(args.Name); break;
+            case "sys": method = typeof(Sys).GetMethod(args.Name); break;
+            case "log": method = typeof(Log).GetMethod(args.Name); break;
+            case "console": method = typeof(Console2).GetMethod(args.Name); break;
+            default: return;
         }
 
         if (method != null)
         {
-            resolveImportEventArgs.Result = method;
-            resolveImportEventArgs.Handled = true;
+            args.Result = method;
+            args.Handled = true;
         }
-        
+    }
+
+    public class Log
+    {
+        public static void debug(CString msg)
+        {
+            Console.WriteLine(msg.ToString());
+        }
     }
 
     public IProcess Parent => null;
+
+    public IProcess GetCurrentProcess()
+    {
+        return ProcessByThread(Thread.CurrentThread);
+    }
+}
+
+public class Console2
+{
+    public static unsafe void write(CString buffer)
+    {
+        Console.Write(buffer.ToString());
+        
+    }
+
+    public static int width()
+    {
+        return Console.WindowWidth;
+    }
+    
+    public static int height()
+    {
+        return Console.WindowHeight;
+    }
+
+    public static void cursor(int x, int y)
+    {
+        Console.SetCursorPosition(x, y);
+    }
+    
 }

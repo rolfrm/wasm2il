@@ -12,7 +12,9 @@
       <ClCompile Include="crypto.c" />
       <ClCompile Include="sh.c" />
       <ClCompile Include="simple_call.c" />
+      <ClCompile Include="simple_call2.c" />
       <ClCompile Include="sqlite_pre.c" />
+      <ClCompile Include="TermText.c" />
     </ItemGroup>
 
     <ItemGroup>
