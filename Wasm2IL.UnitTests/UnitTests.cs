@@ -1,4 +1,4 @@
-namespace Wasm2Cil
+namespace Wasm2Cil.UnitTests
 {
 
     [TestFixture]
@@ -30,7 +30,7 @@ namespace Wasm2Cil
                 sb.Append(str);
             return sb.ToString();
         }
-/*
+
         public static void TestReadWrite()
         {
 
@@ -79,7 +79,7 @@ namespace Wasm2Cil
             foreach (var v in strs)
                 writer.WriteStrN(v);
 
-            memstr.Seek(0, SeekOrigin.Begin);
+            memstr.Seek(0, System.IO.SeekOrigin.Begin);
             var reader = new BinReader(memstr);
             foreach (var v in longs)
                 Assert.AreEqual(v, reader.ReadI64Leb());
@@ -106,6 +106,6 @@ namespace Wasm2Cil
             foreach (var v in strs)
                 Assert.AreEqual(v, reader.ReadStrN());
         }
-*/
+
     }
 }

@@ -10,8 +10,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="../Wasm2CIl/Wasm2CIl.csproj" />
-      <ProjectReference Include="..\Wasm2Cil.OperatingSystem\Wasm2Cil.OperatingSystem.csproj" />
+      <ProjectReference Include="../Wasm2IL/Wasm2IL.csproj" />
     </ItemGroup>
 
     <ItemGroup>

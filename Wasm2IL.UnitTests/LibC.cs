@@ -11,11 +11,6 @@ public class LibC
 {
     public class LibCOverride
     {
-        //FILE *f, const char *fmt, va_list *ap, union arg *nl_arg, int *nl_type)
-        //public unsafe static int printf_core(int f, CString fmt, int param2, int param3, int param4)
-        //{
-        //    return 0;
-        //}
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe void * memcpy(void* dst, void* src, int c)
         {
@@ -88,19 +83,7 @@ public class LibC
         }
         
     }
-    private static byte[] x;
-    public unsafe static void Test(Vector128<byte> vec)
-    {
-        fixed(byte * b = &x[4])
-        {
-            ((Vector128<byte>*)b)[1] = vec;    
-        }
-        fixed(byte * b = &x[4])
-        {
-            b[10] = 5;    
-        }
-        
-    }
+    
     public static int strlen(CString p)
     {
         return p.Length;
