@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace Wasm2Cil;
+namespace Wasm2IL;
 
 public class TestFixtureAttribute : Attribute
 {

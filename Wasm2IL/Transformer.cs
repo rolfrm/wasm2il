@@ -21,7 +21,7 @@ using TypeAttributes = Mono.Cecil.TypeAttributes;
 using TypeDefinition = Mono.Cecil.TypeDefinition;
 using TypeReference = Mono.Cecil.TypeReference;
 
-namespace Wasm2Cil
+namespace Wasm2IL
 {
     using instr = Wasm.Instruction;
     using IlInstr = OpCodes;

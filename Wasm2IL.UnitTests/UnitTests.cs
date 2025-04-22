@@ -1,4 +1,4 @@
-namespace Wasm2Cil.UnitTests
+namespace Wasm2IL.UnitTests
 {
 
     [TestFixture]

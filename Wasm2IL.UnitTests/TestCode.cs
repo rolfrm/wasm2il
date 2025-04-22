@@ -1,4 +1,4 @@
-namespace Wasm2Cil;
+namespace Wasm2IL;
 
 public class TestCode
 {

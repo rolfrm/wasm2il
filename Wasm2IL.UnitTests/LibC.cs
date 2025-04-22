@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 
-namespace Wasm2Cil.UnitTests;
+namespace Wasm2IL.UnitTests;
 
 public class LibC
 {

@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace Wasm2Cil;
+namespace Wasm2IL;
 
 /// <summary>
 /// This class contains overrides for libc standard functions or other things imported by wasi,

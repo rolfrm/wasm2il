@@ -5,7 +5,7 @@ using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics.Wasm;
 using System.Runtime.Intrinsics.X86;
 
-namespace Wasm2Cil;
+namespace Wasm2IL;
 
 public static class Lib
 {

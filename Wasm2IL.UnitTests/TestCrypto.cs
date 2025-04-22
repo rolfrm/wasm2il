@@ -1,5 +1,5 @@
-using Wasm2Cil;
-using Wasm2Cil.UnitTests;
+using Wasm2IL;
+using Wasm2IL.UnitTests;
 
 namespace Wasm2CIl.UnitTests;
 

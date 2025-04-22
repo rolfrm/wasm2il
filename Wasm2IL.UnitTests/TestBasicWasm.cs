@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Runtime.Intrinsics;
 using Wasm2CIl.UnitTests;
 
-namespace Wasm2Cil.UnitTests;
+namespace Wasm2IL.UnitTests;
 
 [TestFixture]
 public class TestBasicWasm

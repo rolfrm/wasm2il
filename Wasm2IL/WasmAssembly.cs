@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace Wasm2Cil;
+namespace Wasm2IL;
 
 public class WasmAssembly
 {
