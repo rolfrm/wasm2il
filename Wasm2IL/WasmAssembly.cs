@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
-using Mono.Cecil;
 using MethodAttributes = System.Reflection.MethodAttributes;
 
 namespace Wasm2IL;
@@ -306,7 +305,6 @@ public class WasmAssembly
             il.Emit(OpCodes.Ret);
 
             typeBuilder.DefineMethodOverride(methodBuilder, method);
-            var s = methodBuilder.GetILGenerator().ToString();
         }
 
         return (T) Activator.CreateInstance(typeBuilder.CreateType());

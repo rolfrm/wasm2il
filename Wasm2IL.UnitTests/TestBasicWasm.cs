@@ -82,7 +82,7 @@ public class TestBasicWasm
     {
         // copies the string as UTF8 and frees it afterwards.
         [Wasm("get_strlen")]
-        int GetStrLen(string x);
+        int GetStrLen(string str);
 
         // returns a pointer to wasm memory.
         [Wasm]
@@ -115,11 +115,15 @@ public class TestBasicWasm
         Assert.AreEqual(12, len2);
 
         var p = w1wasm.malloc(10);
-        var offset = w1wasm.pointerOffset(p);
-        byte[] testData = [1, 2, 3, 4, 5, 6, 7, 9];
+        
+        byte[] testData = [1, 2, 3, 4, 5, 6, 7, 8];
+        // should be 7eb5108b368a78ed
         byte[] outData = [1, 2, 3, 4, 5, 6, 7, 8];
         w1wasm.InOutTest(testData, testData.Length, outData );
+        var hexstr = Convert.ToHexString(outData).ToLower();
+        string expectedstr = "ed788a368b10b57e";
 
+        Assert.AreEqual(expectedstr, hexstr);
     }
     
     [Test]
