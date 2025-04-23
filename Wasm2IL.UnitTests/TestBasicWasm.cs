@@ -1,7 +1,6 @@
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.Intrinsics;
-using Wasm2CIl.UnitTests;
 
 namespace Wasm2IL.UnitTests;
 
@@ -79,15 +78,38 @@ public class TestBasicWasm
         Assert.IsTrue(results.SequenceEqual([5, 10]));
     }
 
-   
-    //[Test]
-    public void TestStrLen()
+    public interface IW1Wasm
+    {
+        [Wasm("get_strlen")]
+        int GetStrLen(string x);
+
+        [Wasm]
+        unsafe byte* malloc(int len);
+
+        [Wasm]
+        unsafe void free(byte* ptr);
+
+        [Wasm]
+        unsafe int pointerOffset(byte* ptr);
+    }
+    
+    [Test]
+    public unsafe void TestStrLen()
     {
         var tform = new Transformer();
         tform.LoadImportModule("env", typeof(LibC));
         var asm = tform.LoadWasmAssembly("w1.wasm", "W2");
         var len = asm.Invoke("get_strlen", "string");
         Assert.AreEqual(6, len);
+        
+        var w1wasm = asm.AsImplementation<IW1Wasm>();
+        int len2 = w1wasm.GetStrLen("stringstring");
+        Assert.AreEqual(12, len2);
+
+        var p = w1wasm.malloc(10);
+        var offset = w1wasm.pointerOffset(p);
+
+
     }
     
     [Test]

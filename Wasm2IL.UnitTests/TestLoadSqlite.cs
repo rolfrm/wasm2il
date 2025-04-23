@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Wasm2IL;
 using Wasm2IL.UnitTests;
 
@@ -9,19 +8,7 @@ namespace Wasm2CIl.UnitTests;
 public class TestLoadSqlite
 {
 
-    public class WasmAttribute : Attribute
-    {
-        public WasmAttribute(string importName)
-        {
-            
-        }
-
-        public WasmAttribute()
-        {
-            
-        }
-    }
-
+    
     public enum SqliteErrorCode
     {
         

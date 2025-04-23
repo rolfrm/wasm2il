@@ -1,6 +1,9 @@
 using System.Collections.Immutable;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.InteropServices;
+using Mono.Cecil;
+using MethodAttributes = System.Reflection.MethodAttributes;
 
 namespace Wasm2IL;
 
@@ -9,8 +12,10 @@ public class WasmAssembly
     public string Name => code.Name;
     private readonly Assembly asm;
     private readonly Type code;
-    private MethodInfo malloc;
-    private MethodInfo free;
+    private readonly MethodInfo malloc;
+    private readonly MethodInfo free;
+    private readonly FieldInfo memory;
+    private readonly FieldInfo memorySize;
 
     public Assembly Assembly => asm;
     
@@ -20,6 +25,8 @@ public class WasmAssembly
         this.code = asm.ExportedTypes.FirstOrDefault();
         malloc = code.GetMethod("malloc");
         free = code.GetMethod("free");
+        memory = code.GetField("Memory");
+        memorySize = code.GetField("MemorySize");
     }
 
     public int Malloc(int len)
@@ -43,7 +50,7 @@ public class WasmAssembly
     public unsafe int FakeMalloc(int len)
     {
         var p = new IntPtr(Pointer.Unbox(code.GetField("Memory").GetValue(null))); 
-        int memSize = (int)code.GetField("MemorySize").GetValue(null);
+        int memSize = (int)memorySize.GetValue(null);
         
         p = Marshal.ReAllocHGlobal(p, memSize + len);
         code.GetField("Memory").SetValue(null, Pointer.Box(p.ToPointer(), typeof(byte*)));
@@ -53,10 +60,19 @@ public class WasmAssembly
 
     public unsafe Span<byte> GetHeap()
     {
-        return  new Span<byte>((System.Reflection.Pointer.Unbox(code.GetField("Memory").GetValue(null))), 
+        return  new Span<byte>((System.Reflection.Pointer.Unbox(memory.GetValue(null))), 
             (int)code.GetField("MemorySize").GetValue(null));
     }
+    public static int StringByteLength(string str) => System.Text.Encoding.UTF8.GetByteCount(str);
 
+    public static unsafe void StringToHeap2(byte* buffer, string str)
+    {
+        var bc = System.Text.Encoding.UTF8.GetByteCount(str);
+        var span = new Span<byte>(buffer, bc + 1);
+        span[bc] = 0;
+        System.Text.Encoding.UTF8.GetBytes(str, span);
+    }
+    
     public int StringToHeap(string str)
     {
         var bc = System.Text.Encoding.UTF8.GetByteCount(str);
@@ -126,5 +142,110 @@ public class WasmAssembly
     {
         var ftable = (Array)code.GetField("FunctionTable", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
         return ftable.GetValue(i);
+    }
+    static AssemblyBuilder asmBuilder = System.Reflection.Emit.AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("asdasd"), AssemblyBuilderAccess.RunAndCollect);
+    private static ModuleBuilder moduleBuilder = asmBuilder.DefineDynamicModule("MainModule");
+    public T AsImplementation<T>()
+    {
+        var t = typeof(T);
+        if (t.IsInterface == false)
+            throw new ArgumentException("T");
+        
+        var typeBuilder = moduleBuilder.DefineType(t.Name + "Wrapper");
+        typeBuilder.AddInterfaceImplementation(typeof(T));
+        foreach (var method in typeof(T).GetMethods())
+        {   
+            var wasmAttr = method.GetCustomAttribute<WasmAttribute>();
+            if (wasmAttr == null)
+                throw new InvalidOperationException($"Method {method.Name} missing [Wasm] attribute");
+
+            var staticMethod = code.GetMethods(BindingFlags.Static | BindingFlags.Public)
+                .FirstOrDefault(m => m.Name == (wasmAttr.ExportName ?? method.Name));
+            
+            if (staticMethod == null)
+                throw new InvalidOperationException($"Static method {wasmAttr.ExportName ?? method.Name} not found in {code.Name}");
+
+            var methodBuilder = typeBuilder.DefineMethod(
+                method.Name,
+                MethodAttributes.Public | MethodAttributes.Virtual,
+                method.ReturnType,
+                method.GetParameters().Select(p => p.ParameterType).ToArray());
+
+            var il = methodBuilder.GetILGenerator();
+            if (method.ReturnType.IsPointer)
+            {
+                il.Emit(OpCodes.Ldsfld, memory);
+            }
+            // Load parameters
+            var paramters = method.GetParameters();
+            List<LocalBuilder> freeLocals = new();
+            for (int i = 0; i < paramters.Length; i++)
+            {
+                var p = paramters[i];
+                if (p.ParameterType == typeof(string))
+                {
+                    var loc = il.DeclareLocal(typeof(int));
+                    freeLocals.Add(loc);
+                    il.Emit(OpCodes.Ldarg, i + 1);
+                    var lm = GetType().GetMethod("StringByteLength");
+                    il.EmitCall(OpCodes.Call, lm, null);
+                    il.EmitCall(OpCodes.Call, malloc, null);
+                    il.Emit(OpCodes.Dup);
+                    il.Emit(OpCodes.Dup);
+                    il.Emit(OpCodes.Stloc, loc);
+                 
+                    il.Emit(OpCodes.Ldsfld, memory);   
+                    il.Emit(OpCodes.Add);
+                    
+                    var stringmethod = GetType().GetMethod(nameof(StringToHeap2));
+                    il.Emit(OpCodes.Ldarg, i + 1);
+                    il.EmitCall(OpCodes.Call, stringmethod, [typeof(byte*), typeof(string)]);
+                }
+                else
+                {
+                    if (p.ParameterType.IsPointer)
+                    {
+                        il.Emit(OpCodes.Ldarg, i + 1);
+                        il.Emit(OpCodes.Ldsfld, memory);
+                        il.Emit(OpCodes.Sub);
+                        
+                    }
+                    else
+                    {
+                        il.Emit(OpCodes.Ldarg, i + 1);
+                    }
+
+                }
+            }
+
+            LocalBuilder retLoc = null;
+            // Call the static method
+            il.Emit(OpCodes.Call, staticMethod);
+            if (freeLocals.Any())
+            {
+                if (staticMethod.ReturnType != typeof(void))
+                {
+                    retLoc = il.DeclareLocal(staticMethod.ReturnType);
+                    il.Emit(OpCodes.Stloc, retLoc);
+                }
+
+                foreach (var local in freeLocals)
+                {
+                    il.Emit(OpCodes.Ldloc, local);
+                    il.Emit(OpCodes.Call, free);
+                }
+            }
+
+            if (retLoc != null)
+                il.Emit(OpCodes.Ldloc, retLoc);
+            if (method.ReturnType.IsPointer)
+                il.Emit(OpCodes.Add);
+            il.Emit(OpCodes.Ret);
+
+            typeBuilder.DefineMethodOverride(methodBuilder, method);
+            var s = methodBuilder.GetILGenerator().ToString();
+        }
+
+        return (T) Activator.CreateInstance(typeBuilder.CreateType());
     }
 }

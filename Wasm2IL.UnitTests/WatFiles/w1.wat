@@ -258,6 +258,10 @@
         call $test_i16x8_extend_low_i8x16_u
         call $test_v128_not
     )
+    
+    (func $pointerOffset (param $pointer i32) (result i32)
+        (local.get $pointer)
+    )
   
      
   
@@ -274,6 +278,7 @@
   (export "test_memfill" (func $test_memfill))
   (export "test_memfill2" (func $test_memfill2))
   (export "test" (func $test))
+  (export "pointerOffset" (func $pointerOffset))
 
   (global $a (mut i32) (i32.const 75600))
   (global $a2 (mut i32) (i32.const -64))

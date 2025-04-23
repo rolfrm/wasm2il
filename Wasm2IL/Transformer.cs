@@ -779,58 +779,12 @@ namespace Wasm2IL
                 }
             }
 
-            var wasi = typeof(Wasi);
-
             for (uint i = 0; i < funcCount; i++)
             {
                 var funcId = FuncDecl[i];
                 var ftype = Types[funcId.TypeId];
                 var m1 = funcId.Method;
-                /*
-                var wasiMethod = wasi.GetMethod(m1.Name);
-                if (wasiMethod != null)
-                {
-                    var m2 = new MethodDefinition(wasiMethod.Name + "_pre",
-                        MethodAttributes.Static | MethodAttributes.Public,
-                        ftype.ReturnType);
-                    cls.Methods.Add(m1);
-                    var il2 = m1.Body.GetILProcessor();
-                    m1.Body.InitLocals = true;
-                    var wasiMethod2 = def.MainModule.ImportReference(wasiMethod);
-                    if (wasiMethod2.Parameters.Count != m1.Parameters.Count + 1)
-                    {
-                        throw new Exception("Unmatched paramters");
-                    }
-                    if(wasiMethod2.ReturnType.FullName != m1.ReturnType.FullName)
-                        throw new Exception("Unmatched return type.");
-                    for(int i2 = 0; i2 < m1.Parameters.Count; i2++)
-                    {
-                        var p = m1.Parameters[i2];
-                        il2.Emit(IlInstr.Ldarg, p);
-                        if (false && wasiMethod2.Parameters[i2].ParameterType.FullName != p.ParameterType.FullName)
-                            throw new Exception("Unmatched parameters types");
-                    }
-
-                    il2.Emit(IlInstr.Ldtoken, cls);
-                    il2.Emit(IlInstr.Call,
-                        def.MainModule.ImportReference(
-                            wasi.GetMethod(nameof(Wasi.GetContext))));
-                    il2.Emit(IlInstr.Call, wasiMethod2);
-                    il2.Emit(IlInstr.Ret);
-
-
-                    for (uint i2 = 0; i2 < ftype.ParamCount; i2++)
-                    {
-                        var parameter = new ParameterDefinition(ftype.ParamTypes[i2]);
-                        parameter.Name = "param" + i2;
-                        m2.Parameters.Add(parameter);
-                    }
-
-
-                    m1 = m2;
-                    Log.WriteLine("Override: {0}", wasiMethod);
-                }
-                */
+                
                 cls.Methods.Add(m1);
                 m1.Body.InitLocals = true;
                 var il = m1.Body.GetILProcessor();
@@ -957,15 +911,9 @@ namespace Wasm2IL
                             otherFun = MaybeWrap(otherFun);
 
                             il.Emit(IlInstr.Call, otherFun);
-                            if (otherFun.DeclaringType?.Name == nameof(Wasi))
-                            {
-                                pop(otherFun.Parameters.Count - 1);
-                            }
-                            else
-                            {
-                                pop(otherFun.Parameters.Count);
-                            }
-
+                            
+                            pop(otherFun.Parameters.Count);
+                            
                             push(otherFun.ReturnType);
                             break;
                         case instr.CALL_INDIRECT:
