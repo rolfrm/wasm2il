@@ -80,17 +80,25 @@ public class TestBasicWasm
 
     public interface IW1Wasm
     {
+        // copies the string as UTF8 and frees it afterwards.
         [Wasm("get_strlen")]
         int GetStrLen(string x);
 
+        // returns a pointer to wasm memory.
         [Wasm]
         unsafe byte* malloc(int len);
 
         [Wasm]
         unsafe void free(byte* ptr);
 
+        // pointers should point to wasm memory.
         [Wasm]
-        unsafe int pointerOffset(byte* ptr);
+        unsafe int pointerOffset(byte* ptr);    
+
+        // Spans and ReadOnlySpans are copied to wasm memory.
+        // Spans are copied back after use.
+        [Wasm("fnv1a")]
+        void InOutTest(ReadOnlySpan<byte> inBuffer, int len, Span<byte> buffer1);
     }
     
     [Test]
@@ -108,7 +116,9 @@ public class TestBasicWasm
 
         var p = w1wasm.malloc(10);
         var offset = w1wasm.pointerOffset(p);
-
+        byte[] testData = [1, 2, 3, 4, 5, 6, 7, 9];
+        byte[] outData = [1, 2, 3, 4, 5, 6, 7, 8];
+        w1wasm.InOutTest(testData, testData.Length, outData );
 
     }
     

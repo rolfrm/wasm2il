@@ -262,7 +262,39 @@
     (func $pointerOffset (param $pointer i32) (result i32)
         (local.get $pointer)
     )
-  
+    
+    
+       (func $fnv1a (param i32 i32 i32)
+          (local i64)
+          i64.const -3750763034362895579
+          local.set 3
+          block  ;; label = @1
+            local.get 1
+            i32.eqz
+            br_if 0 (;@1;)
+            loop  ;; label = @2
+              local.get 3
+              local.get 0
+              i64.load8_u
+              i64.xor
+              i64.const 1099511628211
+              i64.mul
+              local.set 3
+              local.get 0
+              i32.const 1
+              i32.add
+              local.set 0
+              local.get 1
+              i32.const -1
+              i32.add
+              local.tee 1
+              br_if 0 (;@2;)
+            end
+          end
+          local.get 2
+          local.get 3
+          i64.store)
+
      
   
   (export "multiply" (func $multiply))
@@ -279,6 +311,7 @@
   (export "test_memfill2" (func $test_memfill2))
   (export "test" (func $test))
   (export "pointerOffset" (func $pointerOffset))
+  (export "fnv1a" (func $fnv1a))
 
   (global $a (mut i32) (i32.const 75600))
   (global $a2 (mut i32) (i32.const -64))

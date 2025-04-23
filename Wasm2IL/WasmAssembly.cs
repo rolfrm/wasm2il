@@ -134,8 +134,22 @@ public class WasmAssembly
 
     public string GetHeapString(int ptr)
     {
-        
         return new CString(GetHeap(), ptr).ToString();
+    }
+
+    public static int ReadOnlySpanLength(ReadOnlySpan<byte> span) =>  span.Length;
+    public static int SpanLength(Span<byte> span) =>  span.Length;
+    public static unsafe void CopyFromSpan(byte * data, Span<byte> span)
+    {
+        span.CopyTo(new Span<byte>(data, span.Length));
+    }
+    public static unsafe void CopyFromReadOnlySpan(byte * data, ReadOnlySpan<byte> span)
+    {
+        span.CopyTo(new Span<byte>(data, span.Length));
+    }
+    public static unsafe void CopyToSpan(Span<byte> span, byte * data)
+    {
+        new Span<byte>(data, span.Length).CopyTo(span);
     }
 
     public object LookupFunction(int i)
@@ -179,6 +193,7 @@ public class WasmAssembly
             // Load parameters
             var paramters = method.GetParameters();
             List<LocalBuilder> freeLocals = new();
+            List<(LocalBuilder, int)> copyBack = new(); 
             for (int i = 0; i < paramters.Length; i++)
             {
                 var p = paramters[i];
@@ -187,7 +202,7 @@ public class WasmAssembly
                     var loc = il.DeclareLocal(typeof(int));
                     freeLocals.Add(loc);
                     il.Emit(OpCodes.Ldarg, i + 1);
-                    var lm = GetType().GetMethod("StringByteLength");
+                    var lm = GetType().GetMethod(nameof(StringByteLength));
                     il.EmitCall(OpCodes.Call, lm, null);
                     il.EmitCall(OpCodes.Call, malloc, null);
                     il.Emit(OpCodes.Dup);
@@ -200,6 +215,39 @@ public class WasmAssembly
                     var stringmethod = GetType().GetMethod(nameof(StringToHeap2));
                     il.Emit(OpCodes.Ldarg, i + 1);
                     il.EmitCall(OpCodes.Call, stringmethod, [typeof(byte*), typeof(string)]);
+                }else if (p.ParameterType == typeof(Span<byte>))
+                {
+                    var loc = il.DeclareLocal(typeof(int));
+                    il.Emit(OpCodes.Ldsfld, memory);
+                    
+                    il.Emit(OpCodes.Ldarg, i + 1);
+                    il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(SpanLength)), null);
+                    il.EmitCall(OpCodes.Call, malloc, null);
+                    il.Emit(OpCodes.Dup);
+                    il.Emit(OpCodes.Stloc, loc);
+                    freeLocals.Add(loc);
+                    
+                    il.Emit(OpCodes.Add);
+                    il.Emit(OpCodes.Ldarg, i + 1);
+                    il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(CopyFromSpan)), null);
+                    il.Emit(OpCodes.Ldloc, loc);
+
+                    copyBack.Add((loc, i + 1));
+                    // copy the data to a
+                }else if (p.ParameterType == typeof(ReadOnlySpan<byte>))
+                {
+                    var loc = il.DeclareLocal(typeof(int));
+                    il.Emit(OpCodes.Ldarg, i + 1);
+                    il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(ReadOnlySpanLength)), null);
+                    il.EmitCall(OpCodes.Call, malloc, null);
+                    il.Emit(OpCodes.Dup);
+                    il.Emit(OpCodes.Stloc, loc);
+                    freeLocals.Add(loc);
+                    il.Emit(OpCodes.Ldsfld, memory);
+                    il.Emit(OpCodes.Add);
+                    il.Emit(OpCodes.Ldarg, i + 1);
+                    il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(CopyFromReadOnlySpan)), null);
+                    il.Emit(OpCodes.Ldloc, loc);
                 }
                 else
                 {
@@ -221,6 +269,21 @@ public class WasmAssembly
             LocalBuilder retLoc = null;
             // Call the static method
             il.Emit(OpCodes.Call, staticMethod);
+
+            foreach (var (l, idx) in copyBack)
+            {
+                
+                // get the span
+                il.Emit(OpCodes.Ldarg, idx);
+                
+                // get the byte pointer address
+                il.Emit(OpCodes.Ldloc, l);
+                il.Emit(OpCodes.Ldsfld, memory);
+                il.Emit(OpCodes.Add);
+                // copy back to the span.
+                il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(CopyToSpan)), null);
+                
+            }
             if (freeLocals.Any())
             {
                 if (staticMethod.ReturnType != typeof(void))
