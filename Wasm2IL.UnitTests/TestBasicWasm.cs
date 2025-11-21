@@ -7,7 +7,6 @@ namespace Wasm2IL.UnitTests;
 [TestFixture]
 public class TestBasicWasm
 {
-
     public class _Env
     {
         public static void assert(int x)
@@ -16,7 +15,7 @@ public class TestBasicWasm
                 throw new Exception("??");
         }
     }
-    
+
     [Test]
     public void LoadAndRunBasic()
     {
@@ -24,20 +23,21 @@ public class TestBasicWasm
         transformer.LoadImportModule("env", typeof(_Env));
         using var file = File.OpenRead("w1.wasm");
         transformer.Transform(file, "W1", "./w1.dll");
-        
+
         var asm = Assembly.LoadFrom("./w1.dll");
-        
+
         var type = asm.ExportedTypes.FirstOrDefault();
         var incf = type.GetMethod("incf");
         var multiply = type.GetMethod("multiply");
         var multiplyVec = type.GetMethod("multiply_vec");
         var tryVec = type.GetMethod("try_vec");
         var test = type.GetMethod("test");
-        var a = (int)incf.Invoke(null, []);
-        var b= (int)incf.Invoke(null, []);
-        var c= (int)incf.Invoke(null, []);
+        var a = (int) incf.Invoke(null, []);
+        var b = (int) incf.Invoke(null, []);
+        var c = (int) incf.Invoke(null, []);
         var d = multiply.Invoke(null, [3, 5]);
-        var e = (Vector128<byte>)multiplyVec.Invoke(null, [new Vector4(1, 2, 3, 4).AsVector128().AsByte(), new Vector4(5, 4, 3, 2).AsVector128().AsByte()]);
+        var e = (Vector128<byte>) multiplyVec.Invoke(null,
+            [new Vector4(1, 2, 3, 4).AsVector128().AsByte(), new Vector4(5, 4, 3, 2).AsVector128().AsByte()]);
         var f = (Vector128<byte>) tryVec.Invoke(null, Array.Empty<object>());
         Assert.AreEqual(a, 75601);
         Assert.AreEqual(b, 75602);
@@ -46,7 +46,7 @@ public class TestBasicWasm
         Assert.AreEqual(e.AsSingle().AsVector4(), new Vector4(5, 8, 9, 8));
         test.Invoke(null, []);
     }
-    
+
 
     public class Import
     {
@@ -55,12 +55,20 @@ public class TestBasicWasm
             Console.WriteLine(logThings);
         }
     }
-    
-    //[Test]
+
+    public class ImportBad
+    {
+        public void log(int logThings)
+        {
+            Console.WriteLine(logThings);
+        }
+    }
+
+    [Test]
     public void LoadAndRunImportFromStream()
     {
         List<int> results = new List<int>();
-        foreach (string wasmFile in new []{"w1.wasm", "w2.wasm"})
+        foreach (string wasmFile in new[] {"w1.wasm", "w2.wasm"})
         {
             var transformer = new Transformer();
             transformer.LoadImportModule("console", typeof(Import));
@@ -71,11 +79,29 @@ public class TestBasicWasm
 
             var asm = Assembly.Load(mem.ToArray());
             var testLog = asm.ExportedTypes.FirstOrDefault()?.GetMethod("testLog");
-            var r = (int)testLog.Invoke(null, [5]);
+            var r = (int) testLog.Invoke(null, [5]);
             results.Add(r);
         }
 
         Assert.IsTrue(results.SequenceEqual([5, 10]));
+    }
+
+    [Test]
+    public void LoadAndRunBadImport()
+    {
+        string wasmFile = "w1.wasm";
+        var transformer = new Transformer();
+        transformer.LoadImportModule("console", typeof(ImportBad));
+        using var file = File.OpenRead(wasmFile);
+        using var mem = new MemoryStream();
+        try
+        {
+            transformer.Transform(file, "W1", mem);
+            throw new Exception("Transform should have thrown");
+        }
+        catch (TransformException)
+        {
+        }
     }
 
     public interface IW1Wasm
@@ -93,14 +119,14 @@ public class TestBasicWasm
 
         // pointers should point to wasm memory.
         [Wasm]
-        unsafe int pointerOffset(byte* ptr);    
+        unsafe int pointerOffset(byte* ptr);
 
         // Spans and ReadOnlySpans are copied to wasm memory.
         // Spans are copied back after use.
         [Wasm("fnv1a")]
         void InOutTest(ReadOnlySpan<byte> inBuffer, int len, Span<byte> buffer1);
     }
-    
+
     [Test]
     public unsafe void TestStrLen()
     {
@@ -109,23 +135,23 @@ public class TestBasicWasm
         var asm = tform.LoadWasmAssembly("w1.wasm", "W2");
         var len = asm.Invoke("get_strlen", "string");
         Assert.AreEqual(6, len);
-        
+
         var w1wasm = asm.AsImplementation<IW1Wasm>();
         int len2 = w1wasm.GetStrLen("stringstring");
         Assert.AreEqual(12, len2);
 
         var p = w1wasm.malloc(10);
-        
+
         byte[] testData = [1, 2, 3, 4, 5, 6, 7, 8];
         // should be 7eb5108b368a78ed
         byte[] outData = [1, 2, 3, 4, 5, 6, 7, 8];
-        w1wasm.InOutTest(testData, testData.Length, outData );
+        w1wasm.InOutTest(testData, testData.Length, outData);
         var hexstr = Convert.ToHexString(outData).ToLower();
         string expectedstr = "ed788a368b10b57e";
 
         Assert.AreEqual(expectedstr, hexstr);
     }
-    
+
     [Test]
     public void TestMemCpy()
     {
@@ -134,32 +160,58 @@ public class TestBasicWasm
         var asm = tform.LoadWasmAssembly("w1.wasm", "W2");
         var len = asm.Invoke("get_strlen", "string");
         Assert.AreEqual(6, len);
-        
+
         asm.Invoke("test_memcpy", asm.Malloc(6), asm.Malloc(6), 6);
     }
+
     [Test]
     public void TestMemFill()
     {
         var tform = new Transformer();
         tform.LoadImportModule("env", typeof(LibC));
         var asm = tform.LoadWasmAssembly("w1.wasm", "W2");
-        
-        var p = (int)asm.Invoke("test_memfill", 10, 16);
+
+        var p = (int) asm.Invoke("test_memfill", 10, 16);
         var h = asm.GetHeap();
         var arr = h.Slice(p, 10).ToArray();
-        Assert.IsTrue(arr.SequenceEqual(Enumerable.Repeat((byte)16, 10)));
+        Assert.IsTrue(arr.SequenceEqual(Enumerable.Repeat((byte) 16, 10)));
     }
-    
+
     [Test]
     public void TestMemFill2()
     {
         var tform = new Transformer();
         tform.LoadImportModule("env", typeof(LibC));
         var asm = tform.LoadWasmAssembly("w1.wasm", "W2");
-        
-        var p = (int)asm.Invoke("test_memfill2", 10, 16);
+
+        var p = (int) asm.Invoke("test_memfill2", 10, 16);
         var h = asm.GetHeap();
         var arr = h.Slice(p, 10).ToArray();
-        Assert.IsTrue(arr.SequenceEqual(Enumerable.Repeat((byte)16, 10)));
+        Assert.IsTrue(arr.SequenceEqual(Enumerable.Repeat((byte) 16, 10)));
+    }
+
+    public interface IApiWithCallback
+    {
+        void callback_text(int arg, Action<int> f);
+    }
+    
+    [Test]
+    public void TestGettingACallback()
+    {
+         int callback_arg = 0;
+        void callback(int arg)
+        {
+            callback_arg = arg;
+        }
+        var tform = new Transformer();
+        var asm = tform.LoadWasmAssembly("callback_test.wasm", "callback_test.dll");
+
+        asm.Invoke("callback_test", 10, (Action<int>)callback);
+        Assert.AreEqual(10, callback_arg);
+
+        var cb = asm.AsImplementation<IApiWithCallback>();
+        cb.callback_text(15, callback);
+        Assert.AreEqual(15, callback_arg);
+
     }
 }

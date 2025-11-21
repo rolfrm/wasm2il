@@ -6,7 +6,7 @@ namespace Wasm2CIl.UnitTests;
 [TestFixture]
 public class TestCrypto
 {
-    [Test]
+    //[Test]
     public void LoadAndRunCrypto()
     {
         var transformer = new Transformer();

@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wasm2IL", "Wasm2IL\Wasm2Il.csproj", "{09EE0D60-1DA4-4B23-B9C7-39CAFB297C17}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wasm2IL", "Wasm2IL\Wasm2IL.csproj", "{09EE0D60-1DA4-4B23-B9C7-39CAFB297C17}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestAssembly", "TestAssembly\TestAssembly.csproj", "{09EE0D60-1DA4-4B23-C9C7-39CAFB297C17}"
 EndProject

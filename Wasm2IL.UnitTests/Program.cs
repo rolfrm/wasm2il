@@ -33,11 +33,11 @@ public class Program
                     }
                     if (method.GetCustomAttribute<TestAttribute>() != null)
                     {
-                        Console.WriteLine($"Test {method}");
+                        Console.WriteLine($"====== Test {method} ========");
                         try
                         {
                             method.Invoke(instance, Array.Empty<object>());
-                            Console.WriteLine($"Pass");
+                            Console.WriteLine($"======= Pass ========");
                         }
                         catch (TargetInvocationException e)
                         {

@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net6.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>
+      <ClCompile Include="callback_test.c" />
       <ClCompile Include="cat.c" />
       <ClCompile Include="compare.c" />
       <ClCompile Include="crypto.c" />

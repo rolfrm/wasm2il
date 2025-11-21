@@ -2,6 +2,24 @@
 
     <PropertyGroup>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <Copyright>Copyright (c) 2025 Rolf Madsen. Licensed under the MIT License.</Copyright>
+
+
+        <!-- NuGet metadata -->
+        <PackageId>Wasm2IL</PackageId>
+        <Version>0.1.0-alpha.3</Version>
+        <Authors>Rolf Madsen</Authors>
+        <Description>Wasm2IL: Convert WebAssembly modules into .NET.</Description>
+        <PackageProjectUrl>https://github.com/rolfrm/Wasm2IL</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/rolfrm/Wasm2IL</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageTags>wasm webassembly il dotnet cil</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -11,8 +29,10 @@
         <PackageReference Include="Mono.Cecil" Version="0.11.6" />
     </ItemGroup>
     <ItemGroup>
-        <ProjectReference Include="..\TestAssembly\TestAssembly.csproj" />
-        <ProjectReference Include="..\TestCCode\TestCCode.csproj" />
+      <None Include="..\README.md" Pack="true" PackagePath="" >
+        <Link>README.md</Link>
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
     
 </Project>

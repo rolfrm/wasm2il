@@ -14,7 +14,7 @@ public class TestLoadSqlite
         
     }
     
-    public interface ISqliteApi
+    public interface IBadSqliteApi
     {
         [Wasm("sqlite3_initialize")]
         public void Initialize();
@@ -28,6 +28,23 @@ public class TestLoadSqlite
         //"sqlite3_prepare_v2", db1, sql, -1, stmt, 0);
         [Wasm("sqlite3_prepare_v2")]
         public void Prepare(int db, string sql, int nByte, int stmt, int tail_0);
+    }
+    
+    public interface ISqliteApi
+    {
+        [Wasm("sqlite3_initialize")]
+        public SqliteErrorCode Initialize();
+        
+        [Wasm("sqlite3_open_v2")]
+        public SqliteErrorCode Open_V2(string connection, out int db, int flags, int vfs);
+
+        [Wasm("sqlite3_exec")]
+        public SqliteErrorCode Exec(string command, int db, int callback, int arg, int errorMsg);
+        
+        //"sqlite3_prepare_v2", db1, sql, -1, stmt, 0);
+        [Wasm("sqlite3_prepare_v2")]
+        public SqliteErrorCode Prepare(int db, string sql, int nByte, int stmt, int tail_0);
+        
     }
     
     [Test]
@@ -161,7 +178,20 @@ public class TestLoadSqlite
         Console.WriteLine($"Step: {j}");
 
         SqliteWasm.C.sqlite3_close(db);
+
+        try
+        {
+            w.AsImplementation<IBadSqliteApi>();
+            throw new Exception("This should have thrown");
+        }
+        catch(ImplementException)
+        {
+            
+        }
         
+        var api = w.AsImplementation<ISqliteApi>();
+        
+
     }
 
 }

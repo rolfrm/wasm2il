@@ -5,14 +5,15 @@ MUSL_INCLUDE=/Users/bruger/code/minlibc/include
 SSL_PATH=/Users/bruger/code/extern/openssl/include
 all: ../bin/Debug/net6.0/code.wasm
 # -msimd128  -mtail-call ./libc.wasm-mtail-call  -msimd128 -mbulk-memory -msimd128 
+
 sqlite3.wasm: sqlite3.c sqlite3.h
-        clang --target=wasm32-unknown-unknown -msimd128  -mbulk-memory -flto -fbuiltin -mllvm -inline-threshold=1000 -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -O3\
-             -I$(MUSL_INCLUDE)  -fvisibility=hidden \
+	clang --target=wasm32-unknown-unknown -msimd128  -mbulk-memory -flto -fbuiltin -mllvm -inline-threshold=1000 -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -Os -g0\
+             -I$(MUSL_INCLUDE)  \
              -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_RANDOMNESS -DHAVE_UTIME -DSQLITE_OMIT_WAL -DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_THREADSAFE=0 -DSQLITE_ENABLE_SETLK_TIMEOUT \
               ./libc.wasm sqlite3.c -Wl,--allow-undefined -Wl,--no-entry\
               -Wl,--export=sqlite3_open -Wl,--export=sqlite3_open_v2 -Wl,--export=sqlite3_close -Wl,--export=sqlite3_exec -Wl,--export=sqlite3_prepare_v2 \
               -Wl,--export=sqlite3_step -Wl,--export=sqlite3_finalize -Wl,--export=sqlite3_errmsg -Wl,--export=sqlite3_free \
-              -Wl,--export=sqlite3_column_text -Wl,--export=sqlite3_column_int -Wl,--export=sqlite3_column_count \
+              -Wl,--export=sqlite3_column_text -Wl,--export=sqlite3_column_int -Wl,--export=sqlite3_column_int64 -Wl,--export=sqlite3_column_double  -Wl,--export=sqlite3_column_count \
               -Wl,--export=sqlite3_bind_text -Wl,--export=sqlite3_bind_int -Wl,--export=sqlite3_reset -Wl,--export=sqlite3_changes\
               -Wl,--export=sqlite3_memory_used
               
@@ -31,7 +32,11 @@ simple_call.wasm: simple_call.c
 	clang --target=wasm32-unknown-unknown -nostdlib -O3  -Wl,--export=main -Wl,--export=__provide_overrides__ -Wl,--allow-undefined -Wl,--no-entry -ffreestanding simple_call.c -o simple_call.wasm
      
 simple_call2.wasm: simple_call2.c
-	clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory  -Wl,--export=main -Wl,--export=__provide_overrides2__ -Wl,--export=__provide_overrides__ -Wl,--export=__caller_heap__ -Wl,--allow-undefined -Wl,--no-entry -ffreestanding simple_call2.c -o simple_call2.wasm 
+	clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory  -Wl,--export=main -Wl,--export=__provide_overrides2__ -Wl,--export=__provide_overrides__ -Wl,--export=__caller_heap__ -Wl,--allow-undefined -Wl,--no-entry -ffreestanding simple_call2.c -o simple_call2.wasm
+	 
+callback_test.wasm: callback_test.c
+	clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory  -Wl,--export=main-Wl,--export=callback_test -Wl,--allow-undefined -Wl,--no-entry -ffreestanding callback_test.c -o callback_test.wasm 
+  
   
 term_text.wasm: TermText.c
 	clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory  -Wl,--export=main -Wl,--export=__provide_overrides2__ -Wl,--export=__provide_overrides__ -Wl,--export=__caller_heap__ -Wl,--allow-undefined -Wl,--no-entry -ffreestanding TermText.c -o term_text.wasm

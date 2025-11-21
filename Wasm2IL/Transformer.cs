@@ -75,7 +75,11 @@ namespace Wasm2IL
                 foreach (var type in t)
                 {
                     if (type.GetMethod(name) is MethodInfo m)
+                    {
+                        if (m.IsStatic == false)
+                            throw new TransformException($"Imported methods must be static: {m}");
                         return m;
+                    }
                 }
             }
 
@@ -182,7 +186,7 @@ namespace Wasm2IL
 
             cls.Fields.Add(memoryFieldSize);
 
-            functionTable = new FieldDefinition("FunctionTable", FieldAttributes.Static | FieldAttributes.Private,
+            functionTable = new FieldDefinition("FunctionTable", FieldAttributes.Static | FieldAttributes.Public,
                 asm.MainModule.TypeSystem.Object.MakeArrayType());
             cls.Fields.Add(functionTable);
             var cctor = new MethodDefinition(".cctor",
@@ -2786,6 +2790,14 @@ namespace Wasm2IL
                     ReturnCount = returnCount, ParamCount = paramCount, ParamTypes = paramTypes, ReturnType = returnType
                 };
             }
+        }
+    }
+
+    public class TransformException : Exception
+    {
+        public TransformException(string s) : base(s)
+        {
+            
         }
     }
 }

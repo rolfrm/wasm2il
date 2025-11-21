@@ -15,6 +15,9 @@ public class WasmAssembly
     private readonly MethodInfo free;
     private readonly FieldInfo memory;
     private readonly FieldInfo memorySize;
+    private readonly FieldInfo functionTable;
+    private object[] functionTableArray;
+    private List<int> freeFunctions = new();
 
     public Assembly Assembly => asm;
     
@@ -26,6 +29,35 @@ public class WasmAssembly
         free = code.GetMethod("free");
         memory = code.GetField("Memory");
         memorySize = code.GetField("MemorySize");
+        functionTable = code.GetField("FunctionTable");
+        
+    }
+
+    public int AssignCallbackFunction(Delegate d)
+    {
+        functionTableArray ??= functionTable.GetValue(null) as object[] ?? [];
+        if (freeFunctions.Any())
+        {
+            var idx = freeFunctions.Last();
+            freeFunctions.RemoveAt(freeFunctions.Count - 1);
+            functionTableArray[idx] = d;
+            return idx;
+        }
+        else
+        {
+            var idx = functionTableArray.Length;
+            functionTableArray = [.. functionTableArray, null];
+            functionTableArray[idx] = d;
+            functionTable.SetValue(null, functionTableArray);
+            return idx;
+        }
+    }
+
+    public void FreeCallbackFunction(int idx)
+    {
+        functionTableArray ??= functionTable.GetValue(null) as object[];
+        functionTableArray[idx] = null;
+        freeFunctions.Add(idx);
     }
 
     public int Malloc(int len)
@@ -85,7 +117,8 @@ public class WasmAssembly
     public object Invoke(string methodName, params object[] args)
     {
         
-        var toFree = ImmutableList<int>.Empty; 
+        var toFree = ImmutableList<int>.Empty;
+        var fcnToFree = ImmutableList<int>.Empty; 
         
         for (int i = 0; i < args.Length; i++)
         {
@@ -95,12 +128,22 @@ public class WasmAssembly
                 args[i] = ptr; 
                 toFree = toFree.Add(ptr);
             }
+
+            if (args[i] is Delegate d)
+            {
+                var idx =  this.AssignCallbackFunction(d);
+                args[i] = idx;
+                fcnToFree = fcnToFree.Add(idx);
+
+            }
         }
         var m = code.GetMethod(methodName);
         var result = m
             .Invoke(null, args);
         foreach (var ptr in toFree)
             Free(ptr);
+        foreach (var fcn in fcnToFree)
+            FreeCallbackFunction(fcn);
         return result;
     }
 
@@ -185,6 +228,16 @@ public class WasmAssembly
                 method.GetParameters().Select(p => p.ParameterType).ToArray());
 
             var il = methodBuilder.GetILGenerator();
+            if (method.ReturnType == typeof(void) && staticMethod.ReturnType != typeof(void))
+            {
+                throw new ImplementException(
+                    $"API Specifies return void, but function {staticMethod.Name} returns a value.");
+            }
+            if (method.ReturnType != typeof(void) && staticMethod.ReturnType == typeof(void))
+            {
+                throw new ImplementException(
+                    $"API Specifies returning a value, but function {staticMethod.Name} returns void.");
+            }
             if (method.ReturnType.IsPointer)
             {
                 il.Emit(OpCodes.Ldsfld, memory);
@@ -248,6 +301,12 @@ public class WasmAssembly
                     il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(CopyFromReadOnlySpan)), null);
                     il.Emit(OpCodes.Ldloc, loc);
                 }
+                else if (p.ParameterType.IsAssignableTo(typeof(Delegate)))
+                {
+                    throw new ImplementException(
+                        "Delegates not yet supported in this API. They can be wrabbed manually");
+
+                }
                 else
                 {
                     if (p.ParameterType.IsPointer)
@@ -308,5 +367,13 @@ public class WasmAssembly
         }
 
         return (T) Activator.CreateInstance(typeBuilder.CreateType());
+    }
+}
+
+public class ImplementException : Exception
+{
+    public ImplementException(string s) : base(s)
+    {
+        
     }
 }
