@@ -205,10 +205,10 @@ namespace Wasm2IL
             Transform(str, asmName, outFile);
         }
 
-        public void Transform(Stream str, string asmName, Stream outStream, string versionStr = "1.0.0")
+        public void Transform(Stream str2, string asmName, Stream outStream, string versionStr = "1.0.0")
         {
             var version = Version.Parse(versionStr);
-            var reader = new BinReader(str);
+            var reader = new BinReader(str2);
             var header = reader.ReadStrl(4);
             if (magicHeader != header)
                 throw new Exception("invalid header");
@@ -226,14 +226,14 @@ namespace Wasm2IL
                 var section = (Section) reader.ReadU8();
                 uint length = reader.ReadU32Leb();
                 Log.WriteLine("Reading section {0}: {1}bytes", section, length);
-                var next = str.Position + length;
+                var next = reader.Position + length;
 
                 switch (section)
                 {
                     case Section.CUSTOM:
                     {
                         ReadCustomSection(reader);
-                        str.Position = next;
+                        reader.Position = next;
                         break;
                     }
                     case Section.TYPE:
@@ -264,12 +264,12 @@ namespace Wasm2IL
                         elementLoc = reader.Position;
                         goto case default;
                     default:
-                        str.Position = next;
+                        reader.Position = next;
                         break;
                 }
 
                 // check that section was properly read.
-                Assert.AreEqual(next, str.Position);
+                Assert.AreEqual(next, reader.Position);
             }
 
 
@@ -644,20 +644,42 @@ namespace Wasm2IL
                 var il = cctor.Body.GetILProcessor();
                 il.RemoveAt(cctor.Body.Instructions.Count - 1); // remove RET
 
-                int acc = 0;
                 il.Emit(IlInstr.Ldsfld, memoryField);
+                il.Emit(IlInstr.Ldc_I4, offset);
+                il.Emit(IlInstr.Add);
                 for (int i2 = 0; i2 < byteCount; i2++)
                 {
-                    if (bc[i2] != 0)
+                    /*if (bc[i2] != 0)
                     {
                         il.Emit(IlInstr.Dup);
                         il.Emit(IlInstr.Ldc_I4, (int) i2 + offset);
                         il.Emit(IlInstr.Add);
                         il.Emit(IlInstr.Ldc_I4, (int) bc[i2]);
                         il.Emit(IlInstr.Stind_I1);
+                    }*/
+                    
+                    if (byteCount - i2 >= 8)
+                    {
+                        var v = BitConverter.ToInt64(bc.AsSpan(i2, 8));
+                        if (v != 0)
+                        {
+                            il.Emit(IlInstr.Dup);
+                            il.Emit(IlInstr.Ldc_I8, v);
+                            il.Emit(IlInstr.Stind_I8);
+                        }
+                        il.Emit(IlInstr.Ldc_I4_8);
+                        il.Emit(IlInstr.Add);
+                        
+                        i2 += 7;
                     }
-
-                    acc += 1;
+                    else if (bc[i2] != 0)
+                    {
+                        il.Emit(IlInstr.Dup);
+                        il.Emit(IlInstr.Ldc_I4, (int) bc[i2]);
+                        il.Emit(IlInstr.Stind_I1);
+                        il.Emit(IlInstr.Ldc_I4_1);
+                        il.Emit(IlInstr.Add);
+                    }
                 }
 
                 il.Emit(IlInstr.Pop);
@@ -792,7 +814,7 @@ namespace Wasm2IL
                 cls.Methods.Add(m1);
                 m1.Body.InitLocals = true;
                 var il = m1.Body.GetILProcessor();
-                il.Emit(IlInstr.Nop);
+                //il.Emit(IlInstr.Nop);
 
                 var codeSize = reader.ReadU32Leb();
 
@@ -860,6 +882,35 @@ namespace Wasm2IL
                     return top.Pop();
                 }
 
+                void emitLdc(int cint)
+                {
+                    var opcode =  cint switch
+                    {
+                        -1 => IlInstr.Ldc_I4_M1,
+                        0 => IlInstr.Ldc_I4_0,
+                        1 => IlInstr.Ldc_I4_1,
+                        2 => IlInstr.Ldc_I4_2,
+                        3 => IlInstr.Ldc_I4_3,
+                        4 => IlInstr.Ldc_I4_4,
+                        5 => IlInstr.Ldc_I4_5,
+                        6 => IlInstr.Ldc_I4_6,
+                        7 => IlInstr.Ldc_I4_7,
+                        8 => IlInstr.Ldc_I4_8,
+                        _ => IlInstr.Ldc_I4
+                    };
+                    if (opcode != IlInstr.Ldc_I4)
+                    {
+                        il.Emit(opcode);
+                    }
+                    else
+                    {
+                        if (cint is < 126 and > -126)
+                            il.Emit(IlInstr.Ldc_I4_S, (sbyte)cint);    
+                        else
+                            il.Emit(IlInstr.Ldc_I4, cint);
+                    }
+                }
+
                 var start = reader.Position + 1;
                 while (next > reader.Position)
                 {
@@ -894,6 +945,8 @@ namespace Wasm2IL
                     bool is64 = instr.ToString().Contains("64");
                     instructions.Add(instr);
                     codeidx++;
+                    bool jmpFromEqz = false;
+                    bool jmpFromBne = false;
                     switch (instr)
                     {
                         case instr.NOP:
@@ -986,7 +1039,27 @@ namespace Wasm2IL
 
                             var brindex = reader.ReadU32Leb();
                             if (instr == instr.BR_IF)
-                                il.Emit(OpCodes.Brtrue, labelStack[(int) (labelStack.Count - brindex - 1)].StartLabel);
+                            {
+                                if (jmpFromEqz)
+                                {
+                                    if (jmpFromBne)
+                                    {
+                                        il.Emit(OpCodes.Bne_Un,
+                                            labelStack[(int) (labelStack.Count - brindex - 1)].StartLabel);
+                                    }
+                                    else
+                                    {
+                                        il.Emit(OpCodes.Brfalse,
+                                            labelStack[(int) (labelStack.Count - brindex - 1)].StartLabel);
+                                    }
+
+                                }
+                                else
+                                {
+                                    il.Emit(OpCodes.Brtrue,
+                                        labelStack[(int) (labelStack.Count - brindex - 1)].StartLabel);
+                                }
+                            }
                             else
                                 il.Emit(OpCodes.Br, labelStack[(int) (labelStack.Count - brindex - 1)].StartLabel);
                             break;
@@ -1040,40 +1113,78 @@ namespace Wasm2IL
                         case instr.LOCAL_TEE:
                             VariableDefinition var = null;
                             ParameterDefinition param = null;
-                            uint local_index = reader.ReadU32Leb();
+                            uint localIndex = reader.ReadU32Leb();
                             bool isArg = true;
-                            if (local_index >= ftype.ParamCount)
+                            if (localIndex >= ftype.ParamCount)
                             {
                                 isArg = false;
-                                local_index -= ftype.ParamCount;
-                                var = m1.Body.Variables[(int) local_index];
+                                localIndex -= ftype.ParamCount;
+                                var = m1.Body.Variables[(int) localIndex];
                             }
                             else
                             {
-                                param = m1.Parameters[(int) local_index];
+                                param = m1.Parameters[(int) localIndex];
                             }
 
                             switch (instr)
                             {
                                 case instr.LOCAL_GET:
-                                    il.Emit(isArg ? IlInstr.Ldarg : IlInstr.Ldloc, (int) local_index);
+                                    if (!isArg && localIndex < 4)
+                                    {
+                                        il.Emit(new []{IlInstr.Ldloc_0, IlInstr.Ldloc_1, IlInstr.Ldloc_2, IlInstr.Ldloc_3}[localIndex]);
+                                    }
+                                    else if (isArg && localIndex < 4)
+                                    {
+                                        il.Emit(new []{IlInstr.Ldarg_0, IlInstr.Ldarg_1, IlInstr.Ldarg_2, IlInstr.Ldarg_3}[localIndex]);
+                                    }
+                                    else
+                                    {
+                                        if (localIndex < 256)
+                                        {
+                                            il.Emit(isArg ? IlInstr.Ldarg_S : IlInstr.Ldloc_S, (byte) localIndex);
+                                        }
+                                        else
+                                        {
+                                            il.Emit(isArg ? IlInstr.Ldarg : IlInstr.Ldloc, (int) localIndex);
+                                        }
+                                    }
+
                                     push(param?.ParameterType ?? var?.VariableType);
                                     break;
                                 case instr.LOCAL_SET:
-                                    il.Emit(isArg ? IlInstr.Starg : IlInstr.Stloc, (int) local_index);
+                                    if (!isArg && localIndex < 4)
+                                    {
+                                        il.Emit(new []{IlInstr.Stloc_0, IlInstr.Stloc_1, IlInstr.Stloc_2, IlInstr.Stloc_3}[localIndex]);
+                                    }
+                                    else
+                                    {
+                                        if (localIndex < 256)
+                                        {
+                                            il.Emit(isArg ? IlInstr.Starg_S : IlInstr.Stloc_S, (byte) localIndex);    
+                                        }
+                                        else
+                                        {
+                                            il.Emit(isArg ? IlInstr.Starg : IlInstr.Stloc, (int) localIndex);
+                                        }
+                                    }
+                                    
                                     pop();
                                     break;
                                 case instr.LOCAL_TEE:
                                     il.Emit(IlInstr.Dup);
-                                    il.Emit(isArg ? IlInstr.Starg : IlInstr.Stloc, (int) local_index);
+                                    il.Emit(isArg ? IlInstr.Starg : IlInstr.Stloc, (int) localIndex);
                                     break;
                             }
 
                             break;
                         case instr.I32_CONST:
-                            il.Emit(IlInstr.Ldc_I4, (int) reader.ReadI64Leb());
+                        {
+                            var cint = (int) reader.ReadI64Leb();
+                            emitLdc(cint);
+                            
                             push(i32Type);
                             break;
+                        }
                         case instr.I64_CONST:
                             push(i64Type);
                             il.Emit(IlInstr.Ldc_I8, reader.ReadI64Leb());
@@ -1183,7 +1294,7 @@ namespace Wasm2IL
                             }
 
                             var lastI = il.Body.Instructions.LastOrDefault();
-                            if (lastI.OpCode == OpCodes.Ldc_I4 && object.Equals(lastI.Operand, 0))
+                            if (lastI.OpCode == OpCodes.Ldc_I4 && object.Equals(lastI.Operand, 0) || lastI.OpCode == OpCodes.Ldc_I4_0)
                             {
                                 il.Replace(lastI, il.Create(IlInstr.Ldsfld, memoryField));
                             }
@@ -1197,7 +1308,7 @@ namespace Wasm2IL
                             // adjust according to the offset 
                             if (offset != 0)
                             {
-                                il.Emit(IlInstr.Ldc_I4, (int) offset);
+                                emitLdc((int) offset);
                                 il.Emit(IlInstr.Add);
                             }
 
@@ -1241,7 +1352,6 @@ namespace Wasm2IL
                                         il.Emit(IlInstr.Ldind_I1);
                                     else
                                         il.Emit(IlInstr.Ldind_U1);
-                                    il.Emit(IlInstr.Conv_I4);
                                     push(i32Type);
                                     break;
                                 case instr.I32_LOAD16_U:
@@ -1514,6 +1624,15 @@ namespace Wasm2IL
                         case instr.I64_NE:
                         case instr.F64_NE:
                         case instr.F32_NE:
+                            if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
+                            {
+                                instr = (instr) reader.ReadU8();
+                                jmpFromEqz = true;
+                                jmpFromBne = true;
+                                
+                                goto case instr.BR_IF;
+                            }
+
                             il.Emit(IlInstr.Ceq);
                             il.Emit(IlInstr.Ldc_I4_0);
                             il.Emit(IlInstr.Ceq);
@@ -1581,6 +1700,13 @@ namespace Wasm2IL
                             il.Append(label);
                             break;
                         case instr.I32_EQZ:
+                            var nextI = (instr) reader.Clone().ReadU8();
+                            if (nextI == instr.BR_IF)
+                            {
+                                instr = (instr)reader.ReadU8();
+                                jmpFromEqz = true;
+                                goto case instr.BR_IF;
+                            }
                             il.Emit(IlInstr.Ldc_I4_0);
                             il.Emit(IlInstr.Ceq);
                             pop(1);
@@ -1685,7 +1811,7 @@ namespace Wasm2IL
                             else
                             {
                                 labelStack.RemoveAt(0);
-                                if (il.Body.Instructions.Last().OpCode != IlInstr.Ret)
+                                if (il.Body.Instructions.LastOrDefault()?.OpCode != IlInstr.Ret)
                                     il.Emit(IlInstr.Ret);
                                 goto next;
                             }
@@ -2431,8 +2557,14 @@ namespace Wasm2IL
                     if (il.Body.Instructions.Last().OpCode != IlInstr.Ret)
                         il.Emit(IlInstr.Ret);
                 }
+                
 
                 next: ;
+            }
+
+            foreach (var method in cls.Methods)
+            {
+                method.Body.Optimize();
             }
         }
 
@@ -2771,7 +2903,7 @@ namespace Wasm2IL
             for (uint i = 0; i < typeCount; i++)
             {
                 var header = reader.ReadU8();
-                Equals(0x60, header);
+                Assert.AreEqual(0x60, header);
                 var paramCount = reader.ReadU32Leb();
                 var paramTypes = new TypeReference[paramCount];
                 for (int i2 = 0; i2 < paramCount; i2++)

@@ -13,26 +13,41 @@ namespace Wasm2IL
     class BinReader
     {
         static System.Text.Encoding utf8 => System.Text.Encoding.UTF8;
-        readonly Stream str;
+        private int position = 0;
+        private readonly int length;
+        private readonly byte[] data;
+
+        public BinReader Clone()
+        {
+            return new BinReader(data, position);
+
+        }
 
         public long Position
         {
-            get => str.Position;
-            set => str.Position = value;
+            get => position;
+            set => position = (int)value;
         }
 
         public BinReader(Stream stream)
         {
-            str = stream;
+            length = (int)stream.Length;
+            data = new byte[length];
+            stream.ReadExactly(data);
+        }
+        
+        private BinReader(byte[] data, int position)
+        {
+            this.data = data;
+            this.position = position;
+            length = data.Length;
         }
 
-        public bool ReadToEnd() => str.Position == str.Length;
+        public bool ReadToEnd() => position == length;
 
         public u8 ReadU8()
         {
-            checked {
-                return (byte)str.ReadByte();
-            }
+            return data[position++];
         }
         public u32 ReadU32Leb() => (u32)ReadU64Leb();
 
@@ -73,15 +88,17 @@ namespace Wasm2IL
             }
         }
 
-        public int Read(Span<byte> data){
-            return str.Read(data);
+        public int Read(Span<byte> outData){
+            var subSpan = data.AsSpan(position, outData.Length);
+            subSpan.CopyTo(outData);
+            position += subSpan.Length;
+            return subSpan.Length;
         }
 
         public long ReadI64()
         {
             Span<long> l = stackalloc long[1];
             Read(MemoryMarshal.AsBytes(l));
-            
             return l[0];
         }
 
@@ -143,6 +160,9 @@ namespace Wasm2IL
         }
 
         MemoryStream membuffer = new MemoryStream();
+
+
+
         public string ReadStrN()
         {
             membuffer.Seek(0,  SeekOrigin.Begin);

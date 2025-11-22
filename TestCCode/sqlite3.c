@@ -13900,7 +13900,7 @@ SQLITE_PRIVATE void sqlite3HashClear(Hash*);
 # endif
 #endif
 #ifndef LONGDOUBLE_TYPE
-# define LONGDOUBLE_TYPE long double
+# define LONGDOUBLE_TYPE double
 #endif
 typedef sqlite_int64 i64;          /* 8-byte signed integer */
 typedef sqlite_uint64 u64;         /* 8-byte unsigned integer */
