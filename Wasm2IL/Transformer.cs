@@ -945,8 +945,7 @@ namespace Wasm2IL
                     bool is64 = instr.ToString().Contains("64");
                     instructions.Add(instr);
                     codeidx++;
-                    bool jmpFromEqz = false;
-                    bool jmpFromBne = false;
+                    OpCode? jmpInstr = null;
                     switch (instr)
                     {
                         case instr.NOP:
@@ -957,13 +956,6 @@ namespace Wasm2IL
                             var otherFun = resolveMethod(fcn);
                             if (otherFun == null)
                                 throw new Exception("");
-                            /*if (otherFun.DeclaringType?.Name == nameof(Wasi))
-                            {
-                                il.Emit(IlInstr.Ldtoken, cls);
-                                il.Emit(IlInstr.Call,
-                                    def.MainModule.ImportReference(
-                                        typeof(Wasi).GetMethod(nameof(Wasi.GetContext))));
-                            }*/
 
                             otherFun = MaybeWrap(otherFun);
 
@@ -1040,25 +1032,9 @@ namespace Wasm2IL
                             var brindex = reader.ReadU32Leb();
                             if (instr == instr.BR_IF)
                             {
-                                if (jmpFromEqz)
-                                {
-                                    if (jmpFromBne)
-                                    {
-                                        il.Emit(OpCodes.Bne_Un,
-                                            labelStack[(int) (labelStack.Count - brindex - 1)].StartLabel);
-                                    }
-                                    else
-                                    {
-                                        il.Emit(OpCodes.Brfalse,
-                                            labelStack[(int) (labelStack.Count - brindex - 1)].StartLabel);
-                                    }
-
-                                }
-                                else
-                                {
-                                    il.Emit(OpCodes.Brtrue,
-                                        labelStack[(int) (labelStack.Count - brindex - 1)].StartLabel);
-                                }
+                                pop();
+                                il.Emit(jmpInstr ?? OpCodes.Brtrue,
+                                    labelStack[(int) (labelStack.Count - brindex - 1)].StartLabel);
                             }
                             else
                                 il.Emit(OpCodes.Br, labelStack[(int) (labelStack.Count - brindex - 1)].StartLabel);
@@ -1553,6 +1529,13 @@ namespace Wasm2IL
 
                         case instr.I32_LT_U:
                         case instr.I64_LT_U:
+                            if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
+                            {
+                                instr = (instr) reader.ReadU8();
+                                pop();
+                                jmpInstr = IlInstr.Blt_Un;
+                                goto case instr.BR_IF;
+                            }
                             il.Emit(IlInstr.Clt_Un);
                             pop(2);
                             push(i32Type);
@@ -1561,12 +1544,26 @@ namespace Wasm2IL
                         case instr.I64_LT_S:
                         case instr.F64_LT:
                         case instr.F32_LT:
+                            if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
+                            {
+                                instr = (instr) reader.ReadU8();
+                                pop();
+                                jmpInstr = IlInstr.Blt;
+                                goto case instr.BR_IF;
+                            }
                             il.Emit(IlInstr.Clt);
                             pop(2);
                             push(i32Type);
                             break;
                         case instr.I32_GT_U:
                         case instr.I64_GT_U:
+                            if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
+                            {
+                                instr = (instr) reader.ReadU8();
+                                pop();
+                                jmpInstr = IlInstr.Bgt_Un;
+                                goto case instr.BR_IF;
+                            }
                             il.Emit(IlInstr.Cgt_Un);
                             pop(2);
                             push(i32Type);
@@ -1575,6 +1572,15 @@ namespace Wasm2IL
                         case instr.I64_GT_S:
                         case instr.F64_GT:
                         case instr.F32_GT:
+                            
+                            if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
+                            {
+                                instr = (instr) reader.ReadU8();
+                                pop();
+                                jmpInstr = IlInstr.Bgt;
+                                goto case instr.BR_IF;
+                            }
+                            
                             il.Emit(IlInstr.Cgt);
                             pop(2);
                             push(i32Type);
@@ -1591,24 +1597,15 @@ namespace Wasm2IL
                         case instr.I64_LE_U:
                         case instr.F64_LE:
                         case instr.F32_LE:
+                            // invert the logic
                             var unsigned = instr.ToString().Contains("_U");
                             var le = instr.ToString().Contains("LE");
-                            OpCode cmp = le ? IlInstr.Clt : IlInstr.Cgt;
-                            if (unsigned)
-                                cmp = le ? IlInstr.Clt_Un : IlInstr.Cgt_Un;
-
-                            var v = getVariable(instrType());
-                            var v2 = getVariable(instrType(), 1);
-                            il.Emit(IlInstr.Stloc, v);
-                            il.Emit(IlInstr.Stloc, v2);
-                            il.Emit(IlInstr.Ldloc, v2);
-                            il.Emit(IlInstr.Ldloc, v);
-                            il.Emit(IlInstr.Ceq);
-                            il.Emit(IlInstr.Ldloc, v2);
-                            il.Emit(IlInstr.Ldloc, v);
+                            OpCode cmp = le ? (unsigned ? IlInstr.Cgt_Un : IlInstr.Cgt) 
+                                : (unsigned ? IlInstr.Clt_Un : IlInstr.Clt);
 
                             il.Emit(cmp);
-                            il.Emit(IlInstr.Or);
+                            il.Emit(IlInstr.Ldc_I4_0);
+                            il.Emit(IlInstr.Ceq);
                             pop(2);
                             push(i32Type);
                             break;
@@ -1616,6 +1613,13 @@ namespace Wasm2IL
                         case instr.I64_EQ:
                         case instr.F64_EQ:
                         case instr.F32_EQ:
+                            if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
+                            {
+                                instr = (instr) reader.ReadU8();
+                                pop();
+                                jmpInstr = IlInstr.Beq;
+                                goto case instr.BR_IF;
+                            }
                             il.Emit(IlInstr.Ceq);
                             pop(2);
                             push(i32Type);
@@ -1627,8 +1631,8 @@ namespace Wasm2IL
                             if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
                             {
                                 instr = (instr) reader.ReadU8();
-                                jmpFromEqz = true;
-                                jmpFromBne = true;
+                                pop();
+                                jmpInstr = IlInstr.Bne_Un;
                                 
                                 goto case instr.BR_IF;
                             }
@@ -1704,7 +1708,8 @@ namespace Wasm2IL
                             if (nextI == instr.BR_IF)
                             {
                                 instr = (instr)reader.ReadU8();
-                                jmpFromEqz = true;
+                                
+                                jmpInstr = IlInstr.Brfalse;
                                 goto case instr.BR_IF;
                             }
                             il.Emit(IlInstr.Ldc_I4_0);
