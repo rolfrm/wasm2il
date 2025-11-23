@@ -853,12 +853,13 @@ namespace Wasm2IL
 
                 var heapaddr = new VariableDefinition(def.MainModule.TypeSystem.Int32);
                 m1.Body.Variables.Add(heapaddr);
+                
+                var heapvar = new VariableDefinition(def.MainModule.TypeSystem.Byte.MakePointerType());
+                m1.Body.Variables.Add(heapvar);
 
                 m1.Body.InitLocals = true;
-                int codeidx = 0;
                 var labelStack = new List<LabelType>();
                 labelStack.Add(new LabelType()); // base label
-                List<instr> instructions = new List<instr>();
 
                 // to satisfy SELECT.
                 Stack<TypeReference> top = new Stack<TypeReference>();
@@ -911,6 +912,26 @@ namespace Wasm2IL
                     }
                 }
 
+
+                bool heapInited = false;
+                void updateHeap()
+                {
+                    il.Emit(OpCodes.Ldsfld, memoryField);
+                    il.Emit(OpCodes.Stloc, heapvar);
+                }
+                
+                void loadMemory()
+                {
+                    if (!heapInited)
+                    {
+                        heapInited = true;
+                        il.InsertAfter(0, il.Create(OpCodes.Ldsfld, memoryField));
+                        il.InsertAfter(1, il.Create(OpCodes.Stloc, heapvar));
+                    }
+                    
+                    il.Emit(IlInstr.Ldloc, heapvar);
+                }
+
                 var start = reader.Position + 1;
                 while (next > reader.Position)
                 {
@@ -943,8 +964,7 @@ namespace Wasm2IL
                     }
 
                     bool is64 = instr.ToString().Contains("64");
-                    instructions.Add(instr);
-                    codeidx++;
+                 
                     OpCode? jmpInstr = null;
                     switch (instr)
                     {
@@ -964,6 +984,8 @@ namespace Wasm2IL
                             pop(otherFun.Parameters.Count);
                             
                             push(otherFun.ReturnType);
+                            // heap var must be updated after call
+                            updateHeap();
                             break;
                         case instr.CALL_INDIRECT:
                             var typeidx = reader.ReadU32Leb();
@@ -992,6 +1014,8 @@ namespace Wasm2IL
                             il.Emit(IlInstr.Callvirt, def.MainModule.ImportReference(invoke));
                             pop((int) ftp.ParamCount);
                             push(ftp.ReturnType);
+                            // heap var must be updated after call
+                            updateHeap();
                             break;
                         case instr.BLOCK:
                             var blockType = reader.ReadU8();
@@ -1178,7 +1202,7 @@ namespace Wasm2IL
                             Assert.AreEqual(0, x);
 
                             push(i32Type);
-                            il.Emit(IlInstr.Ldsfld, memoryField);
+                            loadMemory();
                             il.Emit(IlInstr.Ldlen);
                             il.Emit(IlInstr.Ldc_I4, (int) page_size);
                             il.Emit(IlInstr.Div);
@@ -1269,17 +1293,8 @@ namespace Wasm2IL
                                 pop();
                             }
 
-                            var lastI = il.Body.Instructions.LastOrDefault();
-                            if (lastI.OpCode == OpCodes.Ldc_I4 && object.Equals(lastI.Operand, 0) || lastI.OpCode == OpCodes.Ldc_I4_0)
-                            {
-                                il.Replace(lastI, il.Create(IlInstr.Ldsfld, memoryField));
-                            }
-                            else
-                            {
-                                il.Emit(IlInstr.Ldsfld, memoryField);
-                                il.Emit(IlInstr.Add);
-                            }
-
+                            loadMemory();
+                            il.Emit(IlInstr.Add);
 
                             // adjust according to the offset 
                             if (offset != 0)
@@ -1886,7 +1901,7 @@ namespace Wasm2IL
                                         pop();
                                     }
 
-                                    il.Emit(IlInstr.Ldsfld, memoryField);
+                                    loadMemory();
                                     il.Emit(IlInstr.Add);
                                     var align2 = reader.ReadU32Leb(); // align
                                     var offset3 = reader.ReadU32Leb();
@@ -2134,7 +2149,7 @@ namespace Wasm2IL
                                     pop();
                                     var align2 = reader.ReadU32Leb();
                                     var offset3 = reader.ReadU32Leb();
-                                    il.Emit(IlInstr.Ldsfld, memoryField);
+                                    loadMemory();
                                     il.Emit(IlInstr.Add);
                                     if (offset3 != 0)
                                     {
@@ -2450,7 +2465,7 @@ namespace Wasm2IL
                                     var __t = pop();
                                     var align2 = reader.ReadU32Leb();
                                     var offset3 = reader.ReadU32Leb();
-                                    il.Emit(IlInstr.Ldsfld, memoryField);
+                                    loadMemory();
                                     il.Emit(IlInstr.Add);
                                     if (offset3 != 0)
                                     {
@@ -2496,7 +2511,7 @@ namespace Wasm2IL
                                     var align2 = reader.ReadU32Leb();
                                     var offset3 = reader.ReadU32Leb();
                                     var lane = reader.ReadU8();
-                                    il.Emit(IlInstr.Ldsfld, memoryField);
+                                    loadMemory();
                                     il.Emit(IlInstr.Add);
                                     if (offset3 != 0)
                                     {
