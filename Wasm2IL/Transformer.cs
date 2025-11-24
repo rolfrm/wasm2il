@@ -1338,20 +1338,19 @@ namespace Wasm2IL
                                     push(i32Type);
                                     break;
                                 case instr.I32_LOAD8_S:
+                                    il.Emit(IlInstr.Ldind_I1);
+                                    push(i32Type);
+                                    break;
                                 case instr.I32_LOAD8_U:
-                                    if (instr.I32_LOAD8_S == instr)
-                                        il.Emit(IlInstr.Ldind_I1);
-                                    else
-                                        il.Emit(IlInstr.Ldind_U1);
+                                    il.Emit(IlInstr.Ldind_U1);
                                     push(i32Type);
                                     break;
                                 case instr.I32_LOAD16_U:
+                                    il.Emit(IlInstr.Ldind_U2);
+                                    push(i32Type);
+                                    break;
                                 case instr.I32_LOAD16_S:
-                                    if (instr.I32_LOAD16_S == instr)
-                                        il.Emit(IlInstr.Ldind_I2);
-                                    else
-                                        il.Emit(IlInstr.Ldind_U2);
-                                    il.Emit(IlInstr.Conv_I4);
+                                    il.Emit(IlInstr.Ldind_I2);
                                     push(i32Type);
                                     break;
                                 case instr.I64_LOAD:
@@ -1374,7 +1373,7 @@ namespace Wasm2IL
                                 case instr.I64_LOAD8_U:
                                     push(i64Type);
                                     il.Emit(IlInstr.Ldind_U1);
-                                    il.Emit(IlInstr.Conv_I8);
+                                    il.Emit(IlInstr.Conv_U8);
                                     break;
                                 case instr.I64_LOAD16_S:
                                     push(i64Type);
@@ -1384,7 +1383,7 @@ namespace Wasm2IL
                                 case instr.I64_LOAD16_U:
                                     push(i64Type);
                                     il.Emit(IlInstr.Ldind_U2);
-                                    il.Emit(IlInstr.Conv_I8);
+                                    il.Emit(IlInstr.Conv_U8);
                                     break;
                                 case instr.I64_LOAD32_S:
                                     push(i64Type);
@@ -1394,7 +1393,7 @@ namespace Wasm2IL
                                 case instr.I64_LOAD32_U:
                                     push(i64Type);
                                     il.Emit(IlInstr.Ldind_U4);
-                                    il.Emit(IlInstr.Conv_I8);
+                                    il.Emit(IlInstr.Conv_U8);
                                     break;
                                 default:
                                     throw new Exception("Unexpected opcode");
@@ -1838,13 +1837,22 @@ namespace Wasm2IL
 
                             break;
                         case instr.I32_EXTEND8_S:
+                            il.Emit(IlInstr.Conv_I1);
+                            break;
                         case instr.I32_EXTEND16_S:
-                            il.Emit(IlInstr.Conv_I4);
+                            il.Emit(IlInstr.Conv_I2);
                             break;
 
                         case instr.I64_EXTEND8_S:
+                            il.Emit(IlInstr.Conv_I1);
+                            il.Emit(IlInstr.Conv_I8);
+                            break;
                         case instr.I64_EXTEND16_S:
+                            il.Emit(IlInstr.Conv_I2);
+                            il.Emit(IlInstr.Conv_I8);
+                            break;
                         case instr.I64_EXTEND32_S:
+                            il.Emit(IlInstr.Conv_I4);
                             il.Emit(IlInstr.Conv_I8);
                             break;
                         case instr.F32_TRUNC:

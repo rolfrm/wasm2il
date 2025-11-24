@@ -43,6 +43,7 @@ public class Program
                         {
                             Console.WriteLine($"Fail: {e.InnerException}");
                             Console.WriteLine($"      {e.InnerException.StackTrace}");
+                            return;
                         }
 
                     }

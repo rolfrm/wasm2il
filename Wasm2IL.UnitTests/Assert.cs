@@ -7,14 +7,22 @@ namespace Wasm2IL.UnitTests
 
         class AssertException : Exception
         {
-
+            public AssertException() : base($"Assertion failed")
+            {
+                
+            }
+            public AssertException(string s) : base($"Assertion failed: {s}")
+            {
+                
+            }
+            
         }
         
 
         public static void AreEqual<T>(T a, T b)
         {
             if (Equals(a, b) == false)
-                throw new AssertException();
+                throw new AssertException($"Expected {a} == {b}");
         }
         public static void AreEqual(float a, float b)
         {

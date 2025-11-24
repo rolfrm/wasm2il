@@ -15,7 +15,7 @@ sqlite3.wasm: sqlite3.c sqlite3.h
               -Wl,--export=sqlite3_step -Wl,--export=sqlite3_finalize -Wl,--export=sqlite3_errmsg -Wl,--export=sqlite3_free \
               -Wl,--export=sqlite3_column_text -Wl,--export=sqlite3_column_int -Wl,--export=sqlite3_column_int64 -Wl,--export=sqlite3_column_double  -Wl,--export=sqlite3_column_count \
               -Wl,--export=sqlite3_bind_text -Wl,--export=sqlite3_bind_int -Wl,--export=sqlite3_bind_int64 -Wl,--export=sqlite3_bind_double -Wl,--export=sqlite3_reset -Wl,--export=sqlite3_changes\
-              -Wl,--export=sqlite3_memory_used
+              -Wl,--export=sqlite3_memory_used -Wl,--export=sqlite3_column_blob -Wl,--export=sqlite3_column_type -Wl,--export=sqlite3_bind_blob, -Wl,--export=sqlite3_column_bytes
               
 
 sqlite3.wat: sqlite3.wasm libc.wasm

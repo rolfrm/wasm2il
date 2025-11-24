@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Wasm2IL;
 using Wasm2IL.UnitTests;
+using Assert = Wasm2IL.UnitTests.Assert;
 
 namespace Wasm2CIl.UnitTests;
 
@@ -46,15 +47,25 @@ public class TestLoadSqlite
         public SqliteErrorCode Prepare(int db, string sql, int nByte, int stmt, int tail_0);
         
     }
-    
-    [Test]
-    public void LoadAndRunSqlite()
+
+    private static WasmAssembly built = null;
+    static WasmAssembly buildSqlite()
     {
+        if (built != null)
+            return built;
+        
         var transformer = new Transformer();
         
         transformer.LoadImportModule("env", typeof(LibC));
         transformer.LoadOverrideModule(typeof(LibC.LibCOverride));
-        var asm = transformer.LoadWasmAssembly("sqlite3.wasm", "SqliteWasm", "SqliteWasm.dll");
+        built = transformer.LoadWasmAssembly("sqlite3.wasm", "SqliteWasm", "SqliteWasm.dll");
+        return built;
+    }
+    
+    [Test]
+    public void LoadAndRunSqlite()
+    {
+        var asm = buildSqlite();
         
         var db = asm.Malloc(4);
         var rc00 = asm.Invoke("sqlite3_initialize");
@@ -191,6 +202,48 @@ public class TestLoadSqlite
         
         var api = w.AsImplementation<ISqliteApi>();
         
+
+    }
+    
+    private string sqlitePerfTest0 = @"
+
+DROP TABLE IF EXISTS customers;
+
+CREATE TABLE customers (
+    id INTEGER PRIMARY KEY
+);
+
+WITH RECURSIVE c(i) AS (
+    SELECT 1
+    UNION ALL SELECT i+1 FROM c WHERE i < 129
+)
+INSERT INTO customers (id)
+SELECT
+    i
+FROM c;
+";
+
+    static TestLoadSqlite()
+    {
+        buildSqlite();
+    }
+    [Test]
+    public void LoadAndRunSqliteError()
+    {
+        // This was used to find a bug related to extending 129 to a full int.
+        var w = new WasmAssembly(typeof(SqliteWasm.C).Assembly);
+        w.Invoke("sqlite3_initialize");
+        
+        File.Delete("./test_bug.sqlite");
+        var str = w.StringToHeap("./test_bug.sqlite");
+        var db = w.Malloc(4);
+        int ok = SqliteWasm.C.sqlite3_open_v2(str, db, 6,0);
+        var db2 = w.GetHeapObject<int>(db);
+        var sql2 = sqlitePerfTest0;
+        var sql2p = w.StringToHeap(sql2.Replace("\r", ""));
+        int ok3 = SqliteWasm.C.sqlite3_exec(db2, sql2p, 0, 0, 0);
+        
+        Assert.AreEqual(ok3, 0);
 
     }
 
