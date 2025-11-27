@@ -256,6 +256,9 @@ public class WasmAssembly
                     il.Emit(OpCodes.Ldarg, i + 1);
                     var lm = GetType().GetMethod(nameof(StringByteLength));
                     il.EmitCall(OpCodes.Call, lm, null);
+                    il.Emit(OpCodes.Ldc_I4_1);
+                    il.Emit(OpCodes.Add);
+                    
                     il.EmitCall(OpCodes.Call, malloc, null);
                     il.Emit(OpCodes.Dup);
                     il.Emit(OpCodes.Dup);
