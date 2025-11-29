@@ -443,6 +443,21 @@ public class LibC
         return 0;
     }
 
+    public static unsafe int ftruncate(int fd, long length)
+    {
+        var f = files[fd];
+        try
+        {
+            f.SetLength(length);
+        }
+        catch
+        {
+            return -1;
+        }
+
+        return 0;
+    }
+
     public static int __lockfile(int filePtr)
     {
         return 1; // ok

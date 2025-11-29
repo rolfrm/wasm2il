@@ -1888,6 +1888,46 @@ namespace Wasm2IL
                                     Assert.AreEqual(0, reader.ReadU8());
                                     EmitCall(il, () => Lib.MemoryCopy);
                                     break;
+                                case ExtendedInstruction.I32_TRUNC_SAT_F32_S:
+                                    EmitCall(il, () => Lib.I32_TRUNC_SAT_F32_S);
+                                    pop();
+                                    push(i32Type);
+                                    break;
+                                case ExtendedInstruction.I32_TRUNC_SAT_F32_U:
+                                    EmitCall(il, () => Lib.I32_TRUNC_SAT_F32_U);
+                                    pop();
+                                    push(i32Type);
+                                    break;
+                                case ExtendedInstruction.I32_TRUNC_SAT_F64_S:
+                                    EmitCall(il, () => Lib.I32_TRUNC_SAT_F32_S);
+                                    pop();
+                                    push(i32Type);
+                                    break;
+                                case ExtendedInstruction.I32_TRUNC_SAT_F64_U:
+                                    EmitCall(il, () => Lib.I32_TRUNC_SAT_F32_U);
+                                    pop();
+                                    push(i32Type);
+                                    break;
+                                case ExtendedInstruction.I64_TRUNC_SAT_F32_S:
+                                    EmitCall(il, () => Lib.I64_TRUNC_SAT_F32_S);
+                                    pop();
+                                    push(i32Type);
+                                    break;
+                                case ExtendedInstruction.I64_TRUNC_SAT_F32_U:
+                                    EmitCall(il, () => Lib.I64_TRUNC_SAT_F32_U);
+                                    pop();
+                                    push(i32Type);
+                                    break;
+                                case ExtendedInstruction.I64_TRUNC_SAT_F64_S:
+                                    EmitCall(il, () => Lib.I64_TRUNC_SAT_F32_S);
+                                    pop();
+                                    push(i32Type);
+                                    break;
+                                case ExtendedInstruction.I64_TRUNC_SAT_F64_U:
+                                    EmitCall(il, () => Lib.I64_TRUNC_SAT_F32_U);
+                                    pop();
+                                    push(i32Type);
+                                    break;
                                 default:
                                     throw new NotImplementedException();
                             }
@@ -1982,8 +2022,12 @@ namespace Wasm2IL
                                 case VectorInstructions.I8X16_NE:
                                     il.EmitCall(() => Lib.i8x16_ne);
                                     break;
-
-
+                                case VectorInstructions.I8X16_LT_S:
+                                    il.EmitCall(() => Lib.i8x16_lt_s);
+                                    break;
+                                case VectorInstructions.I8X16_LT_U:
+                                    il.EmitCall(() => Lib.i8x16_lt_u);
+                                    break;
                                 case VectorInstructions.I16X8_EQ:
                                     il.EmitCall(() => Lib.i16x8_eq);
                                     break;

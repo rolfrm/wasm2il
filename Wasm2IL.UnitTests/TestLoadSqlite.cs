@@ -206,24 +206,41 @@ public class TestLoadSqlite
     }
     
     private string sqlitePerfTest0 = @"
+  
+  DROP TABLE IF EXISTS customers;
+  
+  CREATE TABLE customers (
+      id INTEGER PRIMARY KEY
+  );
+  
+  WITH RECURSIVE c(i) AS (
+      SELECT 1
+      UNION ALL SELECT i+1 FROM c WHERE i < 129
+  )
+  INSERT INTO customers (id)
+  SELECT
+      i
+  FROM c;
+  ";
+    private string sqlitePerfTest2 = @"
+  
+  DROP TABLE IF EXISTS customers;
+  
+  CREATE TABLE customers (
+      id INTEGER PRIMARY KEY
+  );
+  
+  WITH RECURSIVE c(i) AS (
+      SELECT 1
+      UNION ALL SELECT i+1 FROM c WHERE i < 1290000
+  )
+  INSERT INTO customers (id)
+  SELECT
+      i
+  FROM c;
+  ";
 
-DROP TABLE IF EXISTS customers;
-
-CREATE TABLE customers (
-    id INTEGER PRIMARY KEY
-);
-
-WITH RECURSIVE c(i) AS (
-    SELECT 1
-    UNION ALL SELECT i+1 FROM c WHERE i < 129
-)
-INSERT INTO customers (id)
-SELECT
-    i
-FROM c;
-";
-
-    static TestLoadSqlite()
+    public TestLoadSqlite()
     {
         buildSqlite();
     }
@@ -242,8 +259,24 @@ FROM c;
         var sql2 = sqlitePerfTest0;
         var sql2p = w.StringToHeap(sql2.Replace("\r", ""));
         int ok3 = SqliteWasm.C.sqlite3_exec(db2, sql2p, 0, 0, 0);
+        SqliteWasm.C.sqlite3_close(db2);
+        File.Delete("./test_bug.sqlite");
         
+        File.Delete("./test_bug.sqlite");
+        str = w.StringToHeap("./test_bug.sqlite");
+        SqliteWasm.C.sqlite3_open_v2(str, db, 6,0);
+        db2 = w.GetHeapObject<int>(db);
+        var sql3 = sqlitePerfTest2;
+        var sql3p = w.StringToHeap(sql3.Replace("\r", ""));
+        int ok4 = SqliteWasm.C.sqlite3_exec(db2, sql3p, 0, 0, 0);
+        var vacuum = w.StringToHeap("VACUUM;");
+
+        int ok5 = SqliteWasm.C.sqlite3_exec(db2, vacuum, 0, 0, 0);
+        SqliteWasm.C.sqlite3_close(db2);
+        File.Delete("./test_bug.sqlite");
+
         Assert.AreEqual(ok3, 0);
+        Assert.AreEqual(ok5, 0);
 
     }
 

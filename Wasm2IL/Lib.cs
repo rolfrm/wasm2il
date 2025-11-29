@@ -44,6 +44,13 @@ public static class Lib
         => Vector128.Equals(a, b) ^ Vector128<byte>.One;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector128<sbyte> i8x16_lt_s(Vector128<sbyte> a, Vector128<sbyte> b)
+        => Vector128.LessThan(a, b);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector128<byte> i8x16_lt_u(Vector128<byte> a, Vector128<byte> b)
+        => Vector128.LessThan(a, b);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector128<short> i16x8_eq(Vector128<short> a, Vector128<short> b) 
         => Vector128.Equals(a, b);
 
@@ -763,5 +770,86 @@ public static class Lib
     public static Vector128<byte> not_implemented_vec128_vec128(Vector128<byte> a)
     {
         throw new NotImplementedException();
+    }
+
+    public static int I32_TRUNC_SAT_F32_S(float f)
+    {
+        if (float.IsNaN(f))
+            return 0;
+        if (f >= int.MaxValue)
+            return int.MaxValue;
+        if (f <= int.MinValue)
+            return int.MinValue;
+        return (int) f;
+    }
+    public static uint I32_TRUNC_SAT_F32_U(float f)
+    {
+        if (float.IsNaN(f))
+            return 0;
+        if (f >= uint.MaxValue)
+            return int.MaxValue;
+        if (f <= uint.MinValue)
+            return uint.MinValue;
+        return (uint) f;
+    }
+    public static int I32_TRUNC_SAT_F64_S(double f)
+    {
+        if (double.IsNaN(f))
+            return 0;
+        if (f >= int.MaxValue)
+            return int.MaxValue;
+        if (f <= int.MinValue)
+            return int.MinValue;
+        return (int) f;
+    }
+    public static uint I32_TRUNC_SAT_F64_U(double f)
+    {
+        if (double.IsNaN(f))
+            return 0;
+        if (f >= uint.MaxValue)
+            return int.MaxValue;
+        if (f <= uint.MinValue)
+            return uint.MinValue;
+        return (uint) f;
+    }
+    public static long I64_TRUNC_SAT_F32_S(float f)
+    {
+        if (float.IsNaN(f))
+            return 0;
+        if (f >= long.MaxValue)
+            return long.MaxValue;
+        if (f <= long.MinValue)
+            return long.MinValue;
+        return (long) f;
+    }
+    public static ulong I64_TRUNC_SAT_F32_U(float f)
+    {
+        if (float.IsNaN(f))
+            return 0;
+        if (f >= ulong.MaxValue)
+            return ulong.MaxValue;
+        if (f <= ulong.MinValue)
+            return ulong.MinValue;
+        return (ulong) f;
+    }
+    public static long I64_TRUNC_SAT_F64_S(double f)
+    {
+        if (double.IsNaN(f))
+            return 0;
+        if (f >= long.MaxValue)
+            return long.MaxValue;
+        if (f <= long.MinValue)
+            return long.MinValue;
+        return (int) f;
+    }
+    public static ulong I64_TRUNC_SAT_F64_U(double f)
+    {
+        if (double.IsNaN(f))
+            return 0;
+        if (f >= ulong.MaxValue)
+            return ulong.MaxValue;
+        if (f <= ulong.MinValue)
+            return ulong.MinValue;
+        return (ulong) f;
     }
 }

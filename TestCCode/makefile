@@ -7,9 +7,9 @@ all: ../bin/Debug/net6.0/code.wasm
 # -msimd128  -mtail-call ./libc.wasm-mtail-call  -msimd128 -mbulk-memory -msimd128 
 
 sqlite3.wasm: sqlite3.c sqlite3.h
-	clang --target=wasm32-unknown-unknown -msimd128  -mbulk-memory -flto -fbuiltin -mllvm -inline-threshold=1000 -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -Os -g0\
+	clang --target=wasm32-unknown-unknown -msimd128  -mbulk-memory -mbulk-memory-opt -flto -fbuiltin -mllvm -inline-threshold=1000 -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -O3 -g0\
              -I$(MUSL_INCLUDE)  \
-             -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_RANDOMNESS -DHAVE_UTIME -DSQLITE_OMIT_WAL -DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_THREADSAFE=0 -DSQLITE_ENABLE_SETLK_TIMEOUT \
+             -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_RANDOMNESS -DHAVE_UTIME -DSQLITE_OMIT_WAL -DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_ENABLE_SETLK_TIMEOUT \
               ./libc.wasm sqlite3.c -Wl,--allow-undefined -Wl,--no-entry\
               -Wl,--export=sqlite3_open -Wl,--export=sqlite3_open_v2 -Wl,--export=sqlite3_close -Wl,--export=sqlite3_exec -Wl,--export=sqlite3_prepare_v2 \
               -Wl,--export=sqlite3_step -Wl,--export=sqlite3_finalize -Wl,--export=sqlite3_errmsg -Wl,--export=sqlite3_free \
@@ -49,8 +49,8 @@ code1.bc: Code1.c
 	clang --target=wasm32-wasi -v -c -o code1.bc -Oz Code1.c -fdeclspec\
              --sysroot $(SYSROOT) 
 
-#code.wasm: code1.bc sqlite3.bc
-#	wasm-ld -export-all --allow-undefined -error-limit=0 -L$(SYSROOT)/lib/wasm32-wasi/ $(SYSROOT_LIB)/libc.a  $^  $(SYSROOT_LIB)/crt1.o  -o code.wasm -no-entry 
+code.wasm: code1.bc sqlite3.bc
+	wasm-ld -export-all --allow-undefined -error-limit=0 -L$(SYSROOT)/lib/wasm32-wasi/ $(SYSROOT_LIB)/libc.a  $^  $(SYSROOT_LIB)/crt1.o  -o code.wasm -no-entry 
 
 ../bin/Debug/net6.0/code.wasm: code.wasm
 	cp code.wasm ../bin/Debug/net6.0/code.wasm

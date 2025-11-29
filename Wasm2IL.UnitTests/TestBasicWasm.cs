@@ -158,10 +158,22 @@ public class TestBasicWasm
         var tform = new Transformer();
         tform.LoadImportModule("env", typeof(LibC));
         var asm = tform.LoadWasmAssembly("w1.wasm", "W2");
-        var len = asm.Invoke("get_strlen", "string");
-        Assert.AreEqual(6, len);
+        for (int j = 0; j < 3; j++)
+        {
+            for (int i = 0; i < 1000; i++)
+            {
+                var stringTest = new string(j == 0 ?'a' :'b', i);
+                var len = (int) asm.Invoke("get_strlen", stringTest);
+                Assert.AreEqual(i, len);
 
-        asm.Invoke("test_memcpy", asm.Malloc(6), asm.Malloc(6), 6);
+                var a = asm.Malloc(len);
+                var b = asm.Malloc(len);
+                asm.Invoke("test_memcpy", a, b, len);
+                asm.Free(a);
+                asm.Free(b);
+            }
+        }
+
     }
 
     [Test]
