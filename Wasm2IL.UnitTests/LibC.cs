@@ -3,7 +3,6 @@ using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Runtime.Intrinsics;
 
 namespace Wasm2IL.UnitTests;
 
@@ -146,19 +145,20 @@ public class LibC
 
         public int Malloc(int count) => (int)malloc.Invoke(null, new object[]{count});
 
+        public string GetHeapString(int p)
+        {
+            return new CString(GetHeap(), p).ToString();
+        }
         public Span<byte> GetSpan(int p, int length) => GetHeap().Slice(p, length);
         public Span<T> GetSpan<T>(int p) where T: struct => MemoryMarshal.Cast<byte, T>(GetHeap().Slice(p, Marshal.SizeOf<T>()));
         public unsafe byte* GetHeapRaw() => (byte*) Pointer.Unbox(memory.GetValue(null));
         public unsafe int GetHeapSize() => (int)memorySize.GetValue(null);
         public unsafe Span<byte> GetHeap() => new Span<byte>((byte*)Pointer.Unbox(memory.GetValue(null)), (int)memorySize.GetValue(null));
 
-        public unsafe void SetHeap(byte* setHeap, int size)
+        public void SetHeap(int size)
         {
-            memory.SetValue(null, Pointer.Box(setHeap, typeof(byte*)));
             memorySize.SetValue(null, size);
         }
-
-
     }
 
     private static Dictionary<Type, ModuleContext> modCtx = new(); 
@@ -204,7 +204,9 @@ public class LibC
                 p = 0;
             }
             lookup[name2] = p;
+            var str = ctx.GetHeapString(p);
             
+
         }
         
         return p;
@@ -266,13 +268,18 @@ public class LibC
         }
         else
         {
-            var f = new FileStream(path.ToString(), FileMode.OpenOrCreate);
+            var f = new FileStream(path.ToString(), FileMode.OpenOrCreate,FileAccess.ReadWrite, FileShare.ReadWrite);
             var fd = _fd++;
             files[fd] = f;
             return fd;
         }
     }
 
+    public static int nanosleep(int duration, int rem)
+    {
+        Thread.Sleep(1);
+        return 0;
+    }
     public static unsafe int fstat(HeapContext ctx, int fd, Stat* stat)
     {
         GetModuleContext(ctx.Module).ErrorNo[0] = 0;
@@ -343,12 +350,12 @@ public class LibC
     public static unsafe int write(int fd, byte * buffer, int count)
     {
         var str = files[fd];
-        var bufferSpan = new Span<byte>(buffer, count);
+        var bufferSpan = new ReadOnlySpan<byte>(buffer, count);
         str.Write(bufferSpan);
         return count;
     } 
     
-    public unsafe static int sbrk(HeapContext _ctx, int increment)
+    public static int sbrk(HeapContext _ctx, int increment)
     {
         var x = GetModuleContext(_ctx.Module);
         if (increment == 0)
@@ -358,14 +365,10 @@ public class LibC
         }
 
         if (increment > 0)
-        {
-            var r = x.GetHeapRaw();
-            
+        {         
             var lp = x.GetHeapSize();
             int newSize = lp + increment;
-
-            r = Lib.Realloc(r, newSize);
-            x.SetHeap(r, newSize);
+            x.SetHeap(newSize);
             return lp;
         }
         return x.GetHeap().Length;
@@ -394,13 +397,15 @@ public class LibC
         return 0;
     }
 
+    public static void log_str_use(HeapContext _ctx, int ptr)
+    {
+        var x = GetModuleContext(_ctx.Module).GetHeapString(ptr);
+    }
+    
     public static int close(int fd)
     {
-        if (directories.TryGetValue(fd, out var _))
-        {
-            directories.Remove(fd);
+        if (directories.Remove(fd, out _))
             return 0;
-        }
         files[fd].Close();
         files.Remove(fd);
         return 0;
@@ -435,7 +440,7 @@ public class LibC
     }
 
 
-    public static unsafe int fopen(HeapContext ctx, CString path, CString mode)
+    public static int fopen(HeapContext ctx, CString path, CString mode)
     {
         var x = GetModuleContext(ctx.Module);
         var p = x.Malloc(4);
@@ -443,7 +448,7 @@ public class LibC
         return 0;
     }
 
-    public static unsafe int ftruncate(int fd, long length)
+    public static int ftruncate(int fd, long length)
     {
         var f = files[fd];
         try
@@ -500,6 +505,18 @@ public class LibC
         }
 
         return -1;
+    }
+    //nt access(const char *pathname, int mode);
+    public static unsafe int access(byte * pathName, int mode)
+    {
+        int i = 0;
+        while (pathName[i++] != 0)
+        {
+            
+        }
+
+        var s = System.Text.Encoding.UTF8.GetString(pathName, i);
+        return 0;
     }
     
     

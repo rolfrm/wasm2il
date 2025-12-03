@@ -14,6 +14,14 @@ public class TestBasicWasm
             if (x == 0)
                 throw new Exception("??");
         }
+
+        public static void assert2(int x, int label)
+        {
+            if (x == 0)
+            {
+                throw new Exception("?? " + label);   
+            }
+        }
     }
 
     [Test]

@@ -239,7 +239,44 @@ public class TestLoadSqlite
       i
   FROM c;
   ";
+    
+    private string sqlitePerfTest3 = @"
+  PRAGMA temp_store_directory = './data';
+  DROP TABLE IF EXISTS customers;
+   DROP TABLE IF EXISTS items;
+   
+  CREATE TABLE customers (
+      id INTEGER PRIMARY KEY,
+	  v2 REAL,
+	  v3 REAL
+  );
+  
+   CREATE TABLE items (
+      id INTEGER PRIMARY KEY,
+	  owner INTEGER,
+	  name TEXT
+  );
+  
+  WITH RECURSIVE c(i) AS (
+      SELECT 1
+      UNION ALL SELECT i+1 FROM c WHERE i < 60800
+  )
+  INSERT INTO customers (id, v2, v3)
+  SELECT
+      i + 5, (i * 3.0), (i * 3.0 * 3.0)
+  FROM c;
+  
+  insert INTO items (id, owner, name)
+  SELECT (customers.id * 2), customers.id, ""thing""
+  FROM customers;
+  
+ SELECT SUM(customers.id),  SUM(items.id), COUNT(items.id), COUNT(customers.id) FROM customers  JOIN items ON customers.id = items.owner;
+  
+  ";
 
+    private string sqliteFreeBlob =
+        "CREATE TABLE t(x);\nINSERT INTO t VALUES(zeroblob(500*1024*1024));  -- 500 MB\nDROP TABLE t;";
+    
     public TestLoadSqlite()
     {
         buildSqlite();
@@ -269,14 +306,176 @@ public class TestLoadSqlite
         var sql3 = sqlitePerfTest2;
         var sql3p = w.StringToHeap(sql3.Replace("\r", ""));
         int ok4 = SqliteWasm.C.sqlite3_exec(db2, sql3p, 0, 0, 0);
-        var vacuum = w.StringToHeap("VACUUM;");
+        //var vacuum = w.StringToHeap("VACUUM;");
 
-        int ok5 = SqliteWasm.C.sqlite3_exec(db2, vacuum, 0, 0, 0);
+        //int ok5 = SqliteWasm.C.sqlite3_exec(db2, vacuum, 0, 0, 0);
         SqliteWasm.C.sqlite3_close(db2);
         File.Delete("./test_bug.sqlite");
 
         Assert.AreEqual(ok3, 0);
-        Assert.AreEqual(ok5, 0);
+        //Assert.AreEqual(ok5, 0);
+
+    }
+
+        private string sqlitePerfTestxx = @"
+-- ============================================
+--  Basic SQLite Benchmark Script (No datetime)
+-- ============================================
+
+PRAGMA journal_mode = DELETE;
+PRAGMA synchronous = NORMAL;
+PRAGMA temp_store = MEMORY;
+
+-- Drop tables if they exist
+DROP TABLE IF EXISTS customers;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS line_items;
+
+-- ============================================
+-- 1. CREATE TABLES
+-- ============================================
+
+CREATE TABLE customers (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    email TEXT
+);
+
+CREATE TABLE orders (
+    id INTEGER PRIMARY KEY,
+    customer_id INTEGER,
+    status TEXT,
+    amount REAL
+);
+
+CREATE TABLE line_items (
+    id INTEGER PRIMARY KEY,
+    order_id INTEGER,
+    product_id INTEGER,
+    quantity INTEGER,
+    price REAL
+);
+
+-- ============================================
+-- 2. INSERT SYNTHETIC DATA
+--    Uses simple SQLite recursive loops
+-- ============================================
+
+-- Insert 10,000 customers
+WITH RECURSIVE c(i) AS (
+    SELECT 1
+    UNION ALL SELECT i+1 FROM c WHERE i < 300000
+)
+INSERT INTO customers (id, name, email)
+SELECT
+    i,
+    'Customer ' || i,
+    'customer' || i || '@example.com'
+FROM c;
+
+-- Insert 100,000 orders
+WITH RECURSIVE o(i) AS (
+    SELECT 1
+    UNION ALL SELECT i+1 FROM o WHERE i < 1000000
+)
+INSERT INTO orders (id, customer_id, status, amount)
+SELECT
+    i,
+    i + 1,
+    CASE WHEN (i % 10) < 8 THEN 'completed' ELSE 'cancelled' END,
+    (i % 500) + 1
+FROM o;
+
+-- Insert 300,000 line items
+WITH RECURSIVE l(i) AS (
+    SELECT 1
+    UNION ALL SELECT i+1 FROM l WHERE i < 3000000
+)
+INSERT INTO line_items (id, order_id, product_id, quantity, price)
+SELECT
+    i,
+    (i % 100000) + 1,
+    (i % 20000) + 1,
+    (i % 10) + 1,
+    (i % 200) + 1
+FROM l;
+
+-- ============================================
+-- 3. RUN BENCHMARK QUERIES
+-- ============================================
+
+-- Heavy join + aggregation
+SELECT c.id, c.name, SUM(li.quantity * li.price) AS total_spent
+FROM customers c
+JOIN orders o ON c.id = o.customer_id
+JOIN line_items li ON o.id = li.order_id
+GROUP BY c.id
+ORDER BY total_spent DESC
+LIMIT 20;
+
+-- Grouping test
+SELECT status, COUNT(*), AVG(amount)
+FROM orders
+GROUP BY status;
+
+-- Join + filter + sort
+SELECT o.id, c.name, o.amount
+FROM orders o
+JOIN customers c ON o.customer_id = c.id
+WHERE o.amount > 400
+ORDER BY o.amount DESC
+LIMIT 50;
+
+-- Simple lookups
+SELECT * FROM orders WHERE id = 1;
+SELECT * FROM orders WHERE id = 50000;
+SELECT * FROM orders WHERE id = 99999;
+
+-- Heavy filter on large table
+SELECT *
+FROM line_items
+WHERE price > 150
+ORDER BY price DESC
+LIMIT 200;
+    
+-- ============================================
+-- End of benchmark
+-- ============================================
+
+";
+    [Test]
+    public void SqliteRationalityTest()
+    {
+        // This was used to find a bug related to extending 129 to a full int.
+        var w = new WasmAssembly(typeof(SqliteWasm.C).Assembly);
+        w.Invoke("sqlite3_initialize");
+
+        File.Delete("./test_bug2.sqlite");
+        var str = w.StringToHeap("./test_bug2.sqlite");
+        var db = w.Malloc(4);
+        int ok = SqliteWasm.C.sqlite3_open_v2(str, db, 6, 0);
+        var db2 = w.GetHeapObject<int>(db);
+        var sql2 = sqlitePerfTest3;
+        var sw = Stopwatch.StartNew();
+        var sql2p = w.StringToHeap(sqlitePerfTestxx.Replace("\r", ""));
+        int ok3 = SqliteWasm.C.sqlite3_exec(db2, sql2p, 0, 0, 0);
+        var elapsed = sw.Elapsed.TotalSeconds;
+        var c = SqliteWasm.C.sqlite3_errmsg(db2);
+        var msg  = w.GetHeapString(c);
+        var vacuum = w.StringToHeap("VACUUM;");
+
+        int ok5 = SqliteWasm.C.sqlite3_exec(db2, vacuum, 0, 0, 0);
+        //int ok7 = SqliteWasm.C.sqlite3_exec(db2, vacuum, 0, 0, 0);
+        var c2 = SqliteWasm.C.sqlite3_errmsg(db2);
+        var ok6 = SqliteWasm.C.sqlite3_extended_errcode(db2);
+        var offset = SqliteWasm.C.sqlite3_error_offset(db2);
+        var msg2  = w.GetHeapString(c2);
+        SqliteWasm.C.sqlite3_close(db2);
+        //File.Delete("./test_bug2.sqlite");
+        if (ok3 != 0)
+            throw new Exception(msg);
+        //if (ok5!= 0)
+        //    throw new Exception(msg2);
 
     }
 

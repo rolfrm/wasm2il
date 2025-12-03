@@ -805,6 +805,15 @@ namespace Wasm2IL
                 }
             }
 
+            HashSet<instr> usedInstructions = new();
+            HashSet<ExtendedInstruction> usedExtendedInstructions = new();
+            HashSet<VectorInstructions> usedVectorInstructions = new();
+            Dictionary<object, MethodInfo> callMethods = new();
+            foreach(var meethod in typeof(Lib).GetMethods().Where(x => x.IsStatic && x.GetCustomAttribute<WasmOpcodeAttribute>() is {} i))
+            {
+                callMethods[meethod.GetCustomAttribute<WasmOpcodeAttribute>().Key] = meethod;
+            }
+            
             for (uint i = 0; i < funcCount; i++)
             {
                 var funcId = FuncDecl[i];
@@ -913,13 +922,9 @@ namespace Wasm2IL
                 }
 
 
-                bool heapInited = false;
-                void updateHeap()
-                {
-                    il.Emit(OpCodes.Ldsfld, memoryField);
-                    il.Emit(OpCodes.Stloc, heapvar);
-                }
                 
+                
+                bool heapInited = false;
                 void loadMemory()
                 {
                     if (!heapInited)
@@ -928,25 +933,14 @@ namespace Wasm2IL
                         il.InsertAfter(0, il.Create(OpCodes.Ldsfld, memoryField));
                         il.InsertAfter(1, il.Create(OpCodes.Stloc, heapvar));
                     }
-                    
                     il.Emit(IlInstr.Ldloc, heapvar);
                 }
 
-                var start = reader.Position + 1;
                 while (next > reader.Position)
                 {
                     var instr = (instr) reader.ReadU8();
-
-                    TypeReference instrType()
-                    {
-                        var s = instr.ToString();
-                        if (s.Contains("F32")) return f32Type;
-                        if (s.Contains("F64")) return f64Type;
-                        if (s.Contains("I32")) return i32Type;
-                        if (s.Contains("I64")) return i64Type;
-                        return voidType;
-                    }
-
+                    usedInstructions.Add(instr);
+                    
                     Type instrType2(bool unsigned = false)
                     {
                         var s = instr.ToString();
@@ -984,8 +978,6 @@ namespace Wasm2IL
                             pop(otherFun.Parameters.Count);
                             
                             push(otherFun.ReturnType);
-                            // heap var must be updated after call
-                            updateHeap();
                             break;
                         case instr.CALL_INDIRECT:
                             var typeidx = reader.ReadU32Leb();
@@ -1014,8 +1006,6 @@ namespace Wasm2IL
                             il.Emit(IlInstr.Callvirt, def.MainModule.ImportReference(invoke));
                             pop((int) ftp.ParamCount);
                             push(ftp.ReturnType);
-                            // heap var must be updated after call
-                            updateHeap();
                             break;
                         case instr.BLOCK:
                             var blockType = reader.ReadU8();
@@ -1401,8 +1391,10 @@ namespace Wasm2IL
 
                             break;
                         case instr.I64_EXTEND_I32_U:
-                            il.Emit(IlInstr.Conv_U4);
-                            goto case instr.I64_EXTEND_I32_S;
+                            il.Emit(IlInstr.Conv_U8);
+                            pop();
+                            push(i64Type);
+                            break;
                         case instr.I64_EXTEND_I32_S:
                             il.Emit(IlInstr.Conv_I8);
                             pop();
@@ -1867,9 +1859,21 @@ namespace Wasm2IL
                             break;
                         case instr.F64_TRUNC:
                             m = typeof(Math).GetMethod(nameof(Math.Truncate),
-                                new Type[] {typeof(float)});
+                                [typeof(float)]);
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
                             break;
+                        
+                        case instr.I64_TRUNC_F32_S:
+                            EmitCall(il, () => Lib.I64_TRUNC_F32_S);
+                            pop();
+                            push(i64Type);
+                            break;
+                        case instr.I64_TRUNC_F32_U:
+                            EmitCall(il, () => Lib.I64_TRUNC_F32_U);
+                            pop();
+                            push(i64Type);
+                            break;
+                            
                         case instr.F64_NEAREST:
                             m = typeof(Math).GetMethod(nameof(Math.Round),
                                 new Type[] {typeof(float)});
@@ -1877,6 +1881,7 @@ namespace Wasm2IL
                             break;
                         case instr.EXTENDED_INSTRUCTION:
                             var einstr = (ExtendedInstruction) reader.ReadU32Leb();
+                            usedExtendedInstructions.Add(einstr);
                             switch (einstr)
                             {
                                 case ExtendedInstruction.MEMORY_FILL:
@@ -1937,6 +1942,7 @@ namespace Wasm2IL
 
                         case instr.VECTOR_INSTRUCTION:
                             var instr2 = (VectorInstructions) reader.ReadU32Leb();
+                            usedVectorInstructions.Add(instr2);
                             switch (instr2)
                             {
                                 case VectorInstructions.V128_STORE:
@@ -2093,11 +2099,11 @@ namespace Wasm2IL
 
 
                                 case VectorInstructions.F32X4_Add:
-                                    il.EmitCall(() => Lib.f32x4_mul);
+                                    il.EmitCall(() => Lib.f32x4_add);
                                     break;
 
                                 case VectorInstructions.F32X4_SUB:
-                                    il.EmitCall(() => Lib.f32x4_mul);
+                                    il.EmitCall(() => Lib.f32x4_sub);
                                     break;
                                 case VectorInstructions.F32X4_MUL:
                                     il.EmitCall(() => Lib.f32x4_mul);
@@ -2266,10 +2272,6 @@ namespace Wasm2IL
                                     il.EmitCall(() => Lib.i8x16_bitmask);
                                     break;
 
-                                case VectorInstructions.I8X16_NARROW_I16X8_S:
-                                    il.EmitCall(() => Lib.i8x16_narrow_i16x8_s);
-                                    break;
-
                                 case VectorInstructions.I8X16_NARROW_I16X8_U:
                                     il.EmitCall(() => Lib.i8x16_narrow_i16x8_u);
                                     break;
@@ -2350,132 +2352,7 @@ namespace Wasm2IL
                                 case VectorInstructions.I32X4_BITMASK:
                                     il.EmitCall(() => Lib.i32x4_bitmask);
                                     break;
-
-                                case VectorInstructions.I32X4_EXTEND_LOW_I16X8_S:
-                                    il.EmitCall(() => Lib.i32x4_extend_low_i16x8_s);
-                                    break;
-
-                                case VectorInstructions.I32X4_EXTEND_HIGH_I16X8_S:
-                                    il.EmitCall(() => Lib.i32x4_extend_high_i16x8_s);
-                                    break;
-
-                                case VectorInstructions.I32X4_EXTEND_LOW_I16X8_U:
-                                    il.EmitCall(() => Lib.i32x4_extend_low_i16x8_u);
-                                    break;
-
-                                case VectorInstructions.I32X4_EXTEND_HIGH_I16X8_U:
-                                    il.EmitCall(() => Lib.i32x4_extend_high_i16x8_u);
-                                    break;
-                                case VectorInstructions.I32X4_SHL:
-                                    il.EmitCall(() => Lib.i32x4_shl);
-                                    break;
-                                case VectorInstructions.I32X4_SHR_S:
-                                case VectorInstructions.I32X4_SHR_U:
-                                    il.EmitCall(() => Lib.i32x4_shr);
-                                    break;
-                                case VectorInstructions.I32X4_ADD:
-                                    il.EmitCall(() => Lib.i32x4_add);
-                                    break;
-                                case VectorInstructions.I32X4_SUB:
-                                    il.EmitCall(() => Lib.i32x4_sub);
-                                    break;
-                                case VectorInstructions.I32X4_MUL:
-                                    il.EmitCall(() => Lib.i32x4_mul);
-                                    break;
-                                case VectorInstructions.I32X4_MIN_S:
-                                    il.EmitCall(() => Lib.i32x4_min_s);
-                                    break;
-                                case VectorInstructions.I32X4_MIN_U:
-                                    il.EmitCall(() => Lib.i32x4_min_u);
-                                    break;
-                                case VectorInstructions.I32X4_MAX_S:
-                                    il.EmitCall(() => Lib.i32x4_max_s);
-                                    break;
-                                case VectorInstructions.I32X4_MAX_U:
-                                    il.EmitCall(() => Lib.i32x4_max_u);
-                                    break;
-
-
-                                case VectorInstructions.I64X2_ABS:
-                                    il.EmitCall(() => Lib.i64x2_abs);
-                                    break;
-
-                                case VectorInstructions.I64X2_NEG:
-                                    il.EmitCall(() => Lib.i64x2_neg);
-                                    break;
-
-                                case VectorInstructions.I64X2_ALL_TRUE:
-                                    il.EmitCall(() => Lib.i64x2_all_true);
-                                    break;
-
-                                case VectorInstructions.I64X2_BITMASK:
-                                    il.EmitCall(() => Lib.i64x2_bitmask);
-                                    break;
-
-                                case VectorInstructions.I64X2_EXTEND_LOW_I32X4_S:
-                                    il.EmitCall(() => Lib.i64x2_extend_low_i32x4_s);
-                                    break;
-
-                                case VectorInstructions.I64X2_EXTEND_HIGH_I32X4_S:
-                                    il.EmitCall(() => Lib.i64x2_extend_high_i32x4_s);
-                                    break;
-
-                                case VectorInstructions.I64X2_EXTEND_LOW_I32X4_U:
-                                    il.EmitCall(() => Lib.i64x2_extend_low_i32x4_u);
-                                    break;
-
-                                case VectorInstructions.I64X2_EXTEND_HIGH_I32X4_U:
-                                    il.EmitCall(() => Lib.i64x2_extend_high_i32x4_u);
-                                    break;
-
-                                case VectorInstructions.I64X2_SHL:
-                                    il.EmitCall(() => Lib.i64x2_shl);
-                                    break;
-
-                                case VectorInstructions.I64X2_SHR_S:
-                                    il.EmitCall(() => Lib.i64x2_shr_s);
-                                    break;
-
-                                case VectorInstructions.I64X2_SHR_U:
-                                    il.EmitCall(() => Lib.i64x2_shr_u);
-                                    break;
-
-                                case VectorInstructions.I64X2_ADD:
-                                    il.EmitCall(() => Lib.i64x2_add);
-                                    break;
-
-                                case VectorInstructions.I64X2_SUB:
-                                    il.EmitCall(() => Lib.i64x2_sub);
-                                    break;
-
-                                case VectorInstructions.I64X2_MUL:
-                                    il.EmitCall(() => Lib.i64x2_mul);
-                                    break;
-
-                                case VectorInstructions.I64X2_EQ:
-                                    il.EmitCall(() => Lib.i64x2_eq);
-                                    break;
-
-                                case VectorInstructions.I64X2_NE:
-                                    il.EmitCall(() => Lib.i64x2_ne);
-                                    break;
-
-                                case VectorInstructions.I64X2_LT_S:
-                                    il.EmitCall(() => Lib.i64x2_lt_s);
-                                    break;
-
-                                case VectorInstructions.I64X2_GT_S:
-                                    il.EmitCall(() => Lib.i64x2_gt_s);
-                                    break;
-
-                                case VectorInstructions.I64X2_LE_S:
-                                    il.EmitCall(() => Lib.i64x2_le_s);
-                                    break;
-
-                                case VectorInstructions.I64X2_GE_S:
-                                    il.EmitCall(() => Lib.i64x2_ge_s);
-                                    break;
-
+                      
                                 case VectorInstructions.I64X2_EXTMUL_LOW_I32X4_S:
                                     il.EmitCall(() => Lib.i64x2_extmul_low_i32x4_s);
                                     break;
@@ -2490,24 +2367,6 @@ namespace Wasm2IL
 
                                 case VectorInstructions.I64X2_EXTMUL_HIGH_I32X4_U:
                                     il.EmitCall(() => Lib.i64x2_extmul_high_i32x4_u);
-                                    break;
-
-
-                                case VectorInstructions.I8X16_SPLAT:
-                                    il.EmitCall(() => Lib.i8x16_splat);
-                                    push(v128Type);
-                                    break;
-                                case VectorInstructions.I16X8_SPLAT:
-                                    il.EmitCall(() => Lib.i16x8_splat);
-                                    push(v128Type);
-                                    break;
-                                case VectorInstructions.I32X4_SPLAT:
-                                    il.EmitCall(() => Lib.i32x4_splat);
-                                    push(v128Type);
-                                    break;
-                                case VectorInstructions.I64X2_SPLAT:
-                                    il.EmitCall(() => Lib.i64x2_splat);
-                                    push(v128Type);
                                     break;
                                 case VectorInstructions.V128_LOAD8_SPLAT:
                                 case VectorInstructions.V128_LOAD16_SPLAT:
@@ -2611,12 +2470,15 @@ namespace Wasm2IL
                                 }
                                     break;
                                 default:
-                                    throw new Exception("Unsupported opcode: " + instr2 + "   " + instr2.ToString("X"));
+                                    if (callMethods.TryGetValue(instr2, out var method))
+                                    {
+                                        il.Emit(OpCodes.Call, cls.Module.ImportReference(method));
+                                        break;
+                                    }else
+                                        throw new Exception("Unsupported opcode: " + instr2 + "   " + instr2.ToString("X"));
                             }
 
                             break;
-                        case instr.I64_TRUNC_F32_S:
-                        case instr.I64_TRUNC_F32_U:
 
                         default:
                             throw new Exception("Unsupported instruction: " + instr);
@@ -2638,6 +2500,13 @@ namespace Wasm2IL
             {
                 method.Body.Optimize();
             }
+
+            List<object> allOpcodes = new();
+            allOpcodes.AddRange(usedInstructions);
+            allOpcodes.AddRange(usedVectorInstructions);
+            allOpcodes.AddRange(usedExtendedInstructions);
+            
+            return;
         }
 
         private Dictionary<MethodReference, MethodReference> wrappedMethods = new();
@@ -2875,8 +2744,9 @@ namespace Wasm2IL
                     var cctoril = cls.GetStaticConstructor().Body.GetILProcessor();
                     cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
                     cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
-                    cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
-                    cctoril.EmitCall(() => Lib.Alloc);
+                    // Allocate 4GB of virtual memory so we'll never have to move the heap pointer.
+                    cctoril.Emit(OpCodes.Ldc_I8, 4L * 1024L * 1024L * 1024L);
+                    cctoril.EmitCall(() => MemoryAllocator.AllocateMemory);
                     cctoril.Emit(OpCodes.Stsfld, memoryField);
                     cctoril.Emit(OpCodes.Stsfld, memoryFieldSize);
                     cctoril.Emit(OpCodes.Ret);
@@ -2889,10 +2759,12 @@ namespace Wasm2IL
                         max * page_size);
                     var cctoril = cls.GetStaticConstructor().Body.GetILProcessor();
                     cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
-                    cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
-                    cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
-                    cctoril.EmitCall(() => Lib.Alloc);
+                    
+                    // Allocate 4GB of virtual memory so we'll never have to move the heap pointer.
+                    cctoril.Emit(OpCodes.Ldc_I8, 4L * 1024L * 1024L * 1024L);
+                    cctoril.EmitCall(() => MemoryAllocator.AllocateMemory);
                     cctoril.Emit(OpCodes.Stsfld, memoryField);
+                    cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
                     cctoril.Emit(OpCodes.Stsfld, memoryFieldSize);
 
                     cctoril.Emit(OpCodes.Ret);

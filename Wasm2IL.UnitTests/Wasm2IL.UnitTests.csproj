@@ -25,13 +25,12 @@
     </ItemGroup>
 
     <ItemGroup>
+      <None Include="..\TestCCode\sqlite3.wasm">
+        <Link>sqlite3.wasm</Link>
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
       <Content Include="bin\Debug\net9.0\Mono.Cecil.dll" />
     </ItemGroup>
-
-    <ItemGroup>
-      <None Include="bin\Debug\net9.0\sqlite3.wasm" />
-    </ItemGroup>
-
 
     <Target Name="WatToWasm" BeforeTargets="Build"
             Inputs="%(WatFile.Identity)"
