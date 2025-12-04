@@ -3,7 +3,7 @@ SYSROOT_LIB=$(SYSROOT)/lib/wasm32-wasi
 #MUSL_INCLUDE=/Users/bruger/code/work/musl/include
 MUSL_INCLUDE=/Users/bruger/code/minlibc/include
 SSL_PATH=/Users/bruger/code/extern/openssl/include
-all: ../bin/Debug/net6.0/code.wasm
+all: sqlite3.wasm
 # -msimd128  -mtail-call ./libc.wasm-mtail-call  -msimd128 -mbulk-memory -msimd128 
 
 sqlite3.wasm: sqlite3.c sqlite3.h
@@ -17,7 +17,12 @@ sqlite3.wasm: sqlite3.c sqlite3.h
               -Wl,--export=sqlite3_bind_text -Wl,--export=sqlite3_bind_int -Wl,--export=sqlite3_bind_int64 -Wl,--export=sqlite3_bind_double -Wl,--export=sqlite3_reset -Wl,--export=sqlite3_changes\
               -Wl,--export=sqlite3_memory_used -Wl,--export=sqlite3_column_blob -Wl,--export=sqlite3_column_type -Wl,--export=sqlite3_bind_blob, -Wl,--export=sqlite3_column_bytes -Wl,--export=sqlite3_extended_errcode -Wl,--export=sqlite3_error_offset
               
-
+sqlite3.bc: sqlite3.c sqlite3.h
+	clang --target=wasm32-unknown-unknown -c -msimd128  -mbulk-memory -mbulk-memory-opt -flto -fbuiltin -mllvm -inline-threshold=1000 -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.bc -O3 -g0\
+             -I$(MUSL_INCLUDE)  \
+             -DSQLITE_THREADSAFE=0 -DHAVE_UTIME -DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_ENABLE_SETLK_TIMEOUT -DSQLITE_OMIT_UTF16 -DSQLITE_OMIT_JSON -DSQLITE_OMIT_RTREE -DSQLITE_OMIT_GEOPOLY -DSQLITE_OMIT_FTS5 -DSQLITE_OMIT_DEPRECATED   \
+              sqlite3.c -Wl,--allow-undefined 
+              
 sqlite3.wat: sqlite3.wasm libc.wasm
 	wasm2wat sqlite3.wasm > sqlite3.wat
     
@@ -50,7 +55,4 @@ code1.bc: Code1.c
              --sysroot $(SYSROOT) 
 
 code.wasm: code1.bc sqlite3.bc
-	wasm-ld -export-all --allow-undefined -error-limit=0 -L$(SYSROOT)/lib/wasm32-wasi/ $(SYSROOT_LIB)/libc.a  $^  $(SYSROOT_LIB)/crt1.o  -o code.wasm -no-entry 
-
-../bin/Debug/net6.0/code.wasm: code.wasm
-	cp code.wasm ../bin/Debug/net6.0/code.wasm
+	wasm-ld -export-all --allow-undefined -error-limit=0 -L$(SYSROOT)/lib/wasm32-wasi/ $(SYSROOT_LIB)/libc.a  $^  $(SYSROOT_LIB)/crt1.o  -o code.wasm --no-entry 

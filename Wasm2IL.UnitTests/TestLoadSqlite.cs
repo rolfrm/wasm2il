@@ -10,7 +10,7 @@ public class TestLoadSqlite
 {
 
     
-    public enum SqliteErrorCode
+    public enum SqliteErrorCode : int
     {
         
     }
@@ -34,18 +34,28 @@ public class TestLoadSqlite
     public interface ISqliteApi
     {
         [Wasm("sqlite3_initialize")]
-        public SqliteErrorCode Initialize();
+        public SqliteErrorCode sqlite3_initialize();
         
         [Wasm("sqlite3_open_v2")]
-        public SqliteErrorCode Open_V2(string connection, out int db, int flags, int vfs);
+        public SqliteErrorCode sqlite3_open_v2(string connection, int db, int flags, int vfs);
 
         [Wasm("sqlite3_exec")]
-        public SqliteErrorCode Exec(string command, int db, int callback, int arg, int errorMsg);
+        public SqliteErrorCode sqlite3_exec(int db, string command,  int callback, int arg, int errorMsg);
         
         //"sqlite3_prepare_v2", db1, sql, -1, stmt, 0);
         [Wasm("sqlite3_prepare_v2")]
-        public SqliteErrorCode Prepare(int db, string sql, int nByte, int stmt, int tail_0);
-        
+        public SqliteErrorCode sqlite3_prepare_v2(int db, string sql, int nByte, int stmt, int tail_0);
+
+        [Wasm("sqlite3_open")]
+        int sqlite3_open(string str, int db);
+
+        int sqlite3_bind_int(int stmt0, int i, int i1);
+        int sqlite3_bind_text(int stmt0, int i, int i1, int i2, int i3);
+        int sqlite3_step(int stmt0);
+        int sqlite3_reset(int stmt0);
+        int sqlite3_errmsg(int db2);
+        int sqlite3_close(int db);
+        int sqlite3_extended_errcode(int db2);
     }
 
     private static WasmAssembly built = null;
@@ -131,34 +141,35 @@ public class TestLoadSqlite
     [Test]
     public void LoadAndRunSqlite2()
     {
-        SqliteWasm.C.sqlite3_initialize();
-        var w = new WasmAssembly(typeof(SqliteWasm.C).Assembly);
+        var w = built;
+        var SqliteWasm =w.AsImplementation<ISqliteApi>();
+        SqliteWasm.sqlite3_initialize();
+        
         File.Delete("./test.3.sqlite");
-        var str = w.StringToHeap("./test.3.sqlite");
         var db = w.Malloc(4);
-        int ok = SqliteWasm.C.sqlite3_open(str, db);
+        int ok = SqliteWasm.sqlite3_open("./test.3.sqlite", db);
         var db2 = w.GetHeapObject<int>(db);
         var sql2 = "CREATE TABLE IF NOT EXISTS Users (ID INT PRIMARY KEY NOT NULL, Name TEXT NOT NULL);";
         var sql2p = w.StringToHeap(sql2);
-        int ok3 = SqliteWasm.C.sqlite3_exec(db2, sql2p, 0, 0, 0);
+        SqliteErrorCode ok3 = SqliteWasm.sqlite3_exec(db2, sql2, 0, 0, 0);
 
         var insertStmt = "INSERT INTO Users (ID, Name) VALUES (?, ?);";
         var stmt0 = w.Malloc(4);
-        SqliteWasm.C.sqlite3_prepare_v2(db2, w.StringToHeap(insertStmt), -1, stmt0, 0);
+        SqliteWasm.sqlite3_prepare_v2(db2, insertStmt, -1, stmt0, 0);
         var stmt0_ = w.GetHeapObject<int>(stmt0);
         var t = w.StringToHeap("TEstTest");
 
         var sw = Stopwatch.StartNew();
-        int ok5 = SqliteWasm.C.sqlite3_exec(db2, w.StringToHeap("BEGIN TRANSACTION;"), 0, 0, 0);
+        var ok5 = SqliteWasm.sqlite3_exec(db2, "BEGIN TRANSACTION;", 0, 0, 0);
         for (int i = 0; i < 100; i++)
         {
-            SqliteWasm.C.sqlite3_bind_int(stmt0_, 1, i);
-            SqliteWasm.C.sqlite3_bind_text(stmt0_, 2,  t, -1, 0);
-            SqliteWasm.C.sqlite3_step(stmt0_);
-            SqliteWasm.C.sqlite3_reset(stmt0_);
+            SqliteWasm.sqlite3_bind_int(stmt0_, 1, i);
+            SqliteWasm.sqlite3_bind_text(stmt0_, 2,  t, -1, 0);
+            SqliteWasm.sqlite3_step(stmt0_);
+            SqliteWasm.sqlite3_reset(stmt0_);
             //SqliteWasm.C.sqlite3_clear_bindings(stmt0_);
         }
-        int ok6 = SqliteWasm.C.sqlite3_exec(db2, w.StringToHeap("COMMIT;"), 0, 0, 0);
+        var ok6 = (int)SqliteWasm.sqlite3_exec(db2, "COMMIT;", 0, 0, 0);
         if (ok6 == 11)
             throw new Exception("Database corrupt!");
         Console.WriteLine($"time: {sw.Elapsed.TotalSeconds}");
@@ -169,26 +180,26 @@ public class TestLoadSqlite
         var stmt = w.Malloc(4);
         
         
-        int ok2 = SqliteWasm.C.sqlite3_prepare_v2(db2, str2, -1, stmt, 0);
+        int ok2 = (int)SqliteWasm.sqlite3_prepare_v2(db2, sql, -1, stmt, 0);
         var stmt_ = w.GetHeapObject<int>(stmt);
         if (ok2 != 0)
         {
             
-            var err = SqliteWasm.C.sqlite3_errmsg(db2);
+            var err = SqliteWasm.sqlite3_errmsg(db2);
             var errstr = w.GetHeapString(err);
         }
 
         int j = 0;
         while (true)
         {
-            int rc3 = SqliteWasm.C.sqlite3_step(stmt_);
+            int rc3 = SqliteWasm.sqlite3_step(stmt_);
             if (rc3 != 100)
                 break;
             j++;
         }
         Console.WriteLine($"Step: {j}");
 
-        SqliteWasm.C.sqlite3_close(db);
+        SqliteWasm.sqlite3_close(db);
 
         try
         {
@@ -285,31 +296,28 @@ public class TestLoadSqlite
     public void LoadAndRunSqliteError()
     {
         // This was used to find a bug related to extending 129 to a full int.
-        var w = new WasmAssembly(typeof(SqliteWasm.C).Assembly);
+        var w = built;
+        var SqliteWasm = w.AsImplementation<ISqliteApi>();
         w.Invoke("sqlite3_initialize");
         
         File.Delete("./test_bug.sqlite");
-        var str = w.StringToHeap("./test_bug.sqlite");
         var db = w.Malloc(4);
-        int ok = SqliteWasm.C.sqlite3_open_v2(str, db, 6,0);
+        int ok = (int)SqliteWasm.sqlite3_open("./test_bug.sqlite", db);
         var db2 = w.GetHeapObject<int>(db);
         var sql2 = sqlitePerfTest0;
-        var sql2p = w.StringToHeap(sql2.Replace("\r", ""));
-        int ok3 = SqliteWasm.C.sqlite3_exec(db2, sql2p, 0, 0, 0);
-        SqliteWasm.C.sqlite3_close(db2);
+        int ok3 = (int)SqliteWasm.sqlite3_exec(db2, sql2.Replace("\r", ""), 0, 0, 0);
+        SqliteWasm.sqlite3_close(db2);
         File.Delete("./test_bug.sqlite");
         
         File.Delete("./test_bug.sqlite");
-        str = w.StringToHeap("./test_bug.sqlite");
-        SqliteWasm.C.sqlite3_open_v2(str, db, 6,0);
+        SqliteWasm.sqlite3_open("./test_bug.sqlite", db);
         db2 = w.GetHeapObject<int>(db);
         var sql3 = sqlitePerfTest2;
-        var sql3p = w.StringToHeap(sql3.Replace("\r", ""));
-        int ok4 = SqliteWasm.C.sqlite3_exec(db2, sql3p, 0, 0, 0);
+        int ok4 = (int)SqliteWasm.sqlite3_exec(db2, sql3.Replace("\r", ""), 0, 0, 0);
         //var vacuum = w.StringToHeap("VACUUM;");
 
         //int ok5 = SqliteWasm.C.sqlite3_exec(db2, vacuum, 0, 0, 0);
-        SqliteWasm.C.sqlite3_close(db2);
+        SqliteWasm.sqlite3_close(db2);
         File.Delete("./test_bug.sqlite");
 
         Assert.AreEqual(ok3, 0);
@@ -447,37 +455,34 @@ LIMIT 200;
     public void SqliteRationalityTest()
     {
         // This was used to find a bug related to extending 129 to a full int.
-        var w = new WasmAssembly(typeof(SqliteWasm.C).Assembly);
+        var w = built;
+        var SqliteWasm = w.AsImplementation<ISqliteApi>();
         w.Invoke("sqlite3_initialize");
 
         File.Delete("./test_bug2.sqlite");
-        var str = w.StringToHeap("./test_bug2.sqlite");
         var db = w.Malloc(4);
-        int ok = SqliteWasm.C.sqlite3_open_v2(str, db, 6, 0);
+        int ok = (int)SqliteWasm.sqlite3_open_v2("./test_bug2.sqlite", db, 6, 0);
         var db2 = w.GetHeapObject<int>(db);
         var sql2 = sqlitePerfTest3;
         var sw = Stopwatch.StartNew();
-        var sql2p = w.StringToHeap(sqlitePerfTestxx.Replace("\r", ""));
-        int ok3 = SqliteWasm.C.sqlite3_exec(db2, sql2p, 0, 0, 0);
+        int ok3 = (int)SqliteWasm.sqlite3_exec(db2, sqlitePerfTestxx.Replace("\r", ""), 0, 0, 0);
         var elapsed = sw.Elapsed.TotalSeconds;
         if (ok3 != 0)
         {
             throw new Exception("failed call");
         }
-        var c = SqliteWasm.C.sqlite3_errmsg(db2);
+        var c = SqliteWasm.sqlite3_errmsg(db2);
         var msg  = w.GetHeapString(c);
-        var vacuum = w.StringToHeap("VACUUM;");
 
-        int ok5 = SqliteWasm.C.sqlite3_exec(db2, vacuum, 0, 0, 0);
+        int ok5 = (int)SqliteWasm.sqlite3_exec(db2, "VACUUM;", 0, 0, 0);
         //int ok7 = SqliteWasm.C.sqlite3_exec(db2, vacuum, 0, 0, 0);
-        var c2 = SqliteWasm.C.sqlite3_errmsg(db2);
-        var ok6 = SqliteWasm.C.sqlite3_extended_errcode(db2);
-        var offset = SqliteWasm.C.sqlite3_error_offset(db2);
+        var c2 = SqliteWasm.sqlite3_errmsg(db2);
+        var ok6 = SqliteWasm.sqlite3_extended_errcode(db2);
+        
         var msg2  = w.GetHeapString(c2);
-        SqliteWasm.C.sqlite3_close(db2);
+        SqliteWasm.sqlite3_close(db2);
         //File.Delete("./test_bug2.sqlite");
-        if (ok3 != 0)
-            throw new Exception(msg);
+
         //if (ok5!= 0)
         //    throw new Exception(msg2);
 

@@ -206,6 +206,10 @@ public class WasmAssembly
         var t = typeof(T);
         if (t.IsInterface == false)
             throw new ArgumentException("T");
+        var typeName = t.Name + "Wrapper";
+        
+        if (moduleBuilder.GetType(typeName) is Type existingType)
+            return (T) Activator.CreateInstance(existingType);
         
         var typeBuilder = moduleBuilder.DefineType(t.Name + "Wrapper");
         typeBuilder.AddInterfaceImplementation(typeof(T));
@@ -213,8 +217,8 @@ public class WasmAssembly
         {   
             var wasmAttr = method.GetCustomAttribute<WasmAttribute>();
             if (wasmAttr == null)
-                throw new InvalidOperationException($"Method {method.Name} missing [Wasm] attribute");
-
+                wasmAttr = new WasmAttribute(method.Name);
+                
             var staticMethod = code.GetMethods(BindingFlags.Static | BindingFlags.Public)
                 .FirstOrDefault(m => m.Name == (wasmAttr.ExportName ?? method.Name));
             

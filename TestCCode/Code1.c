@@ -603,7 +603,7 @@ int testFstat(){
 }
 
 __declspec(noinline)
-volatile int testWrap(int x){
+int testWrap(int x){
     return 5;
 }
 
