@@ -2105,6 +2105,7 @@ namespace Wasm2IL
                                     }
                                 }
                                     break;
+                                
                                 case VectorInstructions.V128_LOAD64_ZERO:
                                 case VectorInstructions.V128_LOAD32_ZERO:
                                 {

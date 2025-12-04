@@ -62,7 +62,7 @@ public static partial class Lib
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(VectorInstructions.I16X8_NE)]
     public static Vector128<short> i16x8_ne(Vector128<short> a, Vector128<short> b)
-        => Vector128.Equals(a, b ^ Vector128<short>.One);
+        => Vector128.Equals(a, b) ^ Vector128<short>.One;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(VectorInstructions.I16X8_LT_S)]
@@ -232,7 +232,7 @@ public static partial class Lib
                 }
                 else
                 {
-                    result1 = result1.WithElement(i, vec2.GetElement(idx));
+                    result1 = result1.WithElement(i, vec1.GetElement(idx));
                 }
             }
 
@@ -375,7 +375,7 @@ public static partial class Lib
         int bitmask = 0;
         for (int i = 0; i < Vector128<byte>.Count; i++)
         {
-            if (a.GetElement(i) != 0)
+            if (a.GetElement(i) >= 128)
             {
                 bitmask |= 1 << i;
             }
@@ -883,7 +883,7 @@ public static partial class Lib
             return long.MaxValue;
         if (f <= long.MinValue)
             return long.MinValue;
-        return (int) f;
+        return (long) f;
     }
 
     public static ulong I64_TRUNC_SAT_F64_U(double f)
