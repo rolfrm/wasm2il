@@ -10,7 +10,7 @@
 
         <!-- NuGet metadata -->
         <PackageId>Wasm2IL</PackageId>
-        <Version>0.1.0-alpha.9</Version>
+        <Version>0.1.0-alpha.10</Version>
         <Authors>Rolf Madsen</Authors>
         <Description>Wasm2IL: Convert WebAssembly modules into .NET.</Description>
         <PackageProjectUrl>https://github.com/rolfrm/Wasm2IL</PackageProjectUrl>

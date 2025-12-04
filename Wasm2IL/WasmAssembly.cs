@@ -83,8 +83,6 @@ public class WasmAssembly
         var p = new IntPtr(Pointer.Unbox(code.GetField("Memory").GetValue(null))); 
         int memSize = (int)memorySize.GetValue(null);
         
-        p = Marshal.ReAllocHGlobal(p, memSize + len);
-        code.GetField("Memory").SetValue(null, Pointer.Box(p.ToPointer(), typeof(byte*)));
         code.GetField("MemorySize").SetValue(null, memSize + len);
         return memSize;
     }
