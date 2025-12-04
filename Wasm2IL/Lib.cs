@@ -42,7 +42,7 @@ public static partial class Lib
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(VectorInstructions.I8X16_NE)]
     public static Vector128<byte> i8x16_ne(Vector128<byte> a, Vector128<byte> b)
-        => Vector128.Equals(a, b) ^ Vector128<byte>.One;
+        => Vector128.OnesComplement(Vector128.Equals(a, b));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(VectorInstructions.I8X16_LT_S)]
@@ -62,7 +62,7 @@ public static partial class Lib
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(VectorInstructions.I16X8_NE)]
     public static Vector128<short> i16x8_ne(Vector128<short> a, Vector128<short> b)
-        => Vector128.Equals(a, b) ^ Vector128<short>.One;
+        => Vector128.OnesComplement(Vector128.Equals(a, b));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(VectorInstructions.I16X8_LT_S)]
@@ -112,7 +112,7 @@ public static partial class Lib
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(VectorInstructions.I32X4_NE)]
     public static Vector128<int> i32x4_ne(Vector128<int> a, Vector128<int> b)
-        => Vector128.Equals(a, b) ^ Vector128<int>.One;
+        => Vector128.OnesComplement(Vector128.Equals(a, b));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(VectorInstructions.I32X4_LT_S)]
@@ -616,10 +616,7 @@ public static partial class Lib
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(VectorInstructions.I64X2_ALL_TRUE)]
-    public static Vector128<byte> i64x2_all_true(Vector128<byte> a)
-    {
-        return Vector128.Create((byte) (a.AsInt64() == Vector128<long>.Zero ? 1 : 0));
-    }
+    public static bool i64x2_all_true(Vector128<long> a) => a.GetElement(0) != 0 && a.GetElement(1) != 0;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(VectorInstructions.I64X2_BITMASK)]
@@ -809,6 +806,7 @@ public static partial class Lib
         throw new NotImplementedException();
     }
 
+    [WasmOpcode(ExtendedInstruction.I32_TRUNC_SAT_F32_S)]
     public static int I32_TRUNC_SAT_F32_S(float f)
     {
         if (float.IsNaN(f))
@@ -820,6 +818,7 @@ public static partial class Lib
         return (int) f;
     }
 
+    [WasmOpcode(ExtendedInstruction.I32_TRUNC_SAT_F32_U)]
     public static uint I32_TRUNC_SAT_F32_U(float f)
     {
         if (float.IsNaN(f))
@@ -831,6 +830,7 @@ public static partial class Lib
         return (uint) f;
     }
 
+    [WasmOpcode(ExtendedInstruction.I32_TRUNC_SAT_F64_S)]
     public static int I32_TRUNC_SAT_F64_S(double f)
     {
         if (double.IsNaN(f))
@@ -842,6 +842,7 @@ public static partial class Lib
         return (int) f;
     }
 
+    [WasmOpcode(ExtendedInstruction.I32_TRUNC_SAT_F64_U)]
     public static uint I32_TRUNC_SAT_F64_U(double f)
     {
         if (double.IsNaN(f))
@@ -853,6 +854,7 @@ public static partial class Lib
         return (uint) f;
     }
 
+    [WasmOpcode(ExtendedInstruction.I64_TRUNC_SAT_F32_S)]
     public static long I64_TRUNC_SAT_F32_S(float f)
     {
         if (float.IsNaN(f))
@@ -864,6 +866,7 @@ public static partial class Lib
         return (long) f;
     }
 
+    [WasmOpcode(ExtendedInstruction.I64_TRUNC_SAT_F32_U)]
     public static ulong I64_TRUNC_SAT_F32_U(float f)
     {
         if (float.IsNaN(f))
@@ -886,6 +889,7 @@ public static partial class Lib
         return (long) f;
     }
 
+    [WasmOpcode(ExtendedInstruction.I64_TRUNC_SAT_F64_U)]
     public static ulong I64_TRUNC_SAT_F64_U(double f)
     {
         if (double.IsNaN(f))
@@ -897,6 +901,7 @@ public static partial class Lib
         return (ulong) f;
     }
 
+    [WasmOpcode(ExtendedInstruction.I64_TRUNC_SAT_F64_S)]
     public static long I64_TRUNC_F32_S(float f)
     {
         if (f >= long.MaxValue) return long.MaxValue;

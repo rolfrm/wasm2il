@@ -460,6 +460,10 @@ LIMIT 200;
         var sql2p = w.StringToHeap(sqlitePerfTestxx.Replace("\r", ""));
         int ok3 = SqliteWasm.C.sqlite3_exec(db2, sql2p, 0, 0, 0);
         var elapsed = sw.Elapsed.TotalSeconds;
+        if (ok3 != 0)
+        {
+            throw new Exception("failed call");
+        }
         var c = SqliteWasm.C.sqlite3_errmsg(db2);
         var msg  = w.GetHeapString(c);
         var vacuum = w.StringToHeap("VACUUM;");

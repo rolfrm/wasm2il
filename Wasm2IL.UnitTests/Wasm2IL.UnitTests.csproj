@@ -29,6 +29,10 @@
         <Link>sqlite3.wasm</Link>
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
+        <None Include="..\TestCCode\callback_test.wasm">
+            <Link>callback_test.wasm</Link>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
       <Content Include="bin\Debug\net9.0\Mono.Cecil.dll" />
     </ItemGroup>
 

@@ -40,12 +40,12 @@ namespace Wasm2IL
     public class Transformer
     {
         readonly Dictionary<string, List<Type>> importModules = new();
-        private List<Type> overrideModules = new();
+        private List<Type> overrideModules = [];
 
         public void LoadImportModule(string moduleName, Type type)
         {
             if (!importModules.TryGetValue(moduleName, out var typeList))
-                importModules[moduleName] = typeList = new List<Type>();
+                importModules[moduleName] = typeList = [];
             typeList.Add(type);
         }
 
@@ -806,9 +806,9 @@ namespace Wasm2IL
                 }
             }
 
-            HashSet<instr> usedInstructions = new();
-            HashSet<ExtendedInstruction> usedExtendedInstructions = new();
-            HashSet<VectorInstructions> usedVectorInstructions = new();
+            HashSet<instr> usedInstructions = [];
+            HashSet<ExtendedInstruction> usedExtendedInstructions = [];
+            HashSet<VectorInstructions> usedVectorInstructions = [];
             Dictionary<object, MethodInfo> callMethods = new();
             foreach(var method in typeof(Lib).GetMethods().Where(x => x.IsStatic && x.GetCustomAttribute<WasmOpcodeAttribute>() is {} i))
             {
@@ -1777,7 +1777,7 @@ namespace Wasm2IL
                         case instr.I32_CTZ:
                         case instr.I64_CTZ:
                             m = typeof(BitOperations).GetMethod(nameof(BitOperations.TrailingZeroCount),
-                                new Type[] {is64 ? typeof(ulong) : typeof(uint)});
+                                [is64 ? typeof(ulong) : typeof(uint)]);
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
                             if (is64)
                                 il.Emit(IlInstr.Conv_I8);
@@ -1785,7 +1785,7 @@ namespace Wasm2IL
                         case instr.I32_CLZ:
                         case instr.I64_CLZ:
                             m = typeof(BitOperations).GetMethod(nameof(BitOperations.LeadingZeroCount),
-                                new Type[] {is64 ? typeof(ulong) : typeof(uint)});
+                                [is64 ? typeof(ulong) : typeof(uint)]);
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
                             if (is64)
                                 il.Emit(IlInstr.Conv_I8);
@@ -1793,7 +1793,7 @@ namespace Wasm2IL
                         case instr.I32_POPCNT:
                         case instr.I64_POPCNT:
                             m = typeof(BitOperations).GetMethod(nameof(BitOperations.PopCount),
-                                new Type[] {is64 ? typeof(ulong) : typeof(uint)});
+                                [is64 ? typeof(ulong) : typeof(uint)]);
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
                             if (is64)
                                 il.Emit(IlInstr.Conv_I8);
@@ -1835,7 +1835,6 @@ namespace Wasm2IL
                         case instr.I32_EXTEND16_S:
                             il.Emit(IlInstr.Conv_I2);
                             break;
-
                         case instr.I64_EXTEND8_S:
                             il.Emit(IlInstr.Conv_I1);
                             il.Emit(IlInstr.Conv_I8);
@@ -1850,17 +1849,17 @@ namespace Wasm2IL
                             break;
                         case instr.F32_TRUNC:
                             m = typeof(MathF).GetMethod(nameof(MathF.Truncate),
-                                new Type[] {typeof(float)});
+                                [typeof(float)]);
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
                             break;
                         case instr.F32_NEAREST:
                             m = typeof(MathF).GetMethod(nameof(MathF.Round),
-                                new Type[] {typeof(float)});
+                                [typeof(float)]);
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
                             break;
                         case instr.F64_TRUNC:
                             m = typeof(Math).GetMethod(nameof(Math.Truncate),
-                                [typeof(float)]);
+                                [typeof(double)]);
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
                             break;
                         
@@ -1877,7 +1876,7 @@ namespace Wasm2IL
                             
                         case instr.F64_NEAREST:
                             m = typeof(Math).GetMethod(nameof(Math.Round),
-                                new Type[] {typeof(float)});
+                                [typeof(double)]);
                             il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
                             break;
                         case instr.EXTENDED_INSTRUCTION:
@@ -1894,47 +1893,12 @@ namespace Wasm2IL
                                     Assert.AreEqual(0, reader.ReadU8());
                                     EmitCall(il, () => Lib.MemoryCopy);
                                     break;
-                                case ExtendedInstruction.I32_TRUNC_SAT_F32_S:
-                                    EmitCall(il, () => Lib.I32_TRUNC_SAT_F32_S);
-                                    pop();
-                                    push(i32Type);
-                                    break;
-                                case ExtendedInstruction.I32_TRUNC_SAT_F32_U:
-                                    EmitCall(il, () => Lib.I32_TRUNC_SAT_F32_U);
-                                    pop();
-                                    push(i32Type);
-                                    break;
-                                case ExtendedInstruction.I32_TRUNC_SAT_F64_S:
-                                    EmitCall(il, () => Lib.I32_TRUNC_SAT_F32_S);
-                                    pop();
-                                    push(i32Type);
-                                    break;
-                                case ExtendedInstruction.I32_TRUNC_SAT_F64_U:
-                                    EmitCall(il, () => Lib.I32_TRUNC_SAT_F32_U);
-                                    pop();
-                                    push(i32Type);
-                                    break;
-                                case ExtendedInstruction.I64_TRUNC_SAT_F32_S:
-                                    EmitCall(il, () => Lib.I64_TRUNC_SAT_F32_S);
-                                    pop();
-                                    push(i32Type);
-                                    break;
-                                case ExtendedInstruction.I64_TRUNC_SAT_F32_U:
-                                    EmitCall(il, () => Lib.I64_TRUNC_SAT_F32_U);
-                                    pop();
-                                    push(i32Type);
-                                    break;
-                                case ExtendedInstruction.I64_TRUNC_SAT_F64_S:
-                                    EmitCall(il, () => Lib.I64_TRUNC_SAT_F32_S);
-                                    pop();
-                                    push(i32Type);
-                                    break;
-                                case ExtendedInstruction.I64_TRUNC_SAT_F64_U:
-                                    EmitCall(il, () => Lib.I64_TRUNC_SAT_F32_U);
-                                    pop();
-                                    push(i32Type);
-                                    break;
                                 default:
+                                    if (callMethods.TryGetValue(einstr, out var method))
+                                    {
+                                        il.Emit(OpCodes.Call, cls.Module.ImportReference(method));
+                                        break;
+                                    }
                                     throw new NotImplementedException();
                             }
 
@@ -2071,7 +2035,7 @@ namespace Wasm2IL
                                     {
                                         case VectorInstructions.I8X16_EXTRACT_LANE_S:
                                             il.EmitCall(() => Lib.i8x16_extract_lane_s);
-                                            push(byteType);
+                                            push(i32Type);
                                             break;
                                         case VectorInstructions.I8X16_EXTRACT_LANE_U:
                                             il.EmitCall(() => Lib.i8x16_extract_lane_u);
@@ -2278,7 +2242,7 @@ namespace Wasm2IL
                 method.Body.Optimize();
             }
 
-            List<object> allOpcodes = new();
+            List<object> allOpcodes = [];
             allOpcodes.AddRange(usedInstructions);
             allOpcodes.AddRange(usedVectorInstructions);
             allOpcodes.AddRange(usedExtendedInstructions);
