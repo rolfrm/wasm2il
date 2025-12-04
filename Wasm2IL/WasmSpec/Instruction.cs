@@ -401,7 +401,7 @@ namespace Wasm
         I64X2_EXTMUL_HIGH_I32X4_U = 223,
         
         
-        F32X4_Add = 228,
+        F32X4_ADD = 228,
         F32X4_SUB = 229,
         F32X4_MUL = 230,
         F32X4_DIV = 231,

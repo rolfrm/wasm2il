@@ -3,6 +3,7 @@ using System.Linq.Expressions;
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
@@ -809,9 +810,11 @@ namespace Wasm2IL
             HashSet<ExtendedInstruction> usedExtendedInstructions = new();
             HashSet<VectorInstructions> usedVectorInstructions = new();
             Dictionary<object, MethodInfo> callMethods = new();
-            foreach(var meethod in typeof(Lib).GetMethods().Where(x => x.IsStatic && x.GetCustomAttribute<WasmOpcodeAttribute>() is {} i))
+            foreach(var method in typeof(Lib).GetMethods().Where(x => x.IsStatic && x.GetCustomAttribute<WasmOpcodeAttribute>() is {} i))
             {
-                callMethods[meethod.GetCustomAttribute<WasmOpcodeAttribute>().Key] = meethod;
+                var key = method.GetCustomAttribute<WasmOpcodeAttribute>().Key;
+                
+                callMethods.Add(key, method);
             }
             
             for (uint i = 0; i < funcCount; i++)
@@ -922,8 +925,6 @@ namespace Wasm2IL
                 }
 
 
-                
-                
                 bool heapInited = false;
                 void loadMemory()
                 {
@@ -1986,10 +1987,9 @@ namespace Wasm2IL
                                     {
                                         Span<byte> buffer = stackalloc byte[16];
                                         reader.Read(buffer);
-                                        foreach (var elem in buffer)
+                                        foreach (var elem in MemoryMarshal.Cast<byte, long>(buffer))
                                         {
-                                            il.Emit(IlInstr.Ldc_I4, (int) elem);
-                                            il.Emit(IlInstr.Conv_I1);
+                                            il.Emit(IlInstr.Ldc_I8, elem);
                                         }
 
                                         il.EmitCall(() => Lib.v128_create);
@@ -2008,10 +2008,9 @@ namespace Wasm2IL
                                     {
                                         Span<byte> buffer = stackalloc byte[16];
                                         reader.Read(buffer);
-                                        foreach (var elem in buffer)
+                                        foreach (var elem in MemoryMarshal.Cast<byte, long>(buffer))
                                         {
-                                            il.Emit(IlInstr.Ldc_I4, (int) elem);
-                                            il.Emit(IlInstr.Conv_I1);
+                                            il.Emit(IlInstr.Ldc_I8, elem);
                                         }
 
                                         il.EmitCall(() => Lib.v128_create);
@@ -2021,102 +2020,7 @@ namespace Wasm2IL
 
                                     LoadV128ShuffleCode();
                                     break;
-
-                                case VectorInstructions.I8X16_EQ:
-                                    il.EmitCall(() => Lib.i8x16_eq);
-                                    break;
-                                case VectorInstructions.I8X16_NE:
-                                    il.EmitCall(() => Lib.i8x16_ne);
-                                    break;
-                                case VectorInstructions.I8X16_LT_S:
-                                    il.EmitCall(() => Lib.i8x16_lt_s);
-                                    break;
-                                case VectorInstructions.I8X16_LT_U:
-                                    il.EmitCall(() => Lib.i8x16_lt_u);
-                                    break;
-                                case VectorInstructions.I16X8_EQ:
-                                    il.EmitCall(() => Lib.i16x8_eq);
-                                    break;
-                                case VectorInstructions.I16X8_NE:
-                                    il.EmitCall(() => Lib.i16x8_ne);
-                                    break;
-                                case VectorInstructions.I16X8_LT_S:
-                                    il.EmitCall(() => Lib.i16x8_lt_s);
-                                    break;
-                                case VectorInstructions.I16X8_LT_U:
-                                    il.EmitCall(() => Lib.i16x8_lt_u);
-                                    break;
-                                case VectorInstructions.I16X8_GT_S:
-                                    il.EmitCall(() => Lib.i16x8_gt_s);
-                                    break;
-                                case VectorInstructions.I16X8_GT_U:
-                                    il.EmitCall(() => Lib.i16x8_gt_u);
-                                    break;
-                                case VectorInstructions.I16X8_LE_S:
-                                    il.EmitCall(() => Lib.i16x8_le_s);
-                                    break;
-                                case VectorInstructions.I16X8_LE_U:
-                                    il.EmitCall(() => Lib.i16x8_le_u);
-                                    break;
-                                case VectorInstructions.I16X8_GE_S:
-                                    il.EmitCall(() => Lib.i16x8_ge_s);
-                                    break;
-                                case VectorInstructions.I16X8_GE_U:
-                                    il.EmitCall(() => Lib.i16x8_ge_u);
-                                    break;
-
-
-                                case VectorInstructions.I32X4_EQ:
-                                    il.EmitCall(() => Lib.i32x4_eq);
-                                    break;
-                                case VectorInstructions.I32X4_NE:
-                                    il.EmitCall(() => Lib.i32x4_ne);
-                                    break;
-                                case VectorInstructions.I32X4_LT_S:
-                                    il.EmitCall(() => Lib.i32x4_lt_s);
-                                    break;
-                                case VectorInstructions.I32X4_LT_U:
-                                    il.EmitCall(() => Lib.i32x4_lt_u);
-                                    break;
-                                case VectorInstructions.I32X4_GT_S:
-                                    il.EmitCall(() => Lib.i32x4_gt_s);
-                                    break;
-                                case VectorInstructions.I32X4_GT_U:
-                                    il.EmitCall(() => Lib.i32x4_gt_u);
-                                    break;
-                                case VectorInstructions.I32X4_LE_S:
-                                    il.EmitCall(() => Lib.i32x4_le_s);
-                                    break;
-                                case VectorInstructions.I32X4_LE_U:
-                                    il.EmitCall(() => Lib.i32x4_le_u);
-                                    break;
-                                case VectorInstructions.I32X4_GE_S:
-                                    il.EmitCall(() => Lib.i32x4_ge_s);
-                                    break;
-                                case VectorInstructions.I32X4_GE_U:
-                                    il.EmitCall(() => Lib.i32x4_ge_u);
-                                    break;
-
-
-                                case VectorInstructions.F32X4_Add:
-                                    il.EmitCall(() => Lib.f32x4_add);
-                                    break;
-
-                                case VectorInstructions.F32X4_SUB:
-                                    il.EmitCall(() => Lib.f32x4_sub);
-                                    break;
-                                case VectorInstructions.F32X4_MUL:
-                                    il.EmitCall(() => Lib.f32x4_mul);
-                                    break;
-                                case VectorInstructions.F32X4_DIV:
-                                    il.EmitCall(() => Lib.f32x4_div);
-                                    break;
-                                case VectorInstructions.F32X4_MIN:
-                                    il.EmitCall(() => Lib.f32x4_min);
-                                    break;
-                                case VectorInstructions.F32X4_MAX:
-                                    il.EmitCall(() => Lib.f32x4_max);
-                                    break;
+                                
                                 case VectorInstructions.I8X16_REPLACE_LANE:
                                 case VectorInstructions.I16X8_REPLACE_LANE:
                                 case VectorInstructions.I32X4_REPLACE_LANE:
@@ -2230,144 +2134,16 @@ namespace Wasm2IL
                                     push(v128Type);
                                     break;
                                 }
-                                case VectorInstructions.V128_NOT:
-                                    il.EmitCall(() => Lib.v128_not);
-                                    break;
-                                case VectorInstructions.V128_AND:
-                                    il.EmitCall(() => Lib.v128_and);
-                                    break;
-                                case VectorInstructions.V128_ANDNOT:
-                                    il.EmitCall(() => Lib.v128_andnot);
-                                    break;
-                                case VectorInstructions.V128_OR:
-                                    il.EmitCall(() => Lib.v128_or);
-                                    break;
-                                case VectorInstructions.V128_XOR:
-                                    il.EmitCall(() => Lib.v128_xor);
-                                    break;
-                                case VectorInstructions.V128_BITSELECT:
-                                    il.EmitCall(() => Lib.v128_bitselect);
-                                    break;
-                                case VectorInstructions.V128_ANY_TRUE:
-                                    il.EmitCall(() => Lib.v128_any_true);
-                                    break;
-
-                                case VectorInstructions.I8X16_ABS:
-                                    il.EmitCall(() => Lib.i8x16_abs);
-                                    break;
-
-                                case VectorInstructions.I8X16_NEG:
-                                    il.EmitCall(() => Lib.i8x16_neg);
-                                    break;
-
-                                case VectorInstructions.I8X16_POPCNT:
-                                    il.EmitCall(() => Lib.i8x16_popcnt);
-                                    break;
-
-                                case VectorInstructions.I8X16_ALL_TRUE:
-                                    il.EmitCall(() => Lib.i8x16_all_true);
-                                    break;
-
-                                case VectorInstructions.I8X16_BITMASK:
-                                    il.EmitCall(() => Lib.i8x16_bitmask);
-                                    break;
-
-                                case VectorInstructions.I8X16_NARROW_I16X8_U:
-                                    il.EmitCall(() => Lib.i8x16_narrow_i16x8_u);
-                                    break;
-
-                                case VectorInstructions.I8X16_SHL:
-                                    il.EmitCall(() => Lib.i8x16_shl);
-                                    break;
-                                case VectorInstructions.I8X16_SHR_S:
-                                    il.EmitCall(() => Lib.i8x16_shr_s);
-                                    break;
-                                case VectorInstructions.I8X16_SHR_U:
-                                    il.EmitCall(() => Lib.i8x16_shr_u);
-                                    break;
+                                
                                 case VectorInstructions.I8X16_ADD_SAT_S:
                                 case VectorInstructions.I8X16_ADD_SAT_U:
-                                case VectorInstructions.I8X16_ADD:
-                                    il.EmitCall(() => Lib.i8x16_add);
+                                    throw new Exception("not implemented");//il.EmitCall(() => Lib.i8x16_add);
                                     break;
                                 case VectorInstructions.I8X16_SUB_SAT_S:
                                 case VectorInstructions.I8X16_SUB_SAT_U:
-                                case VectorInstructions.I8X16_SUB:
-                                    il.EmitCall(() => Lib.i8x16_sub);
+                                    throw new Exception("not implemented");//;il.EmitCall(() => Lib.i8x16_sub);
                                     break;
-
-                                case VectorInstructions.I8X16_MUL:
-                                    il.EmitCall(() => Lib.i8x16_mul);
-                                    break;
-
-                                case VectorInstructions.I16X8_SHL:
-                                    il.EmitCall(() => Lib.i16x8_shl);
-                                    break;
-                                case VectorInstructions.I16X8_SHR_S:
-                                    il.EmitCall(() => Lib.i16x8_shr_s);
-                                    break;
-                                case VectorInstructions.I16X8_SHR_U:
-                                    il.EmitCall(() => Lib.i16x8_shr_u);
-                                    break;
-                                case VectorInstructions.I16X8_ADD:
-                                    il.EmitCall(() => Lib.i16x8_add);
-                                    break;
-
-                                case VectorInstructions.I16X8_EXTEND_LOW_I8x16_S:
-                                    il.EmitCall(() => Lib.i16x8_extend_low_i8x16_s);
-                                    break;
-
-                                case VectorInstructions.I16X8_EXTEND_HIGH_I8x16_S:
-                                    il.EmitCall(() => Lib.i16x8_extend_high_i8x16_s);
-                                    break;
-
-                                case VectorInstructions.I16X8_EXTEND_LOW_I8x16_U:
-                                    il.EmitCall(() => Lib.i16x8_extend_low_i8x16_u);
-                                    break;
-
-                                case VectorInstructions.I16X8_EXTEND_HIGH_I8x16_U:
-                                    il.EmitCall(() => Lib.i16x8_extend_high_i8x16_u);
-                                    break;
-
-                                case VectorInstructions.I32X4_EXTADD_PAIRWISE_I16X8_S:
-                                    il.EmitCall(() => Lib.i32x4_extadd_pairwise_i16x8_s);
-                                    break;
-
-                                case VectorInstructions.I32X4_EXTADD_PAIRWISE_I16X8_U:
-                                    il.EmitCall(() => Lib.i32x4_extadd_pairwise_i16x8_u);
-                                    break;
-
-                                case VectorInstructions.I32X4_ABS:
-                                    il.EmitCall(() => Lib.i32x4_abs);
-                                    break;
-
-                                case VectorInstructions.I32X4_NEG:
-                                    il.EmitCall(() => Lib.i32x4_neg);
-                                    break;
-
-                                case VectorInstructions.I32X4_ALL_TRUE:
-                                    il.EmitCall(() => Lib.i32x4_all_true);
-                                    break;
-
-                                case VectorInstructions.I32X4_BITMASK:
-                                    il.EmitCall(() => Lib.i32x4_bitmask);
-                                    break;
-                      
-                                case VectorInstructions.I64X2_EXTMUL_LOW_I32X4_S:
-                                    il.EmitCall(() => Lib.i64x2_extmul_low_i32x4_s);
-                                    break;
-
-                                case VectorInstructions.I64X2_EXTMUL_HIGH_I32X4_S:
-                                    il.EmitCall(() => Lib.i64x2_extmul_high_i32x4_s);
-                                    break;
-
-                                case VectorInstructions.I64X2_EXTMUL_LOW_I32X4_U:
-                                    il.EmitCall(() => Lib.i64x2_extmul_low_i32x4_u);
-                                    break;
-
-                                case VectorInstructions.I64X2_EXTMUL_HIGH_I32X4_U:
-                                    il.EmitCall(() => Lib.i64x2_extmul_high_i32x4_u);
-                                    break;
+                                
                                 case VectorInstructions.V128_LOAD8_SPLAT:
                                 case VectorInstructions.V128_LOAD16_SPLAT:
                                 case VectorInstructions.V128_LOAD32_SPLAT:
