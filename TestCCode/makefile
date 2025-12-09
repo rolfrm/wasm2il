@@ -3,7 +3,7 @@ SYSROOT_LIB=$(SYSROOT)/lib/wasm32-wasi
 #MUSL_INCLUDE=/Users/bruger/code/work/musl/include
 MUSL_INCLUDE=/Users/bruger/code/minlibc/include
 SSL_PATH=/Users/bruger/code/extern/openssl/include
-all: sqlite3.wasm
+all: sqlite3.wasm callback_test.wasm
 # -msimd128  -mtail-call ./libc.wasm-mtail-call  -msimd128 -mbulk-memory -msimd128 
 
 sqlite3.wasm: sqlite3.c sqlite3.h
