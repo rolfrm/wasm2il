@@ -334,7 +334,10 @@ public class TestLibC
             a[i] = (byte)(i % 256);
             b[i] = (byte)(i % 256);
         }
-        b[size - 1] = (byte)(a[size - 1] + 1);
+        // a[size-1] is 255, so adding 1 wraps to 0, making b < a
+        // Instead, set explicit values to avoid wrap issues
+        a[size - 1] = 100;
+        b[size - 1] = 101;
 
         int result;
         fixed (byte* aPtr = a, bPtr = b)
