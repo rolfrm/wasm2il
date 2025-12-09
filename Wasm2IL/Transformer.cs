@@ -361,6 +361,10 @@ namespace Wasm2IL
             if (EnableOptimizations)
             {
                 ILOptimizer.OptimizeType(cls);
+                foreach (var method in cls.Methods)
+                {
+                    method.Body.Optimize();
+                }
             }
 
             def.Write(outStream);
@@ -2260,10 +2264,7 @@ namespace Wasm2IL
                 next: ;
             }
 
-            foreach (var method in cls.Methods)
-            {
-                method.Body.Optimize();
-            }
+            
 
             List<object> allOpcodes = [];
             allOpcodes.AddRange(usedInstructions);
