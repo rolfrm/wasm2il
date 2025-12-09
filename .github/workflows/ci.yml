@@ -22,6 +22,18 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y wabt
 
+    - name: Install clang with WebAssembly support
+      run: |
+        sudo apt-get install -y clang lld
+
+    - name: Download libc.wasm from minlibc release
+      run: |
+        curl -L -o TestCCode/libc.wasm https://github.com/rolfrm/minlibc/releases/download/prototype1/libc.wasm
+
+    - name: Build WebAssembly files
+      run: make
+      working-directory: TestCCode
+
     - name: Restore dependencies
       run: dotnet restore
 
