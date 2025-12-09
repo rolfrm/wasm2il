@@ -63,12 +63,15 @@ public class TestLoadSqlite
     {
         if (built != null)
             return built;
-        
+
         var transformer = new Transformer();
-        
+
         transformer.LoadImportModule("env", typeof(LibC));
         transformer.LoadOverrideModule(typeof(LibC.LibCOverride));
-        built = transformer.LoadWasmAssembly("sqlite3.wasm", "SqliteWasm", "SqliteWasm.dll");
+        var baseDir = AppContext.BaseDirectory;
+        var wasmPath = Path.Combine(baseDir, "sqlite3.wasm");
+        var dllPath = Path.Combine(baseDir, "SqliteWasm.dll");
+        built = transformer.LoadWasmAssembly(wasmPath, "SqliteWasm", dllPath);
         return built;
     }
     
