@@ -9,7 +9,7 @@ using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 using Wasm;
-using Wasm2CIl.Utils;
+using Wasm2IL.Utils;
 using Wasm2IL.Dwarf;
 using AssemblyDefinition = Mono.Cecil.AssemblyDefinition;
 using FieldAttributes = Mono.Cecil.FieldAttributes;
