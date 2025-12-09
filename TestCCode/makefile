@@ -27,9 +27,9 @@ sqlite3.bc: sqlite3.c sqlite3.h
 sqlite3.wat: sqlite3.wasm libc.wasm
 	wasm2wat sqlite3.wasm > sqlite3.wat
     
-crypto.wasm: crypto.c libc.wasm 
-	clang --target=wasm32-unknown-unknown ./libc.wasm ./libcrypto.wasm -Wl,--no-entry  -nostdlib  -O3 crypto.c -I$(SSL_PATH) -I$(MUSL_INCLUDE) -o crypto.wasm -Wl,--export=hashstr -Wl,--export=set_stdout\
-	 -Wl,--error-limit=0 -Wl,--allow-undefined
+#crypto.wasm: crypto.c libc.wasm
+#	clang --target=wasm32-unknown-unknown ./libc.wasm ./libcrypto.wasm -Wl,--no-entry  -nostdlib  -O3 crypto.c -I$(SSL_PATH) -I$(MUSL_INCLUDE) -o crypto.wasm -Wl,--export=hashstr -Wl,--export=set_stdout\
+#	 -Wl,--error-limit=0 -Wl,--allow-undefined
 
 cat.wasm: cat.c
 	clang --target=wasm32-unknown-unknown -nostdlib -O3  -Wl,--export=main -Wl,--allow-undefined -Wl,--no-entry -ffreestanding cat.c -o cat.wasm
