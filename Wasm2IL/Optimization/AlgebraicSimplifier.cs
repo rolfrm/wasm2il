@@ -63,12 +63,18 @@ public class AlgebraicSimplifier : IOptimizationPass
         if (IsConstant(instr0))
             return false;
 
-        // IMPORTANT: The first operand must be a "simple load" - an instruction that
-        // pushes exactly 1 value and pops 0 values. Otherwise, the constant might be
-        // consumed by instr0 (e.g., as an argument to a call), and the pattern doesn't
-        // match what we think it does.
-        if (!IsSimpleLoad(instr0))
-            return false;
+        // NOTE: We do NOT need to check if instr0 is a simple load here.
+        // Since const (instr1) is directly before op (instr2), the constant
+        // is definitely consumed by the op - it cannot be consumed by instr0
+        // because instr0 executes BEFORE the constant is pushed.
+        //
+        // Example that works:
+        //   call SomeMethod()  ; pushes result
+        //   ldc.i4.1           ; pushes 1
+        //   mul                ; result * 1 => result
+        //
+        // The call can be anything - it doesn't matter because the constant
+        // is adjacent to the mul, so the mul definitely consumes the 1.
 
         // Check for i32 identity patterns
         if (TryGetI32Constant(instr1, out int i32val))
