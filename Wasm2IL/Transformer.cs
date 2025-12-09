@@ -11,6 +11,7 @@ using Mono.Cecil.Rocks;
 using Wasm;
 using Wasm2CIl.Utils;
 using Wasm2IL.Dwarf;
+using Wasm2IL.Optimization;
 using AssemblyDefinition = Mono.Cecil.AssemblyDefinition;
 using FieldAttributes = Mono.Cecil.FieldAttributes;
 using FieldDefinition = Mono.Cecil.FieldDefinition;
@@ -42,6 +43,11 @@ namespace Wasm2IL
     {
         readonly Dictionary<string, List<Type>> importModules = new();
         private List<Type> overrideModules = [];
+
+        /// <summary>
+        /// Enable IL optimizations like constant folding. Default is true.
+        /// </summary>
+        public bool EnableOptimizations { get; set; } = true;
 
         public void LoadImportModule(string moduleName, Type type)
         {
@@ -350,6 +356,13 @@ namespace Wasm2IL
 
             reader.Position = codeLoc;
             ReadCodeSection(reader);
+
+            // Run IL optimizations if enabled
+            if (EnableOptimizations)
+            {
+                ILOptimizer.OptimizeType(cls);
+            }
+
             def.Write(outStream);
 
 
