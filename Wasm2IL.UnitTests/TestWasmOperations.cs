@@ -271,12 +271,8 @@ public class TestWasmOperations
         Assert.DoesNotThrow(() => _asm.Invoke("run_all_tests"));
     }
 
-    [Test]
-    public void TestMainTestFunction()
-    {
-        // This calls the test export which runs SIMD tests + run_all_tests
-        Assert.DoesNotThrow(() => _asm.Invoke("test"));
-    }
+    // Note: The "test" function is already tested in TestBasicWasm.LoadAndRunBasic
+    // which calls test.Invoke(null, []) with a fresh assembly instance
 
     #endregion
 
@@ -315,8 +311,9 @@ public class TestWasmOperations
         var output = heap.Slice(outputPtr, 8).ToArray();
 
         // FNV-1a offset basis: 14695981039346656037 = 0xcbf29ce484222325
+        // In little-endian: 25 23 22 84 e4 9c f2 cb
         var hexstr = Convert.ToHexString(output).ToLower();
-        Assert.AreEqual("2523228484ce29cb", hexstr);
+        Assert.AreEqual("25232284e49cf2cb", hexstr);
     }
 
     #endregion
@@ -628,6 +625,13 @@ public class TestWasmLoading
 [TestFixture]
 public class TestWasmErrorHandling
 {
+    // An interface with methods that don't exist in w1.wasm
+    public interface IBadInterface
+    {
+        [Wasm("nonexistent_function")]
+        int NonExistentFunction(int x);
+    }
+
     [Test]
     public void TestBadImportThrows()
     {
@@ -655,8 +659,8 @@ public class TestWasmErrorHandling
         var wasmPath = Path.Combine(baseDir, "w1.wasm");
         var asm = transformer.LoadWasmAssembly(wasmPath, "BadInterface");
 
-        // This interface has wrong signatures
+        // This interface references a function that doesn't exist
         Assert.Throws<ImplementException>(() =>
-            asm.AsImplementation<Wasm2CIl.UnitTests.TestLoadSqlite.IBadSqliteApi>());
+            asm.AsImplementation<IBadInterface>());
     }
 }
