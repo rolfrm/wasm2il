@@ -166,16 +166,14 @@ public class AlgebraicSimplifier : IOptimizationPass
         var il = body.GetILProcessor();
         var instructions = body.Instructions;
 
-        // NOTE: We intentionally do NOT optimize a + 0 or a - 0 because 'add' and 'sub'
-        // are used for pointer arithmetic in IL. Without type tracking, we can't safely
-        // determine if 'a' is a pointer or integer, and removing the operation could
-        // cause type verification errors.
-
+        // a + 0 => a
+        // a - 0 => a
         // a | 0 => a
         // a ^ 0 => a
         // a << 0 => a
         // a >> 0 => a
-        if (constVal == 0 && (op == OpCodes.Or || op == OpCodes.Xor ||
+        if (constVal == 0 && (op == OpCodes.Add || op == OpCodes.Sub ||
+                              op == OpCodes.Or || op == OpCodes.Xor ||
                               op == OpCodes.Shl || op == OpCodes.Shr || op == OpCodes.Shr_Un))
         {
             RemoveConstantAndOp(body, index + 1);
@@ -211,13 +209,10 @@ public class AlgebraicSimplifier : IOptimizationPass
     {
         var instructions = body.Instructions;
 
-        // NOTE: We intentionally do NOT optimize 0 + a because 'add' is used for
-        // pointer arithmetic in IL. Without type tracking, we can't safely determine
-        // if 'a' is a pointer or integer.
-
+        // 0 + a => a
         // 0 | a => a
         // 0 ^ a => a
-        if (constVal == 0 && (op == OpCodes.Or || op == OpCodes.Xor))
+        if (constVal == 0 && (op == OpCodes.Add || op == OpCodes.Or || op == OpCodes.Xor))
         {
             RemoveConstantAndOp(body, index, removeFirst: true);
             return true;
@@ -255,10 +250,8 @@ public class AlgebraicSimplifier : IOptimizationPass
     {
         var instructions = body.Instructions;
 
-        // NOTE: We do NOT optimize a + 0 or a - 0 for i64 either, for consistency
-        // with i32 and because the same pointer arithmetic concerns apply.
-
-        if (constVal == 0 && (op == OpCodes.Or || op == OpCodes.Xor ||
+        if (constVal == 0 && (op == OpCodes.Add || op == OpCodes.Sub ||
+                              op == OpCodes.Or || op == OpCodes.Xor ||
                               op == OpCodes.Shl || op == OpCodes.Shr || op == OpCodes.Shr_Un))
         {
             RemoveConstantAndOp(body, index + 1);
@@ -290,9 +283,7 @@ public class AlgebraicSimplifier : IOptimizationPass
     {
         var instructions = body.Instructions;
 
-        // NOTE: We do NOT optimize 0 + a for i64 for the same pointer arithmetic concerns.
-
-        if (constVal == 0 && (op == OpCodes.Or || op == OpCodes.Xor))
+        if (constVal == 0 && (op == OpCodes.Add || op == OpCodes.Or || op == OpCodes.Xor))
         {
             RemoveConstantAndOp(body, index, removeFirst: true);
             return true;
