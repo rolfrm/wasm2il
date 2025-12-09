@@ -194,6 +194,15 @@ public class AlgebraicSimplifier : IOptimizationPass
             RemoveConstantAndOp(body, index + 1);
             return true;
         }
+        
+        // a ^ -1 => a (all bits set)
+        if (constVal == -1 && op == OpCodes.Xor)
+        {
+            instructions.RemoveAt(index + 2);
+            instructions.RemoveAt(index + 1);
+            instructions.Insert(index + 1, il.Create(OpCodes.Not));
+            return true;
+        }
 
         // a * 0 => 0 (but need to keep side effects - only if first operand is simple)
         if (constVal == 0 && op == OpCodes.Mul && IsSimpleLoad(instructions[index]))
@@ -229,6 +238,16 @@ public class AlgebraicSimplifier : IOptimizationPass
         if (constVal == -1 && op == OpCodes.And)
         {
             RemoveConstantAndOp(body, index, removeFirst: true);
+            return true;
+        }
+        
+        // -1 ^ a  => a (all bits set)
+        if (constVal == -1 && op == OpCodes.Xor)
+        {
+            var il = body.GetILProcessor();
+            instructions.RemoveAt(index + 1);
+            instructions.RemoveAt(index);
+            instructions.Insert(index + 1, il.Create(OpCodes.Not));
             return true;
         }
 
@@ -529,6 +548,7 @@ public class AlgebraicSimplifier : IOptimizationPass
         }
     }
 
+    
     /// <summary>
     /// Replace the entire expression with a constant.
     /// Used for patterns like: a * 0 => 0
