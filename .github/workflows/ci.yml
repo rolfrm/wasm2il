@@ -28,8 +28,8 @@ jobs:
       run: |
         curl -L -o TestCCode/libc.wasm https://github.com/rolfrm/minlibc/releases/download/prototype1/libc.wasm
 
-    - name: Build WebAssembly files
-      run: make
+    - name: Build callback_test.wasm
+      run: make callback_test.wasm
       working-directory: TestCCode
 
     - name: Restore dependencies
