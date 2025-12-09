@@ -522,8 +522,13 @@ public class TestLibCFileIO
     public TestLibCFileIO()
     {
         _testDir = Path.Combine(Path.GetTempPath(), "wasm2il_test_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_testDir);
         _testFile = Path.Combine(_testDir, "test.txt");
+    }
+
+    private void EnsureTestDir()
+    {
+        if (!Directory.Exists(_testDir))
+            Directory.CreateDirectory(_testDir);
     }
 
     private void Cleanup()
@@ -539,6 +544,7 @@ public class TestLibCFileIO
     [Test]
     public void OpenCloseFile()
     {
+        EnsureTestDir();
         File.WriteAllText(_testFile, "test content");
 
         var heap = new byte[1024];
@@ -559,6 +565,7 @@ public class TestLibCFileIO
     [Test]
     public unsafe void ReadWriteFile()
     {
+        EnsureTestDir();
         var heap = new byte[1024];
         var pathBytes = System.Text.Encoding.UTF8.GetBytes(_testFile + "\0");
         Array.Copy(pathBytes, heap, pathBytes.Length);
@@ -597,6 +604,7 @@ public class TestLibCFileIO
     [Test]
     public void LseekOperations()
     {
+        EnsureTestDir();
         File.WriteAllText(_testFile, "0123456789");
 
         var heap = new byte[1024];
@@ -625,6 +633,7 @@ public class TestLibCFileIO
     [Test]
     public void FtruncateFile()
     {
+        EnsureTestDir();
         File.WriteAllText(_testFile, "0123456789");
 
         var heap = new byte[1024];
@@ -648,6 +657,7 @@ public class TestLibCFileIO
     [Test]
     public void FsyncFile()
     {
+        EnsureTestDir();
         File.WriteAllText(_testFile, "test");
 
         var heap = new byte[1024];
@@ -667,6 +677,7 @@ public class TestLibCFileIO
     [Test]
     public void UnlinkFile()
     {
+        EnsureTestDir();
         File.WriteAllText(_testFile, "to be deleted");
 
         var heap = new byte[1024];
@@ -685,6 +696,7 @@ public class TestLibCFileIO
     [Test]
     public void OpenDirectory()
     {
+        EnsureTestDir();
         var heap = new byte[1024];
         var pathBytes = System.Text.Encoding.UTF8.GetBytes(_testDir + "\0");
         Array.Copy(pathBytes, heap, pathBytes.Length);

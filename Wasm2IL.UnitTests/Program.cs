@@ -4,12 +4,12 @@ namespace Wasm2IL;
 
 public class TestFixtureAttribute : Attribute
 {
-    
+
 }
 
 public class TestAttribute : Attribute
 {
-    
+
 }
 
 public class Program
@@ -17,13 +17,28 @@ public class Program
     public static int Main()
     {
         var args = Environment.GetCommandLineArgs().Skip(1).ToHashSet();
+        var failures = new List<(string testName, Exception exception)>();
+        int passed = 0;
+        int failed = 0;
 
         foreach (var type in Assembly.GetCallingAssembly().ExportedTypes)
         {
             if (type.IsAbstract) continue;
             if (type.GetCustomAttribute<TestFixtureAttribute>() != null)
             {
-                var instance = Activator.CreateInstance(type);
+                object instance;
+                try
+                {
+                    instance = Activator.CreateInstance(type);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"====== Fixture {type.Name} ========");
+                    Console.WriteLine($"Failed to create instance: {e.InnerException?.Message ?? e.Message}");
+                    failures.Add(($"{type.Name} (constructor)", e.InnerException ?? e));
+                    failed++;
+                    continue;
+                }
 
                 foreach (var method in type.GetMethods())
                 {
@@ -33,23 +48,52 @@ public class Program
                     }
                     if (method.GetCustomAttribute<TestAttribute>() != null)
                     {
+                        var testName = $"{type.Name}.{method.Name}";
                         Console.WriteLine($"====== Test {method} ========");
                         try
                         {
                             method.Invoke(instance, Array.Empty<object>());
                             Console.WriteLine($"======= Pass ========");
+                            passed++;
                         }
                         catch (TargetInvocationException e)
                         {
-                            Console.WriteLine($"Fail: {e.InnerException}");
-                            Console.WriteLine($"      {e.InnerException.StackTrace}");
-                            return 1;
+                            var inner = e.InnerException ?? e;
+                            Console.WriteLine($"Fail: {inner.Message}");
+                            failures.Add((testName, inner));
+                            failed++;
                         }
-
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"Fail: {e.Message}");
+                            failures.Add((testName, e));
+                            failed++;
+                        }
                     }
                 }
             }
         }
+
+        // Print summary
+        Console.WriteLine();
+        Console.WriteLine("========================================");
+        Console.WriteLine($"Test Results: {passed} passed, {failed} failed");
+        Console.WriteLine("========================================");
+
+        if (failures.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Failed tests:");
+            Console.WriteLine();
+            foreach (var (testName, exception) in failures)
+            {
+                Console.WriteLine($"  FAIL: {testName}");
+                Console.WriteLine($"        {exception.Message}");
+                Console.WriteLine();
+            }
+            return 1;
+        }
+
         return 0;
     }
 }
