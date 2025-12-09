@@ -1,3 +1,4 @@
+using Mono.Cecil;
 using Mono.Cecil.Cil;
 
 namespace Wasm2IL.Optimization;
@@ -410,15 +411,38 @@ public class AlgebraicSimplifier : IOptimizationPass
                op == OpCodes.Ldc_I8 || op == OpCodes.Ldc_R4 || op == OpCodes.Ldc_R8;
     }
 
+    /// <summary>
+    /// Check if an instruction is a "simple load" - pushes exactly 1 value and pops 0 values.
+    /// This includes: ldarg, ldloc, ldsfld, constants, and parameterless calls that return a value.
+    /// </summary>
     private static bool IsSimpleLoad(Instruction instr)
     {
         var op = instr.OpCode;
-        // Simple loads that have no side effects
-        return op == OpCodes.Ldarg_0 || op == OpCodes.Ldarg_1 || op == OpCodes.Ldarg_2 ||
-               op == OpCodes.Ldarg_3 || op == OpCodes.Ldarg_S || op == OpCodes.Ldarg ||
-               op == OpCodes.Ldloc_0 || op == OpCodes.Ldloc_1 || op == OpCodes.Ldloc_2 ||
-               op == OpCodes.Ldloc_3 || op == OpCodes.Ldloc_S || op == OpCodes.Ldloc ||
-               op == OpCodes.Ldsfld || IsConstant(instr);
+
+        // Standard loads that push 1 value and pop 0
+        if (op == OpCodes.Ldarg_0 || op == OpCodes.Ldarg_1 || op == OpCodes.Ldarg_2 ||
+            op == OpCodes.Ldarg_3 || op == OpCodes.Ldarg_S || op == OpCodes.Ldarg ||
+            op == OpCodes.Ldloc_0 || op == OpCodes.Ldloc_1 || op == OpCodes.Ldloc_2 ||
+            op == OpCodes.Ldloc_3 || op == OpCodes.Ldloc_S || op == OpCodes.Ldloc ||
+            op == OpCodes.Ldsfld)
+        {
+            return true;
+        }
+
+        // Constants are simple loads
+        if (IsConstant(instr))
+            return true;
+
+        // Calls with no parameters that return a value are also simple loads
+        // (they push 1 value and pop 0 values)
+        if (op == OpCodes.Call && instr.Operand is MethodReference method)
+        {
+            bool hasNoParams = method.Parameters.Count == 0;
+            bool returnsValue = method.ReturnType.FullName != "System.Void";
+            return hasNoParams && returnsValue;
+        }
+
+        return false;
     }
 
     private static bool TryGetI32Constant(Instruction instr, out int value)
