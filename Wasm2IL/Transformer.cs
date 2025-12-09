@@ -1631,12 +1631,38 @@ namespace Wasm2IL
                         case instr.I64_LE_U:
                         case instr.F64_LE:
                         case instr.F32_LE:
+                            
                             // invert the logic
                             var unsigned = instr.ToString().Contains("_U");
                             var le = instr.ToString().Contains("LE");
+                            
+                            if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
+                            {
+                                instr = (instr) reader.ReadU8();
+                                pop();
+                                if (unsigned)
+                                {
+                                    if (le)
+                                        jmpInstr = IlInstr.Ble_Un;
+                                    else
+                                        jmpInstr = IlInstr.Bge_Un;
+                                }
+                                else
+                                {
+                                    if (le)
+                                        jmpInstr = IlInstr.Ble;
+                                    else
+                                        jmpInstr = IlInstr.Bge;
+                                }
+                                
+                                goto case instr.BR_IF;
+                            }
+                            
                             OpCode cmp = le ? (unsigned ? IlInstr.Cgt_Un : IlInstr.Cgt) 
                                 : (unsigned ? IlInstr.Clt_Un : IlInstr.Clt);
 
+                            
+                            
                             il.Emit(cmp);
                             il.Emit(IlInstr.Ldc_I4_0);
                             il.Emit(IlInstr.Ceq);
