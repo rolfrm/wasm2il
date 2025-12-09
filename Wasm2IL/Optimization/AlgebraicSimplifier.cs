@@ -62,6 +62,13 @@ public class AlgebraicSimplifier : IOptimizationPass
         if (IsConstant(instr0))
             return false;
 
+        // IMPORTANT: The first operand must be a "simple load" - an instruction that
+        // pushes exactly 1 value and pops 0 values. Otherwise, the constant might be
+        // consumed by instr0 (e.g., as an argument to a call), and the pattern doesn't
+        // match what we think it does.
+        if (!IsSimpleLoad(instr0))
+            return false;
+
         // Check for i32 identity patterns
         if (TryGetI32Constant(instr1, out int i32val))
         {
@@ -105,6 +112,17 @@ public class AlgebraicSimplifier : IOptimizationPass
 
         // Skip if second instruction is also a constant (handled by ConstantFolder)
         if (IsConstant(instr1))
+            return false;
+
+        // IMPORTANT: The second operand must be a "simple load" - an instruction that
+        // pushes exactly 1 value and pops 0 values. Otherwise, the constant we pushed
+        // might be consumed by instr1 (e.g., as an argument to a call), and the pattern
+        // doesn't match what we think it does.
+        // Example of bad pattern:
+        //   ldc.i4.0
+        //   call SomeMethod(int)  <- consumes the 0!
+        //   add                   <- operates on different values
+        if (!IsSimpleLoad(instr1))
             return false;
 
         // Check for i32 identity patterns
