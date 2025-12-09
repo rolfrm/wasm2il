@@ -55,7 +55,6 @@ public class TestLoadSqlite
         int sqlite3_reset(int stmt0);
         int sqlite3_errmsg(int db2);
         int sqlite3_close(int db);
-        int sqlite3_extended_errcode(int db2);
     }
 
     private static WasmAssembly built = null;
@@ -480,8 +479,7 @@ LIMIT 200;
         int ok5 = (int)SqliteWasm.sqlite3_exec(db2, "VACUUM;", 0, 0, 0);
         //int ok7 = SqliteWasm.C.sqlite3_exec(db2, vacuum, 0, 0, 0);
         var c2 = SqliteWasm.sqlite3_errmsg(db2);
-        var ok6 = SqliteWasm.sqlite3_extended_errcode(db2);
-        
+
         var msg2  = w.GetHeapString(c2);
         SqliteWasm.sqlite3_close(db2);
         //File.Delete("./test_bug2.sqlite");
