@@ -660,7 +660,8 @@ public class TestWasmErrorHandling
         var asm = transformer.LoadWasmAssembly(wasmPath, "BadInterface");
 
         // This interface references a function that doesn't exist
-        Assert.Throws<ImplementException>(() =>
+        // Throws InvalidOperationException when method not found
+        Assert.Throws<InvalidOperationException>(() =>
             asm.AsImplementation<IBadInterface>());
     }
 }
