@@ -2,7 +2,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using Mono.Cecil.Cil;
 
-namespace Wasm2CIl.Utils;
+namespace Wasm2IL.Utils;
 
 public static class IlExtensions
 {

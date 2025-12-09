@@ -1,5 +1,3 @@
-using System.Runtime.CompilerServices;
-
 namespace Wasm2IL
 {
     static class Assert

@@ -8,9 +8,8 @@ namespace Wasm2IL
         public static void Main()
         {
             var args = Environment.GetCommandLineArgs();
-            string run = null;
-            string file = null;
-            bool help = false;
+            string? run = null;
+            string? file = null;
             for(int i = 0; i < args.Length; i++)
             {
                 if (args[i] == "--run")
@@ -18,7 +17,10 @@ namespace Wasm2IL
                     run = args[i + 1];
                     i += 1;
                 }else if (args[i] == "--help")
-                    help = true;
+                {
+                    // Help flag handled but not implemented yet
+                    continue;
+                }
                 else
                 {
                     file = args[i];
@@ -27,13 +29,10 @@ namespace Wasm2IL
 
             if (file == null)
                 throw new ArgumentException("File not specified", "--file");
-            
+
             string dllName = Path.ChangeExtension(file, ".dll");
-            if (file != null)
-            {
-                var fstr = File.OpenRead(file);
-                new Transformer().Transform(fstr, Path.GetFileNameWithoutExtension(file), dllName);
-            }
+            var fstr = File.OpenRead(file);
+            new Transformer().Transform(fstr, Path.GetFileNameWithoutExtension(file), dllName);
 
             if (run != null)
             {  

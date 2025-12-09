@@ -27,7 +27,7 @@ public ref struct CString
         return new CString(heap, offset);
     }
 
-    public string ToString()
+    public override string ToString()
     {
         var span = heap.Slice(offset, Length);
         return System.Text.Encoding.UTF8.GetString(span);

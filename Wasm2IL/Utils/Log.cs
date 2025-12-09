@@ -1,4 +1,4 @@
-namespace Wasm2CIl.Utils;
+namespace Wasm2IL.Utils;
 
 internal class Log
 {
