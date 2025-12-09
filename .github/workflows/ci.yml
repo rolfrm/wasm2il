@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Install wabt (WebAssembly Binary Toolkit)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wabt
+
+    - name: Install clang with WebAssembly support
+      run: |
+        sudo apt-get install -y clang lld
+
+    - name: Download libc.wasm from minlibc release
+      run: |
+        curl -L -o TestCCode/libc.wasm https://github.com/rolfrm/minlibc/releases/download/prototype1/libc.wasm
+
+    - name: Build callback_test.wasm
+      run: make callback_test.wasm
+      working-directory: TestCCode
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+
+    - name: Run tests
+      run: dotnet run --project Wasm2IL.UnitTests/Wasm2IL.UnitTests.csproj --configuration Release --no-build

@@ -29,10 +29,13 @@ public class TestBasicWasm
     {
         var transformer = new Transformer();
         transformer.LoadImportModule("env", typeof(_Env));
-        using var file = File.OpenRead("w1.wasm");
-        transformer.Transform(file, "W1", "./w1.dll");
+        var baseDir = AppContext.BaseDirectory;
+        var wasmPath = Path.Combine(baseDir, "w1.wasm");
+        var dllPath = Path.Combine(baseDir, "w1.dll");
+        using var file = File.OpenRead(wasmPath);
+        transformer.Transform(file, "W1", dllPath);
 
-        var asm = Assembly.LoadFrom("./w1.dll");
+        var asm = Assembly.LoadFrom(dllPath);
 
         var type = asm.ExportedTypes.FirstOrDefault();
         var incf = type.GetMethod("incf");
@@ -75,12 +78,13 @@ public class TestBasicWasm
     [Test]
     public void LoadAndRunImportFromStream()
     {
+        var baseDir = AppContext.BaseDirectory;
         List<int> results = new List<int>();
         foreach (string wasmFile in new[] {"w1.wasm", "w2.wasm"})
         {
             var transformer = new Transformer();
             transformer.LoadImportModule("console", typeof(Import));
-            using var file = File.OpenRead(wasmFile);
+            using var file = File.OpenRead(Path.Combine(baseDir, wasmFile));
             using var mem = new MemoryStream();
             transformer.Transform(file, "W1", mem);
             mem.Position = 0;
@@ -97,7 +101,8 @@ public class TestBasicWasm
     [Test]
     public void LoadAndRunBadImport()
     {
-        string wasmFile = "w1.wasm";
+        var baseDir = AppContext.BaseDirectory;
+        string wasmFile = Path.Combine(baseDir, "w1.wasm");
         var transformer = new Transformer();
         transformer.LoadImportModule("console", typeof(ImportBad));
         using var file = File.OpenRead(wasmFile);
@@ -140,7 +145,8 @@ public class TestBasicWasm
     {
         var tform = new Transformer();
         tform.LoadImportModule("env", typeof(LibC));
-        var asm = tform.LoadWasmAssembly("w1.wasm", "W2");
+        var wasmPath = Path.Combine(AppContext.BaseDirectory, "w1.wasm");
+        var asm = tform.LoadWasmAssembly(wasmPath, "W2");
         var len = asm.Invoke("get_strlen", "string");
         Assert.AreEqual(6, len);
 
@@ -165,7 +171,8 @@ public class TestBasicWasm
     {
         var tform = new Transformer();
         tform.LoadImportModule("env", typeof(LibC));
-        var asm = tform.LoadWasmAssembly("w1.wasm", "W2");
+        var wasmPath = Path.Combine(AppContext.BaseDirectory, "w1.wasm");
+        var asm = tform.LoadWasmAssembly(wasmPath, "W2");
         for (int j = 0; j < 3; j++)
         {
             for (int i = 0; i < 1000; i++)
@@ -189,7 +196,8 @@ public class TestBasicWasm
     {
         var tform = new Transformer();
         tform.LoadImportModule("env", typeof(LibC));
-        var asm = tform.LoadWasmAssembly("w1.wasm", "W2");
+        var wasmPath = Path.Combine(AppContext.BaseDirectory, "w1.wasm");
+        var asm = tform.LoadWasmAssembly(wasmPath, "W2");
 
         var p = (int) asm.Invoke("test_memfill", 10, 16);
         var h = asm.GetHeap();
@@ -202,7 +210,8 @@ public class TestBasicWasm
     {
         var tform = new Transformer();
         tform.LoadImportModule("env", typeof(LibC));
-        var asm = tform.LoadWasmAssembly("w1.wasm", "W2");
+        var wasmPath = Path.Combine(AppContext.BaseDirectory, "w1.wasm");
+        var asm = tform.LoadWasmAssembly(wasmPath, "W2");
 
         var p = (int) asm.Invoke("test_memfill2", 10, 16);
         var h = asm.GetHeap();
@@ -224,7 +233,9 @@ public class TestBasicWasm
             callback_arg = arg;
         }
         var tform = new Transformer();
-        var asm = tform.LoadWasmAssembly("callback_test.wasm", "callback_test.dll");
+        var wasmPath = Path.Combine(AppContext.BaseDirectory, "callback_test.wasm");
+        var dllPath = Path.Combine(AppContext.BaseDirectory, "callback_test.dll");
+        var asm = tform.LoadWasmAssembly(wasmPath, dllPath);
 
         asm.Invoke("callback_test", 10, (Action<int>)callback);
         Assert.AreEqual(10, callback_arg);

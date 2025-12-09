@@ -14,17 +14,17 @@ public class TestAttribute : Attribute
 
 public class Program
 {
-    public static void Main()
+    public static int Main()
     {
         var args = Environment.GetCommandLineArgs().Skip(1).ToHashSet();
-        
+
         foreach (var type in Assembly.GetCallingAssembly().ExportedTypes)
         {
             if (type.IsAbstract) continue;
             if (type.GetCustomAttribute<TestFixtureAttribute>() != null)
             {
                 var instance = Activator.CreateInstance(type);
-                
+
                 foreach (var method in type.GetMethods())
                 {
                     if (args.Count > 0 && !(args.Contains(method.Name) || args.Contains(type.Name)))
@@ -43,12 +43,13 @@ public class Program
                         {
                             Console.WriteLine($"Fail: {e.InnerException}");
                             Console.WriteLine($"      {e.InnerException.StackTrace}");
-                            return;
+                            return 1;
                         }
 
                     }
                 }
             }
         }
+        return 0;
     }
 }

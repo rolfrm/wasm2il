@@ -512,14 +512,21 @@ public class LibC
         int i = 0;
         while (pathName[i++] != 0)
         {
-            
+
         }
 
         var s = System.Text.Encoding.UTF8.GetString(pathName, i);
         return 0;
     }
-    
-    
+
+    // Compiler intrinsic: convert 64-bit signed integer to 128-bit float (quad precision)
+    // Since C# doesn't have native 128-bit float support, we return double as approximation
+    public static double __floatditf(long value)
+    {
+        return (double)value;
+    }
+
+
 }
 
 [Flags]
