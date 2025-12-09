@@ -36,9 +36,7 @@
       <Content Include="bin\Debug\net9.0\Mono.Cecil.dll" />
     </ItemGroup>
 
-    <Target Name="WatToWasm" BeforeTargets="Build"
-            Inputs="%(WatFile.Identity)"
-            Outputs="$(OutputPath)%(WatFile.Filename).wasm">
+    <Target Name="WatToWasm" BeforeTargets="Build">
         <Exec Command="wat2wasm %(WatFile.Identity) -o $(OutputPath)%(WatFile.Filename).wasm" />
     </Target>
 
