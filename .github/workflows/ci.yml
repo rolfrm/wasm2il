@@ -22,6 +22,14 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y wabt
 
+    - name: Install clang with WebAssembly support
+      run: |
+        sudo apt-get install -y clang lld
+
+    - name: Build WebAssembly files
+      run: make
+      working-directory: TestCCode
+
     - name: Restore dependencies
       run: dotnet restore
 
