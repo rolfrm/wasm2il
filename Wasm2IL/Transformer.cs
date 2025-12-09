@@ -10,6 +10,7 @@ using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 using Wasm;
 using Wasm2CIl.Utils;
+using Wasm2IL.Dwarf;
 using AssemblyDefinition = Mono.Cecil.AssemblyDefinition;
 using FieldAttributes = Mono.Cecil.FieldAttributes;
 using FieldDefinition = Mono.Cecil.FieldDefinition;
@@ -233,7 +234,8 @@ namespace Wasm2IL
                 {
                     case Section.CUSTOM:
                     {
-                        ReadCustomSection(reader);
+                        var sec = reader.ReadBytes((int)length);
+                        ReadCustomSection(new BinReader(sec, 0));
                         reader.Position = next;
                         break;
                     }
@@ -798,10 +800,15 @@ namespace Wasm2IL
                 var m1 = funcId.Method;
                 m1.ReturnType = ftype.ReturnType;
                 m1.Name = name;
+                bool useName = this.parameterNames.TryGetValue(name, out var paramNames);
                 for (uint i2 = 0; i2 < ftype.ParamCount; i2++)
                 {
                     var parameter = new ParameterDefinition(ftype.ParamTypes[i2]);
                     parameter.Name = "param" + i2;
+                    if (useName && paramNames.ElementAtOrDefault((int)i2) is string name2)
+                    {
+                        parameter.Name = name2;
+                    }
                     m1.Parameters.Add(parameter);
                 }
             }
@@ -842,7 +849,10 @@ namespace Wasm2IL
                     for (uint i3 = 0; i3 < n; i3++)
                     {
                         var tp = ByteToTypeReference(t);
-                        var lv_y_4 = new VariableDefinition(tp);
+                        var lv_y_4 = new VariableDefinition(tp)
+                        {
+
+                        };
                         m1.Body.Variables.Add(lv_y_4);
                     }
                 }
@@ -2543,6 +2553,9 @@ namespace Wasm2IL
             }
         }
 
+        Dwarf.Parser dwarfparser = new Dwarf.Parser();
+        private Dwarf.DwarfCompilationUnit cu = null;
+        private Dictionary<string, string[]> parameterNames = new();
         void ReadCustomSection(BinReader reader)
         {
             var name = reader.ReadStrN();
@@ -2580,6 +2593,45 @@ namespace Wasm2IL
                     reader.Position = next;
                 }
             }
+            if(name == ".debug_abbrev")
+            {
+                dwarfparser.ParseAbbrev(reader);   
+            }
+
+            if (name == ".debug_info")
+            {
+                var debugInfo = dwarfparser.ParseDebugInfo(reader);
+                cu = debugInfo.First();
+            }
+
+            if (name == ".debug_str")
+            {
+                var strTable = new DwarfStringTable(reader.ReadAllBytes());
+                var root = cu.RootDIE;
+                foreach (var thing in root.Children)
+                {
+                    if (thing.Tag == DwarfTag.DW_TAG_subprogram)
+                    {
+                        if (thing.Attributes.TryGetValue(AttributeEncoding.DW_AT_name, out var subProgramNameId)
+                            && strTable.TryGetString((uint)subProgramNameId.Value, out var subProgramName))
+                        {
+                            parameterNames[subProgramName] =
+                                thing.Children.Where(die => die.Tag == DwarfTag.DW_TAG_formal_parameter)
+                                    .Select(param =>
+                                        param.Attributes.FirstOrDefault(attr => attr.Key == AttributeEncoding.DW_AT_name).Value)
+                                    
+                                    .Select(attrValue => attrValue?.Form ==DwarfForm.DW_FORM_strp ? strTable.GetString((uint) attrValue.Value) : null)
+                                    .ToArray();
+                            
+                        }
+                    }
+                }
+            }
+
+            if (name == ".debug_types")
+            {
+                // parse the types section.
+            }
         }
 
         void ReadTypeSection(BinReader reader)
@@ -2608,6 +2660,12 @@ namespace Wasm2IL
                 };
             }
         }
+    }
+
+    
+    public enum DwarfAttibute : byte
+    {
+        DW_AT_discr_list = 0x3d
     }
 
     public class TransformException : Exception

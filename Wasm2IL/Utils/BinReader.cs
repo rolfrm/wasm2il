@@ -10,7 +10,7 @@ namespace Wasm2IL
     using u8 = Byte;
     using u16 = UInt16;
 
-    class BinReader
+    internal class BinReader
     {
         static System.Text.Encoding utf8 => System.Text.Encoding.UTF8;
         private int position = 0;
@@ -36,7 +36,7 @@ namespace Wasm2IL
             stream.ReadExactly(data);
         }
         
-        private BinReader(byte[] data, int position)
+        public BinReader(byte[] data, int position)
         {
             this.data = data;
             this.position = position;
@@ -49,6 +49,9 @@ namespace Wasm2IL
         {
             return data[position++];
         }
+
+        public byte ReadByte() => ReadU8();
+        
         public u32 ReadU32Leb() => (u32)ReadU64Leb();
 
 
@@ -129,6 +132,13 @@ namespace Wasm2IL
             Read(MemoryMarshal.AsBytes(l));
             return l[0];
         }
+        
+        internal uint ReadU32()
+        {
+            Span<u32> l = stackalloc u32[1];
+            Read(MemoryMarshal.AsBytes(l));
+            return l[0];
+        }
 
         internal float ReadF32()
         {
@@ -189,6 +199,45 @@ namespace Wasm2IL
                 membuffer.Write(bufferSlice);
             }
             return utf8.GetString(membuffer.GetBuffer(), 0, (int)membuffer.Position);
+        }
+
+        public byte[] ReadAllBytes()
+        {
+            var buf = new byte[length - position];
+            Read(buf);
+            return buf;
+        }
+        
+        public byte[] ReadBytes(int n)
+        {
+            var buffer = new byte[n];
+            Read(buffer);
+            return buffer;
+        }
+
+        public object ReadSLeb64()
+        {
+            long result = 0;
+            int shift = 0;
+            byte b;
+
+            while (true)
+            {
+                b = ReadByte();
+                result |= (long)(b & 0x7F) << shift;
+                shift += 7;
+
+                if ((b & 0x80) == 0)
+                    break;
+            }
+
+            // Sign extend if necessary
+            if (shift < 64 && (b & 0x40) != 0)
+            {
+                result |= -(1L << shift);
+            }
+
+            return result;
         }
     }
 }
