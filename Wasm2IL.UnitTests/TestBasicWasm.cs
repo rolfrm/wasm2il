@@ -233,7 +233,9 @@ public class TestBasicWasm
             callback_arg = arg;
         }
         var tform = new Transformer();
-        var asm = tform.LoadWasmAssembly("callback_test.wasm", "callback_test.dll");
+        var wasmPath = Path.Combine(AppContext.BaseDirectory, "callback_test.wasm");
+        var dllPath = Path.Combine(AppContext.BaseDirectory, "callback_test.dll");
+        var asm = tform.LoadWasmAssembly(wasmPath, dllPath);
 
         asm.Invoke("callback_test", 10, (Action<int>)callback);
         Assert.AreEqual(10, callback_arg);
