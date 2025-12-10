@@ -16,7 +16,8 @@ public class MemoryAllocator
         {
             return VirtualAlloc(IntPtr.Zero, new IntPtr(size), MEM_RESERVE, PAGE_READWRITE);
         }
-        else if (IsLinux() || IsMac())
+
+        if (IsLinux() || IsMac())
         {
             var r= mmap(IntPtr.Zero, size, MmapProt.PROT_READ | MmapProt.PROT_WRITE, 
                 MmapFlags.MAP_PRIVATE | (IsLinux() ? MmapFlags.MAP_ANONYMOUS_LINUX : MmapFlags.MAP_ANONYMOUS),

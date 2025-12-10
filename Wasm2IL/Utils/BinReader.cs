@@ -169,7 +169,7 @@ namespace Wasm2IL
             return utf8.GetString(membuffer.GetBuffer(), 0, (int) membuffer.Position);
         }
 
-        MemoryStream membuffer = new MemoryStream();
+        MemoryStream membuffer = new();
 
 
 

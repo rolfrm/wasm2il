@@ -926,7 +926,7 @@ public class WasmOpcodeAttribute : Attribute
         Key = vectorInstruction;
     }
 
-    public WasmOpcodeAttribute(Wasm.Instruction instruction)
+    public WasmOpcodeAttribute(Instruction instruction)
     {
         Key = instruction;
     }

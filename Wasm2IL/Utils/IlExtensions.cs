@@ -13,7 +13,7 @@ public static class IlExtensions
             ConstantExpression;
         var method = (MethodInfo)f.Value;
         var declType = gen.Body.Method.DeclaringType;
-        gen.Emit(Mono.Cecil.Cil.OpCodes.Call, declType.Module.ImportReference(method));
+        gen.Emit(OpCodes.Call, declType.Module.ImportReference(method));
         
 
     }

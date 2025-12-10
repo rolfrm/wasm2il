@@ -152,7 +152,7 @@ public class LibC
         public Span<byte> GetSpan(int p, int length) => GetHeap().Slice(p, length);
         public Span<T> GetSpan<T>(int p) where T: struct => MemoryMarshal.Cast<byte, T>(GetHeap().Slice(p, Marshal.SizeOf<T>()));
         public unsafe byte* GetHeapRaw() => (byte*) Pointer.Unbox(memory.GetValue(null));
-        public unsafe int GetHeapSize() => (int)memorySize.GetValue(null);
+        public int GetHeapSize() => (int)memorySize.GetValue(null);
         public unsafe Span<byte> GetHeap() => new Span<byte>((byte*)Pointer.Unbox(memory.GetValue(null)), (int)memorySize.GetValue(null));
 
         public void SetHeap(int size)

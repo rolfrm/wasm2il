@@ -24,7 +24,7 @@ public class WasmAssembly
     public WasmAssembly(Assembly asm)
     {
         this.asm = asm;
-        this.code = asm.ExportedTypes.FirstOrDefault();
+        code = asm.ExportedTypes.FirstOrDefault();
         malloc = code.GetMethod("malloc");
         free = code.GetMethod("free");
         memory = code.GetField("Memory");
@@ -89,7 +89,7 @@ public class WasmAssembly
 
     public unsafe Span<byte> GetHeap()
     {
-        return  new Span<byte>((System.Reflection.Pointer.Unbox(memory.GetValue(null))), 
+        return  new Span<byte>((Pointer.Unbox(memory.GetValue(null))), 
             (int)code.GetField("MemorySize").GetValue(null));
     }
     public static int StringByteLength(string str) => System.Text.Encoding.UTF8.GetByteCount(str);
@@ -129,7 +129,7 @@ public class WasmAssembly
 
             if (args[i] is Delegate d)
             {
-                var idx =  this.AssignCallbackFunction(d);
+                var idx =  AssignCallbackFunction(d);
                 args[i] = idx;
                 fcnToFree = fcnToFree.Add(idx);
 
@@ -147,12 +147,12 @@ public class WasmAssembly
 
     public MethodInfo GetMethod(string name)
     {
-        return this.code.GetMethod(name);
+        return code.GetMethod(name);
     }
     
     public FieldInfo GetField(string name)
     {
-        return this.code.GetField(name);
+        return code.GetField(name);
     }
 
     public Span<byte> GetHeapSpan(int i, int len)
@@ -197,7 +197,7 @@ public class WasmAssembly
         var ftable = (Array)code.GetField("FunctionTable", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
         return ftable.GetValue(i);
     }
-    static AssemblyBuilder asmBuilder = System.Reflection.Emit.AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("asdasd"), AssemblyBuilderAccess.RunAndCollect);
+    static AssemblyBuilder asmBuilder = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("asdasd"), AssemblyBuilderAccess.RunAndCollect);
     private static ModuleBuilder moduleBuilder = asmBuilder.DefineDynamicModule("MainModule");
     public T AsImplementation<T>()
     {
@@ -206,7 +206,7 @@ public class WasmAssembly
             throw new ArgumentException("T");
         var typeName = t.Name + "Wrapper";
         
-        if (moduleBuilder.GetType(typeName) is Type existingType)
+        if (moduleBuilder.GetType(typeName) is { } existingType)
             return (T) Activator.CreateInstance(existingType);
         
         var typeBuilder = moduleBuilder.DefineType(t.Name + "Wrapper");

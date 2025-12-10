@@ -8,7 +8,7 @@ public static class Utils
     {
         foreach (var t in types)
         {
-            if (t.GetMethod(name) is MethodInfo m)
+            if (t.GetMethod(name) is { } m)
                 return m;
         }
 
