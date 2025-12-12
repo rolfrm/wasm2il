@@ -19,6 +19,7 @@ public class ILOptimizer
         // Register default optimization passes
         _passes.Add(new ConstantFolder());
         _passes.Add(new AlgebraicSimplifier());
+        _passes.Add(new NopRemover());
     }
 
     /// <summary>
