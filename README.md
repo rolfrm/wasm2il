@@ -326,10 +326,13 @@ int size = fileLib.ReadFileSize("/path/to/file.txt");
 
 ### Step 7: Working with WASM Memory
 
-For advanced scenarios, you can directly access and manipulate WASM linear memory:
+For advanced scenarios, you can directly access and manipulate WASM linear memory.
+
+**Note:** `Malloc` and `Free` require your WASM module to export `malloc` and `free` functions.
+This is typically done by linking a libc (e.g., the `libc.wasm` shown in Step 2).
 
 ```csharp
-// Allocate memory in WASM heap
+// Allocate memory in WASM heap (requires exported malloc)
 int ptr = asm.Malloc(100);
 
 // Get a span view of the heap
