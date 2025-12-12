@@ -81,6 +81,18 @@ public class StoreHelperOptimizer : IOptimizationPass
                 continue;
             }
 
+            // If the value is a ldloc, check that the local is not modified between
+            // the original position and where we're moving it (before stind)
+            if (IsLdloc(valueInstr))
+            {
+                int valueLocalIndex = GetLocalIndex(valueInstr);
+                if (valueLocalIndex != -1 && IsLocalModifiedBetween(instructions, i + 1, ldlocIndex + 1, valueLocalIndex))
+                {
+                    i++;
+                    continue;
+                }
+            }
+
             // Perform the optimization:
             // 1. Create a copy of the value load instruction
             // 2. Remove the original value load at i
@@ -222,6 +234,25 @@ public class StoreHelperOptimizer : IOptimizationPass
                 if (GetLocalIndex(instr) == helperIndex)
                     return true;
             }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Check if a local variable is modified (stloc) between two indices.
+    /// </summary>
+    private static bool IsLocalModifiedBetween(
+        Mono.Collections.Generic.Collection<Instruction> instructions,
+        int startIndex,
+        int endIndex,
+        int localIndex)
+    {
+        for (int i = startIndex; i < endIndex; i++)
+        {
+            var instr = instructions[i];
+            if (IsStloc(instr) && GetLocalIndex(instr) == localIndex)
+                return true;
         }
 
         return false;
