@@ -60,12 +60,14 @@ public class Program
                         {
                             var inner = e.InnerException ?? e;
                             Console.WriteLine($"Fail: {inner.Message}");
+                            Console.WriteLine(inner.StackTrace);
                             failures.Add((testName, inner));
                             failed++;
                         }
                         catch (Exception e)
                         {
                             Console.WriteLine($"Fail: {e.Message}");
+                            Console.WriteLine(e.StackTrace);
                             failures.Add((testName, e));
                             failed++;
                         }
@@ -89,6 +91,14 @@ public class Program
             {
                 Console.WriteLine($"  FAIL: {testName}");
                 Console.WriteLine($"        {exception.Message}");
+                if (exception.StackTrace != null)
+                {
+                    // Indent stack trace lines for readability
+                    foreach (var line in exception.StackTrace.Split('\n'))
+                    {
+                        Console.WriteLine($"        {line.TrimEnd()}");
+                    }
+                }
                 Console.WriteLine();
             }
             return 1;
