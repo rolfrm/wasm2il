@@ -80,11 +80,11 @@ public class TestNopRemover
     }
 
     [Test]
-    public void TestNopBranchTargetRedirected()
+    public void TestNopBranchTargetPreserved()
     {
-        // Test: branch targeting a nop gets redirected to next instruction
+        // Test: NOP that is a branch target is preserved
         // br nop_target
-        // nop          <- branch target
+        // nop          <- branch target, should be kept
         // ldarg.0
         // ret
         var method = CreateMethod("TestNopBranchTarget", _module.TypeSystem.Int32, _module.TypeSystem.Int32);
@@ -103,55 +103,17 @@ public class TestNopRemover
         var pass = new NopRemover();
         pass.Run(method.Body);
 
-        // NOP should be removed, branch should target ldarg.0
-        Assert.AreEqual(3, method.Body.Instructions.Count);
-        Assert.AreEqual(OpCodes.Br, method.Body.Instructions[0].OpCode);
-        Assert.AreEqual(ldargInstr, method.Body.Instructions[0].Operand);
-        Assert.AreEqual(OpCodes.Ldarg_0, method.Body.Instructions[1].OpCode);
-    }
-
-    [Test]
-    public void TestConsecutiveNopBranchTargets()
-    {
-        // Test: multiple branches to consecutive nops
-        // br nop1
-        // br nop2
-        // nop1         <- branch target 1
-        // nop2         <- branch target 2
-        // ldarg.0
-        // ret
-        var method = CreateMethod("TestConsecutiveNopTargets", _module.TypeSystem.Int32, _module.TypeSystem.Int32);
-        var il = method.Body.GetILProcessor();
-
-        var nop1 = il.Create(OpCodes.Nop);
-        var nop2 = il.Create(OpCodes.Nop);
-        var ldarg = il.Create(OpCodes.Ldarg_0);
-
-        il.Emit(OpCodes.Br, nop1);
-        il.Emit(OpCodes.Br, nop2);
-        il.Append(nop1);
-        il.Append(nop2);
-        il.Append(ldarg);
-        il.Emit(OpCodes.Ret);
-
-        Assert.AreEqual(6, method.Body.Instructions.Count);
-
-        var pass = new NopRemover();
-        pass.Run(method.Body);
-
-        // Both NOPs should be removed, both branches should target ldarg.0
+        // NOP should be preserved because it's a branch target
         Assert.AreEqual(4, method.Body.Instructions.Count);
-        Assert.AreEqual(ldarg, method.Body.Instructions[0].Operand);
-        Assert.AreEqual(ldarg, method.Body.Instructions[1].Operand);
+        Assert.AreEqual(OpCodes.Br, method.Body.Instructions[0].OpCode);
+        Assert.AreEqual(nopInstr, method.Body.Instructions[0].Operand);
+        Assert.AreEqual(OpCodes.Nop, method.Body.Instructions[1].OpCode);
     }
 
     [Test]
     public void TestTrailingNopPreserved()
     {
-        // Test: trailing nop with no instruction after is preserved
-        // ldarg.0
-        // ret
-        // nop          <- no instruction after, should be preserved? Actually no - let's check
+        // Test: trailing nop (last instruction) is preserved
         var method = CreateMethod("TestTrailingNop", _module.TypeSystem.Int32, _module.TypeSystem.Int32);
         var il = method.Body.GetILProcessor();
 
@@ -164,14 +126,14 @@ public class TestNopRemover
         var pass = new NopRemover();
         pass.Run(method.Body);
 
-        // Trailing NOP with nothing after is preserved (can't redirect branches to nothing)
+        // Trailing NOP is preserved
         Assert.AreEqual(3, method.Body.Instructions.Count);
     }
 
     [Test]
     public void TestNopBeforeRetRemoved()
     {
-        // Test: nop before ret should be removed
+        // Test: nop before ret should be removed (not a branch target)
         // ldarg.0
         // nop
         // ret
@@ -193,16 +155,9 @@ public class TestNopRemover
     }
 
     [Test]
-    public void TestConditionalBranchToNop()
+    public void TestConditionalBranchToNopPreserved()
     {
-        // Test: conditional branch to nop gets redirected
-        // ldarg.0
-        // brfalse nop_target
-        // ldc.i4.1
-        // ret
-        // nop          <- branch target
-        // ldc.i4.0
-        // ret
+        // Test: NOP that is a conditional branch target is preserved
         var method = CreateMethod("TestConditionalBranchToNop", _module.TypeSystem.Int32, _module.TypeSystem.Int32);
         var il = method.Body.GetILProcessor();
 
@@ -222,10 +177,10 @@ public class TestNopRemover
         var pass = new NopRemover();
         pass.Run(method.Body);
 
-        // NOP removed, brfalse now targets ldc.i4.0
-        Assert.AreEqual(6, method.Body.Instructions.Count);
+        // NOP is preserved because it's a branch target
+        Assert.AreEqual(7, method.Body.Instructions.Count);
         Assert.AreEqual(OpCodes.Brfalse, method.Body.Instructions[1].OpCode);
-        Assert.AreEqual(ldc0, method.Body.Instructions[1].Operand);
+        Assert.AreEqual(nopInstr, method.Body.Instructions[1].Operand);
     }
 
     [Test]
@@ -250,35 +205,32 @@ public class TestNopRemover
     }
 
     [Test]
-    public void TestSwitchInstructionTargetingNop()
+    public void TestMixedNopsAndBranchTargets()
     {
-        // Test: switch instruction with nop target gets redirected
-        var method = CreateMethod("TestSwitchToNop", _module.TypeSystem.Int32, _module.TypeSystem.Int32);
+        // Test: some NOPs are branch targets, others are not
+        // Only non-target NOPs should be removed
+        var method = CreateMethod("TestMixedNops", _module.TypeSystem.Int32, _module.TypeSystem.Int32);
         var il = method.Body.GetILProcessor();
 
-        var nop1 = il.Create(OpCodes.Nop);
-        var ldc1 = il.Create(OpCodes.Ldc_I4_1);
-        var ldc2 = il.Create(OpCodes.Ldc_I4_2);
-        var defaultTarget = il.Create(OpCodes.Ldc_I4_0);
+        var nopTarget = il.Create(OpCodes.Nop);  // This one is a branch target
+        var nopFree = il.Create(OpCodes.Nop);    // This one is not
 
+        il.Emit(OpCodes.Br, nopTarget);
+        il.Append(nopFree);      // Not a target, should be removed
+        il.Append(nopTarget);    // Branch target, should be kept
         il.Emit(OpCodes.Ldarg_0);
-        il.Emit(OpCodes.Switch, new[] { nop1, ldc2 });
-        il.Append(defaultTarget);
         il.Emit(OpCodes.Ret);
-        il.Append(nop1);
-        il.Append(ldc1);
-        il.Emit(OpCodes.Ret);
-        il.Append(ldc2);
-        il.Emit(OpCodes.Ret);
+
+        Assert.AreEqual(5, method.Body.Instructions.Count);
 
         var pass = new NopRemover();
         pass.Run(method.Body);
 
-        // NOP should be removed, switch target redirected to ldc1
-        var switchInstr = method.Body.Instructions[1];
-        Assert.AreEqual(OpCodes.Switch, switchInstr.OpCode);
-        var targets = (Instruction[])switchInstr.Operand;
-        Assert.AreEqual(ldc1, targets[0]);
-        Assert.AreEqual(ldc2, targets[1]);
+        // Only nopFree should be removed
+        Assert.AreEqual(4, method.Body.Instructions.Count);
+        Assert.AreEqual(OpCodes.Br, method.Body.Instructions[0].OpCode);
+        Assert.AreEqual(nopTarget, method.Body.Instructions[0].Operand);
+        Assert.AreEqual(OpCodes.Nop, method.Body.Instructions[1].OpCode);
+        Assert.AreEqual(OpCodes.Ldarg_0, method.Body.Instructions[2].OpCode);
     }
 }

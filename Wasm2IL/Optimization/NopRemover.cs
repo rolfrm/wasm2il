@@ -5,7 +5,7 @@ namespace Wasm2IL.Optimization;
 
 /// <summary>
 /// Removes NOP instructions that are not used as branch targets.
-/// NOPs that are branch targets have their branches redirected to the next instruction before removal.
+/// NOPs that ARE branch targets are preserved to maintain correct control flow.
 /// </summary>
 public class NopRemover : IOptimizationPass
 {
@@ -15,36 +15,12 @@ public class NopRemover : IOptimizationPass
         if (instructions.Count == 0)
             return false;
 
-        // Collect all branch targets
+        // Collect all branch targets - these NOPs must be preserved
         var branchTargets = CollectBranchTargets(body);
 
         bool changed = false;
         var il = body.GetILProcessor();
 
-        // First pass: redirect branches from NOP targets to next non-NOP instruction
-        // We do this separately to ensure all redirects happen before any removals
-        foreach (var instr in instructions.ToList())
-        {
-            if (instr.OpCode != OpCodes.Nop)
-                continue;
-
-            if (!branchTargets.Contains(instr))
-                continue;
-
-            // Find the next non-nop instruction
-            int index = instructions.IndexOf(instr);
-            Instruction? nextInstr = FindNextNonNop(instructions, index);
-
-            if (nextInstr != null)
-            {
-                RedirectBranches(body, instr, nextInstr);
-            }
-        }
-
-        // Rebuild branch targets after redirects
-        branchTargets = CollectBranchTargets(body);
-
-        // Second pass: remove NOPs that are no longer branch targets
         // Process in reverse to avoid index shifting issues
         for (int i = instructions.Count - 1; i >= 0; i--)
         {
@@ -52,15 +28,12 @@ public class NopRemover : IOptimizationPass
             if (instr.OpCode != OpCodes.Nop)
                 continue;
 
-            // Don't remove NOPs that are still branch targets
+            // Don't remove NOPs that are branch targets
             if (branchTargets.Contains(instr))
                 continue;
 
-            // Find the next non-nop instruction
-            Instruction? nextInstr = FindNextNonNop(instructions, i);
-
-            // If this NOP is the last instruction (or only NOPs after), keep it
-            if (nextInstr == null)
+            // Don't remove the last instruction
+            if (i == instructions.Count - 1)
                 continue;
 
             il.Remove(instr);
@@ -68,19 +41,6 @@ public class NopRemover : IOptimizationPass
         }
 
         return changed;
-    }
-
-    /// <summary>
-    /// Find the next instruction that is not a NOP.
-    /// </summary>
-    private static Instruction? FindNextNonNop(Mono.Collections.Generic.Collection<Instruction> instructions, int currentIndex)
-    {
-        for (int i = currentIndex + 1; i < instructions.Count; i++)
-        {
-            if (instructions[i].OpCode != OpCodes.Nop)
-                return instructions[i];
-        }
-        return null;
     }
 
     /// <summary>
@@ -116,36 +76,5 @@ public class NopRemover : IOptimizationPass
         }
 
         return targets;
-    }
-
-    /// <summary>
-    /// Redirect all branches from oldTarget to newTarget.
-    /// </summary>
-    private static void RedirectBranches(MethodBody body, Instruction oldTarget, Instruction newTarget)
-    {
-        foreach (var instr in body.Instructions)
-        {
-            if (instr.Operand == oldTarget)
-            {
-                instr.Operand = newTarget;
-            }
-            else if (instr.Operand is Instruction[] targets)
-            {
-                for (int i = 0; i < targets.Length; i++)
-                {
-                    if (targets[i] == oldTarget)
-                        targets[i] = newTarget;
-                }
-            }
-        }
-
-        foreach (var handler in body.ExceptionHandlers)
-        {
-            if (handler.TryStart == oldTarget) handler.TryStart = newTarget;
-            if (handler.TryEnd == oldTarget) handler.TryEnd = newTarget;
-            if (handler.HandlerStart == oldTarget) handler.HandlerStart = newTarget;
-            if (handler.HandlerEnd == oldTarget) handler.HandlerEnd = newTarget;
-            if (handler.FilterStart == oldTarget) handler.FilterStart = newTarget;
-        }
     }
 }
