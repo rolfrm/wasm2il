@@ -1771,23 +1771,14 @@ namespace Wasm2IL
                             il.Emit(IlInstr.Call, m2);
                             break;
                         case instr.F64_COPYSIGN:
+                            m2 = GetMethodRef(typeof(Math), nameof(Math.CopySign), typeof(double), typeof(double));
+                            il.Emit(IlInstr.Call, m2);
+                            ctx.PopType(1);
+                            break;
                         case instr.F32_COPYSIGN:
-                            var vtype = is64 ? f64Type : f32Type;
-                            il.Emit(IlInstr.Stloc, ctx.GetHelperVariable(vtype));
-                            il.Emit(IlInstr.Stloc, ctx.GetHelperVariable(vtype, 1));
-                            il.Emit(IlInstr.Ldloc, ctx.GetHelperVariable(vtype));
-                            il.Emit(IlInstr.Ldloc, ctx.GetHelperVariable(vtype, 1));
-                            il.Emit(IlInstr.Ldloc, ctx.GetHelperVariable(vtype));
-                            il.Emit(IlInstr.Mul);
-                            if (is64)
-                                il.Emit(IlInstr.Ldc_R8, 0.0);
-                            else
-                                il.Emit(IlInstr.Ldc_R4, 0.0f);
-                            il.Emit(IlInstr.Clt);
-                            label = il.Create(IlInstr.Nop);
-                            il.Emit(IlInstr.Brfalse, label);
-                            il.Emit(IlInstr.Neg);
-                            il.Append(label);
+                            m2 = GetMethodRef(typeof(MathF), nameof(MathF.CopySign), typeof(float), typeof(float));
+                            il.Emit(IlInstr.Call, m2);
+                            ctx.PopType(1);
                             break;
                         case instr.I32_EQZ:
                             var nextI = (instr) reader.Clone().ReadU8();
