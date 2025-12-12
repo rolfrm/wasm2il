@@ -21,6 +21,30 @@ public class NopRemover : IOptimizationPass
         bool changed = false;
         var il = body.GetILProcessor();
 
+        // First pass: redirect branches from NOP targets to next non-NOP instruction
+        // We do this separately to ensure all redirects happen before any removals
+        foreach (var instr in instructions.ToList())
+        {
+            if (instr.OpCode != OpCodes.Nop)
+                continue;
+
+            if (!branchTargets.Contains(instr))
+                continue;
+
+            // Find the next non-nop instruction
+            int index = instructions.IndexOf(instr);
+            Instruction? nextInstr = FindNextNonNop(instructions, index);
+
+            if (nextInstr != null)
+            {
+                RedirectBranches(body, instr, nextInstr);
+            }
+        }
+
+        // Rebuild branch targets after redirects
+        branchTargets = CollectBranchTargets(body);
+
+        // Second pass: remove NOPs that are no longer branch targets
         // Process in reverse to avoid index shifting issues
         for (int i = instructions.Count - 1; i >= 0; i--)
         {
@@ -28,19 +52,16 @@ public class NopRemover : IOptimizationPass
             if (instr.OpCode != OpCodes.Nop)
                 continue;
 
-            // Find the next non-nop instruction to redirect to
+            // Don't remove NOPs that are still branch targets
+            if (branchTargets.Contains(instr))
+                continue;
+
+            // Find the next non-nop instruction
             Instruction? nextInstr = FindNextNonNop(instructions, i);
 
             // If this NOP is the last instruction (or only NOPs after), keep it
-            // as it may be needed for method epilogue
             if (nextInstr == null)
                 continue;
-
-            // If this NOP is a branch target, redirect branches to next instruction
-            if (branchTargets.Contains(instr))
-            {
-                RedirectBranches(body, instr, nextInstr);
-            }
 
             il.Remove(instr);
             changed = true;
