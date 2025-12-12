@@ -1125,18 +1125,17 @@ namespace Wasm2IL
                             ctx.PopType(1);
                             break;
                         case instr.SELECT:
-                            // select: [a, b, c] -> [c ? a : b]
+                            // select(a,b,c) = a ? b : c
+                            // we have to keep track of the type on top of the stack.
                             var t = ctx.PopType(2);
-                            var helper = ctx.GetHelperVariable(t);
-                            var selectB = il.Create(IlInstr.Nop);
+                            var nextLabel = il.Create(IlInstr.Stloc, ctx.GetHelperVariable(t));
                             endLabel = il.Create(IlInstr.Nop);
-                            il.Emit(IlInstr.Brfalse, selectB); // if c==0, select b
-                            il.Emit(IlInstr.Pop);              // discard b, keep a
+                            il.Emit(IlInstr.Brfalse, nextLabel);
+                            il.Emit(IlInstr.Pop);
                             il.Emit(IlInstr.Br, endLabel);
-                            il.Append(selectB);
-                            il.Emit(IlInstr.Stloc, helper);    // save b
-                            il.Emit(IlInstr.Pop);              // discard a
-                            il.Emit(IlInstr.Ldloc, helper);    // load b
+                            il.Append(nextLabel);
+                            il.Emit(IlInstr.Pop);
+                            il.Emit(IlInstr.Ldloc, ctx.GetHelperVariable(t));
                             il.Append(endLabel);
                             break;
                         case instr.GLOBAL_GET:
