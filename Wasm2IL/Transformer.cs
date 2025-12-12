@@ -1743,23 +1743,15 @@ namespace Wasm2IL
                             break;
                         case instr.F32_ABS:
                         case instr.F64_ABS:
-                            il.Emit(IlInstr.Dup);
-                            if (is64)
-                                il.Emit(IlInstr.Ldc_R8, 0.0);
-                            else
-                                il.Emit(IlInstr.Ldc_R4, 0.0f);
-                            il.Emit(IlInstr.Clt);
-                            var label = il.Create(IlInstr.Nop);
-                            il.Emit(IlInstr.Brfalse, label);
-                            il.Emit(IlInstr.Neg);
-                            il.Append(label);
+                            var m2 = GetMethodRef(typeof(Math), nameof(Math.Abs), InstrType(instr));
+                            il.Emit(IlInstr.Call, m2);
                             break;
                         case instr.F32_MIN:
                         case instr.F64_MIN:
                         case instr.F32_MAX:
                         case instr.F64_MAX:
                             var name = instr.ToString().EndsWith("MAX") ? "Max" : "Min";
-                            var m2 = GetMethodRef(typeof(Math), name, InstrType(instr), InstrType(instr));
+                            m2 = GetMethodRef(typeof(Math), name, InstrType(instr), InstrType(instr));
                             il.Emit(IlInstr.Call, m2);
                             ctx.PopType(1);
                             break;
