@@ -263,6 +263,13 @@ transformer.Transform(
 );
 ```
 
+**Note:** You can also load a pre-compiled DLL directly without re-transforming:
+
+```csharp
+// Load an existing DLL created by wasm2il
+var asm = new WasmAssembly(Assembly.LoadFile("MathLib.dll"));
+```
+
 ### Step 5: Call WASM Functions Directly
 
 You can invoke WASM functions using reflection or the helper methods:
