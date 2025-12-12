@@ -20,6 +20,7 @@ public class ILOptimizer
         _passes.Add(new ConstantFolder());
         _passes.Add(new AlgebraicSimplifier());
         _passes.Add(new NopRemover());
+        _passes.Add(new StoreHelperOptimizer());
     }
 
     /// <summary>
