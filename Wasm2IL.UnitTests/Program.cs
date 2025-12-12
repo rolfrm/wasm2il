@@ -14,6 +14,18 @@ public class TestAttribute : Attribute
 
 public class Program
 {
+    /// <summary>
+    /// Unwrap nested TargetInvocationExceptions to get the root cause.
+    /// </summary>
+    private static Exception UnwrapException(Exception e)
+    {
+        while (e is TargetInvocationException { InnerException: not null } tie)
+        {
+            e = tie.InnerException;
+        }
+        return e;
+    }
+
     public static int Main()
     {
         var args = Environment.GetCommandLineArgs().Skip(1).ToHashSet();
@@ -56,19 +68,12 @@ public class Program
                             Console.WriteLine($"======= Pass ========");
                             passed++;
                         }
-                        catch (TargetInvocationException e)
+                        catch (Exception e)
                         {
-                            var inner = e.InnerException ?? e;
+                            var inner = UnwrapException(e);
                             Console.WriteLine($"Fail: {inner.Message}");
                             Console.WriteLine(inner.StackTrace);
                             failures.Add((testName, inner));
-                            failed++;
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine($"Fail: {e.Message}");
-                            Console.WriteLine(e.StackTrace);
-                            failures.Add((testName, e));
                             failed++;
                         }
                     }
