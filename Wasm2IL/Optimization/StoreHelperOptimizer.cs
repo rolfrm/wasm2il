@@ -34,6 +34,9 @@ public class StoreHelperOptimizer : IOptimizationPass
         bool changed = false;
         var il = body.GetILProcessor();
 
+        // Collect branch targets - instructions that are branch targets cannot be safely removed
+        var branchTargets = CollectBranchTargets(body);
+
         // Process forward, looking for the pattern
         int i = 0;
         while (i < instructions.Count - 4)
@@ -91,6 +94,13 @@ public class StoreHelperOptimizer : IOptimizationPass
                     i++;
                     continue;
                 }
+            }
+
+            // Don't optimize if value or stloc instructions are branch targets
+            if (branchTargets.Contains(valueInstr) || branchTargets.Contains(stlocInstr))
+            {
+                i++;
+                continue;
             }
 
             // Perform the optimization:
@@ -278,5 +288,40 @@ public class StoreHelperOptimizer : IOptimizationPass
             ParameterDefinition p => il.Create(original.OpCode, p),
             _ => il.Create(original.OpCode)
         };
+    }
+
+    /// <summary>
+    /// Collect all instructions that are targets of branches or exception handlers.
+    /// </summary>
+    private static HashSet<Instruction> CollectBranchTargets(MethodBody body)
+    {
+        var targets = new HashSet<Instruction>();
+
+        foreach (var instr in body.Instructions)
+        {
+            // Single branch target
+            if (instr.Operand is Instruction target)
+            {
+                targets.Add(target);
+            }
+            // Switch instruction with multiple targets
+            else if (instr.Operand is Instruction[] switchTargets)
+            {
+                foreach (var t in switchTargets)
+                    targets.Add(t);
+            }
+        }
+
+        // Exception handler boundaries are also "branch targets"
+        foreach (var handler in body.ExceptionHandlers)
+        {
+            if (handler.TryStart != null) targets.Add(handler.TryStart);
+            if (handler.TryEnd != null) targets.Add(handler.TryEnd);
+            if (handler.HandlerStart != null) targets.Add(handler.HandlerStart);
+            if (handler.HandlerEnd != null) targets.Add(handler.HandlerEnd);
+            if (handler.FilterStart != null) targets.Add(handler.FilterStart);
+        }
+
+        return targets;
     }
 }
