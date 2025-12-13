@@ -2,22 +2,15 @@ namespace Wasm2IL;
 
 public interface IWasmCode
 {
-    public Stream GetCodeStream();
+    Stream GetCodeStream();
 }
 
 public static class WasmCode
 {
+    public static IWasmCode FromBytes(byte[] bytes) => new WasmCodeBytes(bytes);
+
     class WasmCodeBytes(byte[] bytes) : IWasmCode
     {
-        public Stream GetCodeStream()
-        {
-            return new MemoryStream(bytes);
-        }
+        public Stream GetCodeStream() => new MemoryStream(bytes);
     }
-    
-    public static IWasmCode FromBytes(byte[] bytes)
-    {
-        return new WasmCodeBytes(bytes);
-    }
-    
 }

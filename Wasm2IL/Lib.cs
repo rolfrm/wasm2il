@@ -174,7 +174,6 @@ public static partial class Lib
     public static Vector128<float> f32x4_div(Vector128<float> a, Vector128<float> b)
         => a / b;
 
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(VectorInstructions.F32X4_MIN)]
     public static Vector128<float> f32x4_min(Vector128<float> a, Vector128<float> b)
@@ -335,7 +334,6 @@ public static partial class Lib
     public static Vector128<sbyte> i8x16_neg(Vector128<sbyte> a)
         => Vector128.Negate(a);
 
-
     [WasmOpcode(VectorInstructions.I8X16_POPCNT)]
     public static Vector128<byte> i8x16_popcnt(Vector128<byte> a)
     {
@@ -378,7 +376,6 @@ public static partial class Lib
     [WasmOpcode(VectorInstructions.I16X8_NARROW_I32X4_S)]
     public static Vector128<short> i16x8_narrow_i32x4_s(Vector128<int> a, Vector128<int> b)
         => Vector128.Narrow(a, b);
-
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(VectorInstructions.I8X16_SHL)]
@@ -598,7 +595,6 @@ public static partial class Lib
     public static Vector128<long> i64x2_ne(Vector128<long> a, Vector128<long> b)
         => Vector128.OnesComplement(Vector128.Equals(a, b));
 
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(VectorInstructions.I64X2_LT_S)]
     public static Vector128<long> i64x2_lt_s(Vector128<long> a, Vector128<long> b)
@@ -723,111 +719,88 @@ public static partial class Lib
     [WasmOpcode(ExtendedInstruction.I32_TRUNC_SAT_F32_S)]
     public static int I32_TRUNC_SAT_F32_S(float f)
     {
-        if (float.IsNaN(f))
-            return 0;
-        if (f >= int.MaxValue)
-            return int.MaxValue;
-        if (f <= int.MinValue)
-            return int.MinValue;
-        return (int) f;
+        if (float.IsNaN(f)) return 0;
+        if (f >= int.MaxValue) return int.MaxValue;
+        if (f <= int.MinValue) return int.MinValue;
+        return (int)f;
     }
 
     [WasmOpcode(ExtendedInstruction.I32_TRUNC_SAT_F32_U)]
     public static uint I32_TRUNC_SAT_F32_U(float f)
     {
-        if (float.IsNaN(f))
-            return 0;
-        if (f >= uint.MaxValue)
-            return int.MaxValue;
-        if (f <= uint.MinValue)
-            return uint.MinValue;
-        return (uint) f;
+        if (float.IsNaN(f)) return 0;
+        if (f >= uint.MaxValue) return uint.MaxValue;
+        if (f <= uint.MinValue) return uint.MinValue;
+        return (uint)f;
     }
 
     [WasmOpcode(ExtendedInstruction.I32_TRUNC_SAT_F64_S)]
     public static int I32_TRUNC_SAT_F64_S(double f)
     {
-        if (double.IsNaN(f))
-            return 0;
-        if (f >= int.MaxValue)
-            return int.MaxValue;
-        if (f <= int.MinValue)
-            return int.MinValue;
-        return (int) f;
+        if (double.IsNaN(f)) return 0;
+        if (f >= int.MaxValue) return int.MaxValue;
+        if (f <= int.MinValue) return int.MinValue;
+        return (int)f;
     }
 
     [WasmOpcode(ExtendedInstruction.I32_TRUNC_SAT_F64_U)]
     public static uint I32_TRUNC_SAT_F64_U(double f)
     {
-        if (double.IsNaN(f))
-            return 0;
-        if (f >= uint.MaxValue)
-            return int.MaxValue;
-        if (f <= uint.MinValue)
-            return uint.MinValue;
-        return (uint) f;
+        if (double.IsNaN(f)) return 0;
+        if (f >= uint.MaxValue) return uint.MaxValue;
+        if (f <= uint.MinValue) return uint.MinValue;
+        return (uint)f;
     }
 
     [WasmOpcode(ExtendedInstruction.I64_TRUNC_SAT_F32_S)]
     public static long I64_TRUNC_SAT_F32_S(float f)
     {
-        if (float.IsNaN(f))
-            return 0;
-        if (f >= long.MaxValue)
-            return long.MaxValue;
-        if (f <= long.MinValue)
-            return long.MinValue;
-        return (long) f;
+        if (float.IsNaN(f)) return 0;
+        if (f >= long.MaxValue) return long.MaxValue;
+        if (f <= long.MinValue) return long.MinValue;
+        return (long)f;
     }
 
     [WasmOpcode(ExtendedInstruction.I64_TRUNC_SAT_F32_U)]
     public static ulong I64_TRUNC_SAT_F32_U(float f)
     {
-        if (float.IsNaN(f))
-            return 0;
-        if (f >= ulong.MaxValue)
-            return ulong.MaxValue;
-        if (f <= ulong.MinValue)
-            return ulong.MinValue;
-        return (ulong) f;
+        if (float.IsNaN(f)) return 0;
+        if (f >= ulong.MaxValue) return ulong.MaxValue;
+        if (f <= ulong.MinValue) return ulong.MinValue;
+        return (ulong)f;
     }
 
+    [WasmOpcode(ExtendedInstruction.I64_TRUNC_SAT_F64_S)]
     public static long I64_TRUNC_SAT_F64_S(double f)
     {
-        if (double.IsNaN(f))
-            return 0;
-        if (f >= long.MaxValue)
-            return long.MaxValue;
-        if (f <= long.MinValue)
-            return long.MinValue;
-        return (long) f;
+        if (double.IsNaN(f)) return 0;
+        if (f >= long.MaxValue) return long.MaxValue;
+        if (f <= long.MinValue) return long.MinValue;
+        return (long)f;
     }
 
     [WasmOpcode(ExtendedInstruction.I64_TRUNC_SAT_F64_U)]
     public static ulong I64_TRUNC_SAT_F64_U(double f)
     {
-        if (double.IsNaN(f))
-            return 0;
-        if (f >= ulong.MaxValue)
-            return ulong.MaxValue;
-        if (f <= ulong.MinValue)
-            return ulong.MinValue;
-        return (ulong) f;
+        if (double.IsNaN(f)) return 0;
+        if (f >= ulong.MaxValue) return ulong.MaxValue;
+        if (f <= ulong.MinValue) return ulong.MinValue;
+        return (ulong)f;
     }
 
-    [WasmOpcode(ExtendedInstruction.I64_TRUNC_SAT_F64_S)]
+    // Non-saturating truncation (throws on overflow)
     public static long I64_TRUNC_F32_S(float f)
     {
-        if (f >= long.MaxValue) return long.MaxValue;
-        if (f <= long.MinValue) return long.MinValue;
-        return (long) f;
+        if (f >= long.MaxValue || f <= long.MinValue || float.IsNaN(f))
+            throw new OverflowException("i64.trunc_f32_s overflow");
+        return (long)f;
     }
 
     public static ulong I64_TRUNC_F32_U(float f)
     {
-        if (f >= ulong.MaxValue) return ulong.MaxValue;
-        if (f <= ulong.MinValue) return ulong.MinValue;
-        return (ulong) f;
+        if (f >= ulong.MaxValue || f < 0 || float.IsNaN(f))
+            throw new OverflowException("i64.trunc_f32_u overflow");
+        return (ulong)f;
     }
 }
 

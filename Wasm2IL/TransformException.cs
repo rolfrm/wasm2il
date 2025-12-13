@@ -1,9 +1,3 @@
 namespace Wasm2IL;
 
-public class TransformException : Exception
-{
-    public TransformException(string s) : base(s)
-    {
-            
-    }
-}
+public class TransformException(string message) : Exception(message);
