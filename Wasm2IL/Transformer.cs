@@ -290,7 +290,7 @@ namespace Wasm2IL
             Init(asmName, version);
             long codeLoc = 0;
             long elementLoc = 0;
-            while (!reader.ReadToEnd())
+            while (!reader.IsAtEnd)
             {
                 var section = (Section) reader.ReadU8();
                 uint length = reader.ReadU32Leb();
