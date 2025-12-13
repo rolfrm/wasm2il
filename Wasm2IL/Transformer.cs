@@ -283,7 +283,7 @@ namespace Wasm2IL
                 throw new Exception("invalid header");
             var wasmVersion = new byte[4];
             reader.Read(wasmVersion);
-            if (!wasmVersion.SequenceEqual([1, 0, 0, 0]))
+            if (!wasmVersion.SequenceEqual((byte[])[1, 0, 0, 0]))
                 throw new NotSupportedException($"Unsupported wasm version: {BitConverter.ToString(wasmVersion)}");
             Log.WriteLine("Wasm Version: {0}", string.Join(" ", wasmVersion));
 
