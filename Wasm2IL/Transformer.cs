@@ -146,7 +146,6 @@ namespace Wasm2IL
                 }
             }
 
-
             if (importModules.TryGetValue(moduleName, out var t))
             {
                 foreach (var type in t)
@@ -351,16 +350,10 @@ namespace Wasm2IL
                 Assert.AreEqual(next, reader.Position);
             }
 
-
-            foreach (var kv in ImportFuncs
-                         .Where(x => x.Value.Method == null)
-                         .ToArray())
+            foreach (var kv in ImportFuncs.Where(x => x.Value.Method == null).ToArray())
             {
                 var imp = kv.Value;
-
                 var method = ResolveImportedMethod(imp.Module, imp.Name);
-
-
                 if (method != null)
                 {
                     continue;
@@ -423,7 +416,6 @@ namespace Wasm2IL
                 }
             }
 
-
             reader.Position = codeLoc;
             ReadCodeSection(reader);
 
@@ -438,8 +430,6 @@ namespace Wasm2IL
             }
 
             def.Write(outStream);
-
-
             Log.WriteLine($"Output written to {outStream}");
             def.Dispose();
         }
@@ -590,102 +580,36 @@ namespace Wasm2IL
             }
         }
 
+        static readonly Type[] ActionTypes =
+        [
+            typeof(Action), typeof(Action<>), typeof(Action<,>), typeof(Action<,,>),
+            typeof(Action<,,,>), typeof(Action<,,,,>), typeof(Action<,,,,,>), typeof(Action<,,,,,,>),
+            typeof(Action<,,,,,,,>), typeof(Action<,,,,,,,,>), typeof(Action<,,,,,,,,,>)
+        ];
+
+        static readonly Type[] FuncTypes =
+        [
+            typeof(Func<>), typeof(Func<,>), typeof(Func<,,>), typeof(Func<,,,>),
+            typeof(Func<,,,,>), typeof(Func<,,,,,>), typeof(Func<,,,,,,>), typeof(Func<,,,,,,,>),
+            typeof(Func<,,,,,,,,>), typeof(Func<,,,,,,,,,>), typeof(Func<,,,,,,,,,,>)
+        ];
+
         Type typeToFunc(TypeId id)
         {
-            if (id.ParamCount == 0)
-            {
-                if (id.ReturnCount == 0) return typeof(Action);
-                return typeof(Func<>).MakeGenericType(refToType(id.ReturnType));
-            }
-
-            Type baseType;
+            var paramTypes = id.ParamTypes.Select(refToType).ToArray();
             if (id.ReturnCount == 0)
             {
-                switch (id.ParamCount)
-                {
-                    case 1:
-                        baseType = typeof(Action<>);
-                        break;
-                    case 2:
-                        baseType = typeof(Action<,>);
-                        break;
-                    case 3:
-                        baseType = typeof(Action<,,>);
-                        break;
-                    case 4:
-                        baseType = typeof(Action<,,,>);
-                        break;
-                    case 5:
-                        baseType = typeof(Action<,,,,>);
-                        break;
-                    case 6:
-                        baseType = typeof(Action<,,,,,>);
-                        break;
-                    case 7:
-                        baseType = typeof(Action<,,,,,,>);
-                        break;
-                    case 8:
-                        baseType = typeof(Action<,,,,,,,>);
-                        break;
-                    case 9:
-                        baseType = typeof(Action<,,,,,,,,>);
-                        break;
-                    case 10:
-                        baseType = typeof(Action<,,,,,,,,,>);
-                        break;
-                    default:
-                        throw new NotSupportedException();
-                }
-            }
-            else
-            {
-                switch (id.ParamCount)
-                {
-                    case 0:
-                        baseType = typeof(Func<>);
-                        break;
-                    case 1:
-                        baseType = typeof(Func<,>);
-                        break;
-                    case 2:
-                        baseType = typeof(Func<,,>);
-                        break;
-                    case 3:
-                        baseType = typeof(Func<,,,>);
-                        break;
-                    case 4:
-                        baseType = typeof(Func<,,,,>);
-                        break;
-                    case 5:
-                        baseType = typeof(Func<,,,,,>);
-                        break;
-                    case 6:
-                        baseType = typeof(Func<,,,,,,>);
-                        break;
-                    case 7:
-                        baseType = typeof(Func<,,,,,,,>);
-                        break;
-                    case 8:
-                        baseType = typeof(Func<,,,,,,,,>);
-                        break;
-                    case 9:
-                        baseType = typeof(Func<,,,,,,,,,>);
-                        break;
-                    case 10:
-                        baseType = typeof(Func<,,,,,,,,,,>);
-                        break;
-                    default:
-                        throw new NotSupportedException();
-                }
+                if (id.ParamCount >= ActionTypes.Length)
+                    throw new NotSupportedException($"Too many parameters: {id.ParamCount}");
+                return id.ParamCount == 0
+                    ? typeof(Action)
+                    : ActionTypes[id.ParamCount].MakeGenericType(paramTypes);
             }
 
-            if (id.ReturnCount == 0)
-            {
-                return baseType.MakeGenericType(id.ParamTypes.Select(refToType).ToArray());
-            }
-
-            return baseType.MakeGenericType(id.ParamTypes.Select(refToType).Append(refToType(id.ReturnType))
-                .ToArray());
+            if (id.ParamCount >= FuncTypes.Length)
+                throw new NotSupportedException($"Too many parameters: {id.ParamCount}");
+            var allTypes = paramTypes.Append(refToType(id.ReturnType)).ToArray();
+            return FuncTypes[id.ParamCount].MakeGenericType(allTypes);
         }
 
         Type refToType(TypeReference r)
@@ -743,15 +667,6 @@ namespace Wasm2IL
                 il.Emit(IlInstr.Add);
                 for (int i2 = 0; i2 < byteCount; i2++)
                 {
-                    /*if (bc[i2] != 0)
-                    {
-                        il.Emit(IlInstr.Dup);
-                        il.Emit(IlInstr.Ldc_I4, (int) i2 + offset);
-                        il.Emit(IlInstr.Add);
-                        il.Emit(IlInstr.Ldc_I4, (int) bc[i2]);
-                        il.Emit(IlInstr.Stind_I1);
-                    }*/
-
                     if (byteCount - i2 >= 8)
                     {
                         var v = BitConverter.ToInt64(bc.AsSpan(i2, 8));
@@ -786,13 +701,7 @@ namespace Wasm2IL
         {
             public byte Type;
             public Instruction? EndLabel;
-            public bool Forward;
             public Instruction? StartLabel;
-        }
-
-        MethodReference? methodFromName(string name)
-        {
-            return null;
         }
 
         MethodReference? resolveMethod(uint func)
@@ -803,12 +712,9 @@ namespace Wasm2IL
                 if (importFun.Method == null)
                 {
                     var m3 = ResolveImportedMethod(importFun.Module, importFun.Name);
-
-
                     if (m3 != null)
                     {
                         var type2 = Types[(uint) importFun.TypeId];
-
                         var m2 = m3 is MethodReference mr ? mr : def.MainModule.ImportReference((MethodInfo) m3);
 
                         m2 = MaybeWrap(m2);
@@ -835,15 +741,7 @@ namespace Wasm2IL
                         return m2;
                     }
 
-
                     var type = Types[(uint) importFun.TypeId];
-                    var method = methodFromName(importFun.Name);
-                    if (method != null)
-                    {
-                        importFun.Method = method;
-                        return method;
-                    }
-
                     var m = new MethodDefinition(importFun.Name.Replace(":", "_"),
                         MethodAttributes.Static | MethodAttributes.Public,
                         type.ReturnType);
@@ -950,9 +848,6 @@ namespace Wasm2IL
                 }
             }
 
-            HashSet<instr> usedInstructions = [];
-            HashSet<ExtendedInstruction> usedExtendedInstructions = [];
-            HashSet<VectorInstructions> usedVectorInstructions = [];
             Dictionary<object, MethodInfo> callMethods = new();
             foreach (var method in typeof(Lib).GetMethods()
                          .Where(x => x.IsStatic && x.GetCustomAttribute<WasmOpcodeAttribute>() is { } i))
@@ -971,7 +866,6 @@ namespace Wasm2IL
                 cls.Methods.Add(m1);
                 m1.Body.InitLocals = true;
                 var il = m1.Body.GetILProcessor();
-                //il.Emit(IlInstr.Nop);
 
                 var codeSize = reader.ReadU32Leb();
 
@@ -1007,7 +901,6 @@ namespace Wasm2IL
                 while (next > reader.Position)
                 {
                     var instr = (instr) reader.ReadU8();
-                    usedInstructions.Add(instr);
                     bool is64 = instr.ToString().Contains("64");
 
                     OpCode? jmpInstr = null;
@@ -1033,9 +926,9 @@ namespace Wasm2IL
                         case instr.CALL_INDIRECT:
                             var typeidx = reader.ReadU32Leb();
                             var table = reader.ReadU32Leb();
+                            if (table != 0)
+                                throw new NotSupportedException("Multiple tables not supported");
                             var ftp = Types[typeidx];
-                            // function ID is top of the stack.
-                            // store id
 
                             il.Emit(IlInstr.Stloc, ctx.GetHelperVariable(i32Type));
                             for (int _i2 = 0; _i2 < ftp.ParamCount; _i2++)
@@ -1061,8 +954,7 @@ namespace Wasm2IL
                         case instr.BLOCK:
                             var blockType = reader.ReadU8();
                             var endLabel = il.Create(OpCodes.Nop);
-                            var blk = new LabelType
-                                {Type = blockType, EndLabel = endLabel, StartLabel = endLabel, Forward = true};
+                            var blk = new LabelType { Type = blockType, EndLabel = endLabel, StartLabel = endLabel };
                             labelStack.Add(blk);
                             break;
                         case instr.LOOP:
@@ -1153,15 +1045,14 @@ namespace Wasm2IL
                         case instr.LOCAL_SET:
                         case instr.LOCAL_GET:
                         case instr.LOCAL_TEE:
-                            VariableDefinition var = null;
+                            VariableDefinition localVar = null;
                             ParameterDefinition param = null;
                             uint localIndex = reader.ReadU32Leb();
-                            bool isArg = true;
-                            if (localIndex >= ftype.ParamCount)
+                            bool isArg = localIndex < ftype.ParamCount;
+                            if (!isArg)
                             {
-                                isArg = false;
                                 localIndex -= ftype.ParamCount;
-                                var = m1.Body.Variables[(int) localIndex];
+                                localVar = m1.Body.Variables[(int) localIndex];
                             }
                             else
                             {
@@ -1183,19 +1074,15 @@ namespace Wasm2IL
                                             {IlInstr.Ldarg_0, IlInstr.Ldarg_1, IlInstr.Ldarg_2, IlInstr.Ldarg_3}[
                                             localIndex]);
                                     }
+                                    else if (localIndex < 256)
+                                    {
+                                        il.Emit(isArg ? IlInstr.Ldarg_S : IlInstr.Ldloc_S, (byte) localIndex);
+                                    }
                                     else
                                     {
-                                        if (localIndex < 256)
-                                        {
-                                            il.Emit(isArg ? IlInstr.Ldarg_S : IlInstr.Ldloc_S, (byte) localIndex);
-                                        }
-                                        else
-                                        {
-                                            il.Emit(isArg ? IlInstr.Ldarg : IlInstr.Ldloc, (int) localIndex);
-                                        }
+                                        il.Emit(isArg ? IlInstr.Ldarg : IlInstr.Ldloc, (int) localIndex);
                                     }
-
-                                    ctx.PushType(param?.ParameterType ?? var?.VariableType);
+                                    ctx.PushType(param?.ParameterType ?? localVar?.VariableType);
                                     break;
                                 case instr.LOCAL_SET:
                                     if (!isArg && localIndex < 4)
@@ -1246,9 +1133,8 @@ namespace Wasm2IL
                             il.Emit(IlInstr.Ldc_R8, reader.ReadF64());
                             break;
                         case instr.MEMORY_SIZE:
-                            var x = reader.ReadU8();
-                            Assert.AreEqual(0, x);
-
+                            if (reader.ReadU8() != 0)
+                                throw new NotSupportedException("Multiple memories not supported");
                             ctx.PushType(i32Type);
                             ctx.LoadMemory();
                             il.Emit(IlInstr.Ldlen);
@@ -1257,43 +1143,8 @@ namespace Wasm2IL
                             il.Emit(IlInstr.Conv_I4);
                             break;
                         case instr.MEMORY_GROW:
-                            /*
-                            x = reader.ReadU8();
-                            Assert.AreEqual(0, x);
-                            ctx.PopType(1);
-                            ctx.PushType(i32Type);
-                            il.Emit(IlInstr.Ldsfld, memoryField);
-                            il.Emit(IlInstr.Ldlen);
-                            il.Emit(IlInstr.Ldc_I4, (int) page_size);
-                            il.Emit(IlInstr.Div);
-                            il.Emit(IlInstr.Dup);
-                            il.Emit(IlInstr.Stloc, ctx.GetHelperVariable(i32Type));
-
-                            il.Emit(IlInstr.Add); // add the argument pages;
-                            il.Emit(IlInstr.Ldc_I4, (int) page_size);
-                            il.Emit(IlInstr.Mul);
-                            // new page size top stack.
-
-                            il.Emit(IlInstr.Newarr, byteType);
-                            il.Emit(IlInstr.Dup);
-                            il.Emit(IlInstr.Ldc_I8, 0L);
-                            il.Emit(IlInstr.Ldelema, byteType);
-                            il.Emit(IlInstr.Ldsfld, memoryField);
-                            il.Emit(IlInstr.Ldc_I8, 0L);
-                            il.Emit(IlInstr.Ldelema, byteType);
-                            il.Emit(IlInstr.Ldsfld, memoryField);
-                            il.Emit(IlInstr.Ldlen);
-                            il.Emit(IlInstr.Conv_U4);
-                            var mcpy = GetMethodRef(typeof(Unsafe), nameof(Unsafe.CopyBlock), typeof(byte).MakeByRefType(),
-                                typeof(byte).MakeByRefType(),
-                                typeof(uint));
-                            il.Emit(IlInstr.Call, mcpy);
-                            //il.Emit(IlInstr.Cpblk); // copy!
-
-                            il.Emit(IlInstr.Stsfld, memoryField); // store tue duplicate.
-                            il.Emit(IlInstr.Ldloc, ctx.GetHelperVariable(i32Type));*/
-                            throw new NotSupportedException();
-                            break;
+                            reader.ReadU8(); // memory index, must be 0
+                            throw new NotSupportedException("memory.grow is not supported");
                         case instr.I32_LOAD:
                         case instr.I32_LOAD8_S:
                         case instr.I32_LOAD8_U:
@@ -1317,14 +1168,8 @@ namespace Wasm2IL
                         case instr.I64_STORE_16:
                         case instr.F32_STORE:
                         case instr.F64_STORE:
-                            // in the code:
-                            var align = reader.ReadU32Leb(); // align
+                            reader.ReadU32Leb(); // align hint (ignored)
                             var offset = reader.ReadU32Leb();
-                            //stack:
-                            // STORE: [... heap address, value?]
-                            // LOAD: [... heap address]
-
-                            // get the heap
                             VariableDefinition stvar = null;
                             if (instr.ToString().Contains("STORE"))
                             {
@@ -1593,6 +1438,7 @@ namespace Wasm2IL
 
                         case instr.I32_LT_U:
                         case instr.I64_LT_U:
+                            // Peephole: fuse comparison + br_if into a single conditional branch
                             if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
                             {
                                 instr = (instr) reader.ReadU8();
@@ -1694,7 +1540,6 @@ namespace Wasm2IL
                             OpCode cmp = le
                                 ? (unsigned ? IlInstr.Cgt_Un : IlInstr.Cgt)
                                 : (unsigned ? IlInstr.Clt_Un : IlInstr.Clt);
-
 
                             il.Emit(cmp);
                             il.Emit(IlInstr.Ldc_I4_0);
@@ -1952,16 +1797,16 @@ namespace Wasm2IL
                             break;
                         case instr.EXTENDED_INSTRUCTION:
                             var einstr = (ExtendedInstruction) reader.ReadU32Leb();
-                            usedExtendedInstructions.Add(einstr);
                             switch (einstr)
                             {
                                 case ExtendedInstruction.MEMORY_FILL:
-                                    Assert.AreEqual(0, reader.ReadU8());
+                                    if (reader.ReadU8() != 0)
+                                        throw new NotSupportedException("Multiple memories not supported");
                                     EmitCall(il, () => Lib.MemoryFill);
                                     break;
                                 case ExtendedInstruction.MEMORY_COPY:
-                                    Assert.AreEqual(0, reader.ReadU8());
-                                    Assert.AreEqual(0, reader.ReadU8());
+                                    if (reader.ReadU8() != 0 || reader.ReadU8() != 0)
+                                        throw new NotSupportedException("Multiple memories not supported");
                                     EmitCall(il, () => Lib.MemoryCopy);
                                     break;
                                 default:
@@ -1976,10 +1821,8 @@ namespace Wasm2IL
 
                             break;
 
-
                         case instr.VECTOR_INSTRUCTION:
                             var instr2 = (VectorInstructions) reader.ReadU32Leb();
-                            usedVectorInstructions.Add(instr2);
                             switch (instr2)
                             {
                                 case VectorInstructions.V128_STORE:
@@ -1994,7 +1837,7 @@ namespace Wasm2IL
 
                                     ctx.LoadMemory();
                                     il.Emit(IlInstr.Add);
-                                    var align2 = reader.ReadU32Leb(); // align
+                                    reader.ReadU32Leb(); // align hint (ignored)
                                     var offset3 = reader.ReadU32Leb();
 
                                     if (offset3 != 0)
@@ -2037,9 +1880,7 @@ namespace Wasm2IL
 
                                     break;
 
-
                                 case VectorInstructions.I8X16_SHUFFLE:
-
                                     void LoadV128ShuffleCode()
                                     {
                                         Span<byte> buffer = stackalloc byte[16];
@@ -2146,7 +1987,7 @@ namespace Wasm2IL
                                 case VectorInstructions.V128_LOAD32_ZERO:
                                 {
                                     ctx.PopType(1);
-                                    var align2 = reader.ReadU32Leb();
+                                    reader.ReadU32Leb(); // align hint (ignored)
                                     var offset3 = reader.ReadU32Leb();
                                     ctx.LoadMemory();
                                     il.Emit(IlInstr.Add);
@@ -2186,8 +2027,8 @@ namespace Wasm2IL
                                 case VectorInstructions.V128_LOAD32_SPLAT:
                                 case VectorInstructions.V128_LOAD64_SPLAT:
                                 {
-                                    var __t = ctx.PopType(1);
-                                    var align2 = reader.ReadU32Leb();
+                                    ctx.PopType(1);
+                                    reader.ReadU32Leb(); // align hint (ignored)
                                     var offset3 = reader.ReadU32Leb();
                                     ctx.LoadMemory();
                                     il.Emit(IlInstr.Add);
@@ -2231,8 +2072,7 @@ namespace Wasm2IL
                                     stvar = ctx.GetHelperVariable(v128Type);
                                     il.Emit(IlInstr.Stloc, stvar);
                                     ctx.PopType(1);
-
-                                    var align2 = reader.ReadU32Leb();
+                                    reader.ReadU32Leb(); // align hint (ignored)
                                     var offset3 = reader.ReadU32Leb();
                                     var lane = reader.ReadU8();
                                     ctx.LoadMemory();
@@ -2306,17 +2146,8 @@ namespace Wasm2IL
                         il.Emit(IlInstr.Ret);
                 }
 
-
                 next: ;
             }
-
-
-            List<object> allOpcodes = [];
-            allOpcodes.AddRange(usedInstructions);
-            allOpcodes.AddRange(usedVectorInstructions);
-            allOpcodes.AddRange(usedExtendedInstructions);
-
-            return;
         }
 
         private Dictionary<MethodReference, MethodReference> wrappedMethods = new();
@@ -2399,7 +2230,6 @@ namespace Wasm2IL
                 argidx += 1;
             }
 
-
             il2.Emit(OpCodes.Call, m);
             if (m.ReturnType.IsPointer)
             {
@@ -2454,20 +2284,16 @@ namespace Wasm2IL
             }
         }
 
-
-        TypeReference ByteToTypeReference(byte b)
+        // WASM valtype encoding
+        TypeReference ByteToTypeReference(byte b) => b switch
         {
-            switch (b)
-            {
-                case 0x7F: return def.MainModule.TypeSystem.Int32;
-                case 0x7E: return def.MainModule.TypeSystem.Int64;
-                case 0x7D: return def.MainModule.TypeSystem.Single;
-                case 0x7C: return def.MainModule.TypeSystem.Double;
-                case 123: return v128Type;
-                default:
-                    throw new Exception("Invalid type " + b);
-            }
-        }
+            0x7F => def.MainModule.TypeSystem.Int32,  // i32
+            0x7E => def.MainModule.TypeSystem.Int64,  // i64
+            0x7D => def.MainModule.TypeSystem.Single, // f32
+            0x7C => def.MainModule.TypeSystem.Double, // f64
+            0x7B => v128Type,                         // v128
+            _ => throw new Exception($"Invalid valtype 0x{b:X2}")
+        };
 
         void ReadGlobalSection(BinReader reader)
         {
@@ -2539,7 +2365,6 @@ namespace Wasm2IL
             Log.WriteLine("Globals: {0}", globals.Count);
         }
 
-
         unsafe void ReadMemorySection(BinReader reader)
         {
             var memCount = reader.ReadU32Leb();
@@ -2593,7 +2418,6 @@ namespace Wasm2IL
             reference = MaybeWrap(reference);
             gen.Emit(OpCodes.Call, reference);
         }
-
 
         void ReadFunctionSection(BinReader reader)
         {
