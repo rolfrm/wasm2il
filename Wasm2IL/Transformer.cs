@@ -478,7 +478,7 @@ namespace Wasm2IL
                 }
 
                 Assert.AreEqual(Wasm.Instruction.I32_CONST, instr2);
-                var offset = reader.ReadU32Leb();
+                var elementOffset = reader.ReadU32Leb();
                 var end = (instr) reader.ReadU8();
                 if (end != instr.END)
                     throw new Exception("Expected END opcode");
@@ -494,7 +494,7 @@ namespace Wasm2IL
                 for (var i2 = 0; i2 < fncCnt; i2++)
                 {
                     il.Emit(OpCodes.Ldsfld, functionTable);
-                    il.Emit(OpCodes.Ldc_I4, (int) i2 + 1);
+                    il.Emit(OpCodes.Ldc_I4, (int)(i2 + elementOffset));
 
                     il.Emit(OpCodes.Ldnull);
                     var funcId = reader.ReadU32Leb();
@@ -707,7 +707,6 @@ namespace Wasm2IL
                         MethodAttributes.Static | MethodAttributes.Public, type.ReturnType);
                     foreach (var param in type.ParamTypes)
                         m.Parameters.Add(new ParameterDefinition(param));
-                    m.Body.InitLocals = true;
                     var il = m.Body.GetILProcessor();
                     il.Emit(IlInstr.Ldstr, $"{importFun.Name} not implemented");
                     il.Emit(IlInstr.Newobj, ResolveTypeConstructor(typeof(Exception), typeof(string)));
@@ -724,24 +723,7 @@ namespace Wasm2IL
 
             return FuncDecl[func - (uint) ImportFuncs.Count].Method;
         }
-
-        void EmitLdc(ILProcessor il, int cint)
-        {
-            OpCode? shortForm = cint switch
-            {
-                -1 => IlInstr.Ldc_I4_M1, 0 => IlInstr.Ldc_I4_0, 1 => IlInstr.Ldc_I4_1,
-                2 => IlInstr.Ldc_I4_2, 3 => IlInstr.Ldc_I4_3, 4 => IlInstr.Ldc_I4_4,
-                5 => IlInstr.Ldc_I4_5, 6 => IlInstr.Ldc_I4_6, 7 => IlInstr.Ldc_I4_7,
-                8 => IlInstr.Ldc_I4_8, _ => null
-            };
-            if (shortForm is { } op)
-                il.Emit(op);
-            else if (cint is > -128 and < 128)
-                il.Emit(IlInstr.Ldc_I4_S, (sbyte) cint);
-            else
-                il.Emit(IlInstr.Ldc_I4, cint);
-        }
-
+        
         Type InstrType(instr instruction, bool unsigned = false)
         {
             var s = instruction.ToString();
@@ -810,7 +792,6 @@ namespace Wasm2IL
                 var m1 = funcId.Method;
 
                 cls.Methods.Add(m1);
-                m1.Body.InitLocals = true;
                 var il = m1.Body.GetILProcessor();
 
                 var codeSize = reader.ReadU32Leb();
@@ -836,8 +817,7 @@ namespace Wasm2IL
 
                 m1.Body.Variables.Add(new VariableDefinition(def.MainModule.TypeSystem.Int32)); // heapaddr
                 m1.Body.Variables.Add(heapVar);
-                m1.Body.InitLocals = true;
-
+                
                 var labelStack = new List<LabelType>();
                 labelStack.Add(new LabelType());
 
@@ -1057,7 +1037,7 @@ namespace Wasm2IL
                         case instr.I32_CONST:
                         {
                             var cint = (int) reader.ReadI64Leb();
-                            EmitLdc(il, cint);
+                            il.Emit(IlInstr.Ldc_I4, cint);
 
                             ctx.PushType(i32Type);
                             break;
@@ -1135,15 +1115,17 @@ namespace Wasm2IL
                                 ctx.PopType(1);
                             }
 
-                            ctx.LoadMemory();
-                            il.Emit(IlInstr.Add);
-
                             // adjust according to the offset 
                             if (offset != 0)
                             {
-                                EmitLdc(il, (int) offset);
+                                il.Emit(IlInstr.Ldc_I4, (int)offset);
                                 il.Emit(IlInstr.Add);
                             }
+                            
+                            ctx.LoadMemory();
+                            il.Emit(IlInstr.Add);
+
+                            
 
                             switch (instr)
                             {
