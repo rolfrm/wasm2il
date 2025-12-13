@@ -1,10 +1,7 @@
 namespace Wasm2IL.Utils;
 
-internal class Log
+internal static class Log
 {
-    public static void WriteLine(string information, params object[] args)
-    {
-        
-        Console.WriteLine(information, args);
-    }
+    public static void WriteLine(string format, params object[] args) =>
+        Console.WriteLine(format, args);
 }

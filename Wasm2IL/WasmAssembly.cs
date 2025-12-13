@@ -8,90 +8,93 @@ namespace Wasm2IL;
 
 public class WasmAssembly
 {
-    public string Name => code.Name;
-    private readonly Assembly asm;
-    private readonly Type code;
-    private readonly MethodInfo malloc;
-    private readonly MethodInfo free;
-    private readonly FieldInfo memory;
-    private readonly FieldInfo memorySize;
-    private readonly FieldInfo functionTable;
-    private object[] functionTableArray;
-    private List<int> freeFunctions = new();
+    static readonly AssemblyBuilder AsmBuilder = AssemblyBuilder.DefineDynamicAssembly(
+        new AssemblyName("WasmWrapper"), AssemblyBuilderAccess.RunAndCollect);
+    static readonly ModuleBuilder ModuleBuilder = AsmBuilder.DefineDynamicModule("MainModule");
 
+    readonly Assembly asm;
+    readonly Type code;
+    readonly MethodInfo? malloc;
+    readonly MethodInfo? free;
+    readonly FieldInfo memory;
+    readonly FieldInfo memorySize;
+    readonly FieldInfo? functionTable;
+    readonly List<int> freeFunctions = new();
+    object[]? functionTableArray;
+
+    public string Name => code.Name;
     public Assembly Assembly => asm;
-    
+
     public WasmAssembly(Assembly asm)
     {
         this.asm = asm;
-        code = asm.ExportedTypes.FirstOrDefault();
+        code = asm.ExportedTypes.FirstOrDefault()
+            ?? throw new InvalidOperationException("No exported types in assembly");
         malloc = code.GetMethod("malloc");
         free = code.GetMethod("free");
-        memory = code.GetField("Memory");
-        memorySize = code.GetField("MemorySize");
+        memory = code.GetField("Memory")
+            ?? throw new InvalidOperationException("Memory field not found");
+        memorySize = code.GetField("MemorySize")
+            ?? throw new InvalidOperationException("MemorySize field not found");
         functionTable = code.GetField("FunctionTable");
-        
     }
 
     public int AssignCallbackFunction(Delegate d)
     {
+        if (functionTable == null)
+            throw new InvalidOperationException("FunctionTable not available");
+
         functionTableArray ??= functionTable.GetValue(null) as object[] ?? [];
-        if (freeFunctions.Any())
+
+        if (freeFunctions.Count > 0)
         {
-            var idx = freeFunctions.Last();
+            var idx = freeFunctions[^1];
             freeFunctions.RemoveAt(freeFunctions.Count - 1);
             functionTableArray[idx] = d;
             return idx;
         }
-        else
-        {
-            var idx = functionTableArray.Length;
-            functionTableArray = [.. functionTableArray, null];
-            functionTableArray[idx] = d;
-            functionTable.SetValue(null, functionTableArray);
-            return idx;
-        }
+
+        var newIdx = functionTableArray.Length;
+        functionTableArray = [.. functionTableArray, d];
+        functionTable.SetValue(null, functionTableArray);
+        return newIdx;
     }
 
     public void FreeCallbackFunction(int idx)
     {
-        functionTableArray ??= functionTable.GetValue(null) as object[];
-        functionTableArray[idx] = null;
+        if (functionTableArray == null)
+            throw new InvalidOperationException("FunctionTable not initialized");
+        functionTableArray[idx] = null!;
         freeFunctions.Add(idx);
     }
 
     public int Malloc(int len)
     {
         if (malloc == null)
-        {
             return FakeMalloc(len);
-        }
-        int ptr = (int)malloc.Invoke(null, [len]);
-        return ptr;
+        return (int)malloc.Invoke(null, [len])!;
     }
 
     public void Free(int ptr)
     {
-        if (malloc == null)
-            return;
-            // leak
+        if (free == null) return;
         free.Invoke(null, [ptr]);
     }
 
     public unsafe int FakeMalloc(int len)
     {
-        var p = new IntPtr(Pointer.Unbox(code.GetField("Memory").GetValue(null))); 
-        int memSize = (int)memorySize.GetValue(null);
-        
-        code.GetField("MemorySize").SetValue(null, memSize + len);
+        int memSize = (int)memorySize.GetValue(null)!;
+        memorySize.SetValue(null, memSize + len);
         return memSize;
     }
 
     public unsafe Span<byte> GetHeap()
     {
-        return  new Span<byte>((Pointer.Unbox(memory.GetValue(null))), 
-            (int)code.GetField("MemorySize").GetValue(null));
+        var ptr = Pointer.Unbox(memory.GetValue(null)!);
+        var size = (int)memorySize.GetValue(null)!;
+        return new Span<byte>(ptr, size);
     }
+
     public static int StringByteLength(string str) => System.Text.Encoding.UTF8.GetByteCount(str);
 
     public static unsafe void StringToHeap2(byte* buffer, string str)
@@ -101,7 +104,7 @@ public class WasmAssembly
         span[bc] = 0;
         System.Text.Encoding.UTF8.GetBytes(str, span);
     }
-    
+
     public int StringToHeap(string str)
     {
         var bc = System.Text.Encoding.UTF8.GetByteCount(str);
@@ -112,116 +115,104 @@ public class WasmAssembly
         return s;
     }
 
-    public object Invoke(string methodName, params object[] args)
+    public object? Invoke(string methodName, params object[] args)
     {
-        
         var toFree = ImmutableList<int>.Empty;
-        var fcnToFree = ImmutableList<int>.Empty; 
-        
+        var fcnToFree = ImmutableList<int>.Empty;
+
         for (int i = 0; i < args.Length; i++)
         {
             if (args[i] is string str)
             {
                 var ptr = StringToHeap(str);
-                args[i] = ptr; 
+                args[i] = ptr;
                 toFree = toFree.Add(ptr);
             }
-
-            if (args[i] is Delegate d)
+            else if (args[i] is Delegate d)
             {
-                var idx =  AssignCallbackFunction(d);
+                var idx = AssignCallbackFunction(d);
                 args[i] = idx;
                 fcnToFree = fcnToFree.Add(idx);
-
             }
         }
-        var m = code.GetMethod(methodName);
-        var result = m
-            .Invoke(null, args);
+
+        var m = code.GetMethod(methodName)
+            ?? throw new InvalidOperationException($"Method '{methodName}' not found");
+        var result = m.Invoke(null, args);
+
         foreach (var ptr in toFree)
             Free(ptr);
         foreach (var fcn in fcnToFree)
             FreeCallbackFunction(fcn);
+
         return result;
     }
 
-    public MethodInfo GetMethod(string name)
-    {
-        return code.GetMethod(name);
-    }
-    
-    public FieldInfo GetField(string name)
-    {
-        return code.GetField(name);
-    }
+    public MethodInfo? GetMethod(string name) => code.GetMethod(name);
+    public FieldInfo? GetField(string name) => code.GetField(name);
 
-    public Span<byte> GetHeapSpan(int i, int len)
-    {
-        return GetHeap().Slice(i, len);
-    }
-    public Span<T> GetHeapSpan<T>(int i, int len) where T: struct
-    {
-        return MemoryMarshal.Cast<byte, T>(GetHeap().Slice(i, len * Marshal.SizeOf<T>()));
-    }
+    public Span<byte> GetHeapSpan(int i, int len) => GetHeap().Slice(i, len);
 
-    public T GetHeapObject<T>(int ptr) where T: struct
+    public Span<T> GetHeapSpan<T>(int i, int len) where T : struct =>
+        MemoryMarshal.Cast<byte, T>(GetHeap().Slice(i, len * Marshal.SizeOf<T>()));
+
+    public T GetHeapObject<T>(int ptr) where T : struct
     {
         var size = Marshal.SizeOf<T>();
-        Span<byte> bytes = GetHeapSpan(ptr, size);
-        Span<T> typedSpan = MemoryMarshal.Cast<byte, T>(bytes);
-        return typedSpan[0];
+        return MemoryMarshal.Cast<byte, T>(GetHeapSpan(ptr, size))[0];
     }
 
-    public string GetHeapString(int ptr)
-    {
-        return new CString(GetHeap(), ptr).ToString();
-    }
+    public string GetHeapString(int ptr) => new CString(GetHeap(), ptr).ToString();
 
-    public static int ReadOnlySpanLength(ReadOnlySpan<byte> span) =>  span.Length;
-    public static int SpanLength(Span<byte> span) =>  span.Length;
-    public static unsafe void CopyFromSpan(byte * data, Span<byte> span)
-    {
+    public static int ReadOnlySpanLength(ReadOnlySpan<byte> span) => span.Length;
+    public static int SpanLength(Span<byte> span) => span.Length;
+
+    public static unsafe void CopyFromSpan(byte* data, Span<byte> span) =>
         span.CopyTo(new Span<byte>(data, span.Length));
-    }
-    public static unsafe void CopyFromReadOnlySpan(byte * data, ReadOnlySpan<byte> span)
-    {
+
+    public static unsafe void CopyFromReadOnlySpan(byte* data, ReadOnlySpan<byte> span) =>
         span.CopyTo(new Span<byte>(data, span.Length));
-    }
-    public static unsafe void CopyToSpan(Span<byte> span, byte * data)
-    {
+
+    public static unsafe void CopyToSpan(Span<byte> span, byte* data) =>
         new Span<byte>(data, span.Length).CopyTo(span);
+
+    public object? LookupFunction(int i)
+    {
+        var ftable = code.GetField("FunctionTable", BindingFlags.Static | BindingFlags.NonPublic)
+            ?.GetValue(null) as Array;
+        return ftable?.GetValue(i);
     }
 
-    public object LookupFunction(int i)
-    {
-        var ftable = (Array)code.GetField("FunctionTable", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
-        return ftable.GetValue(i);
-    }
-    static AssemblyBuilder asmBuilder = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("asdasd"), AssemblyBuilderAccess.RunAndCollect);
-    private static ModuleBuilder moduleBuilder = asmBuilder.DefineDynamicModule("MainModule");
     public T AsImplementation<T>()
     {
         var t = typeof(T);
-        if (t.IsInterface == false)
-            throw new ArgumentException("T");
+        if (!t.IsInterface)
+            throw new ArgumentException($"Type {t.Name} must be an interface", nameof(T));
+
         var typeName = t.Name + "Wrapper";
-        
-        if (moduleBuilder.GetType(typeName) is { } existingType)
-            return (T) Activator.CreateInstance(existingType);
-        
-        var typeBuilder = moduleBuilder.DefineType(t.Name + "Wrapper");
+
+        if (ModuleBuilder.GetType(typeName) is { } existingType)
+            return (T)Activator.CreateInstance(existingType)!;
+
+        var typeBuilder = ModuleBuilder.DefineType(typeName);
         typeBuilder.AddInterfaceImplementation(typeof(T));
+
         foreach (var method in typeof(T).GetMethods())
-        {   
-            var wasmAttr = method.GetCustomAttribute<WasmAttribute>();
-            if (wasmAttr == null)
-                wasmAttr = new WasmAttribute(method.Name);
-                
+        {
+            var wasmAttr = method.GetCustomAttribute<WasmAttribute>() ?? new WasmAttribute(method.Name);
+            var targetName = wasmAttr.ExportName ?? method.Name;
+
             var staticMethod = code.GetMethods(BindingFlags.Static | BindingFlags.Public)
-                .FirstOrDefault(m => m.Name == (wasmAttr.ExportName ?? method.Name));
-            
-            if (staticMethod == null)
-                throw new InvalidOperationException($"Static method {wasmAttr.ExportName ?? method.Name} not found in {code.Name}");
+                .FirstOrDefault(m => m.Name == targetName)
+                ?? throw new ImplementException($"Static method '{targetName}' not found in {code.Name}");
+
+            if (method.ReturnType == typeof(void) && staticMethod.ReturnType != typeof(void))
+                throw new ImplementException(
+                    $"Interface specifies void return but {staticMethod.Name} returns a value");
+
+            if (method.ReturnType != typeof(void) && staticMethod.ReturnType == typeof(void))
+                throw new ImplementException(
+                    $"Interface specifies return value but {staticMethod.Name} returns void");
 
             var methodBuilder = typeBuilder.DefineMethod(
                 method.Name,
@@ -230,124 +221,94 @@ public class WasmAssembly
                 method.GetParameters().Select(p => p.ParameterType).ToArray());
 
             var il = methodBuilder.GetILGenerator();
-            if (method.ReturnType == typeof(void) && staticMethod.ReturnType != typeof(void))
-            {
-                throw new ImplementException(
-                    $"API Specifies return void, but function {staticMethod.Name} returns a value.");
-            }
-            if (method.ReturnType != typeof(void) && staticMethod.ReturnType == typeof(void))
-            {
-                throw new ImplementException(
-                    $"API Specifies returning a value, but function {staticMethod.Name} returns void.");
-            }
+
             if (method.ReturnType.IsPointer)
-            {
                 il.Emit(OpCodes.Ldsfld, memory);
-            }
-            // Load parameters
-            var paramters = method.GetParameters();
+
+            var parameters = method.GetParameters();
             List<LocalBuilder> freeLocals = new();
-            List<(LocalBuilder, int)> copyBack = new(); 
-            for (int i = 0; i < paramters.Length; i++)
+            List<(LocalBuilder, int)> copyBack = new();
+
+            for (int i = 0; i < parameters.Length; i++)
             {
-                var p = paramters[i];
+                var p = parameters[i];
                 if (p.ParameterType == typeof(string))
                 {
                     var loc = il.DeclareLocal(typeof(int));
                     freeLocals.Add(loc);
                     il.Emit(OpCodes.Ldarg, i + 1);
-                    var lm = GetType().GetMethod(nameof(StringByteLength));
-                    il.EmitCall(OpCodes.Call, lm, null);
+                    il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(StringByteLength))!, null);
                     il.Emit(OpCodes.Ldc_I4_1);
                     il.Emit(OpCodes.Add);
-                    
-                    il.EmitCall(OpCodes.Call, malloc, null);
+                    il.EmitCall(OpCodes.Call, malloc!, null);
                     il.Emit(OpCodes.Dup);
                     il.Emit(OpCodes.Dup);
                     il.Emit(OpCodes.Stloc, loc);
-                 
-                    il.Emit(OpCodes.Ldsfld, memory);   
+                    il.Emit(OpCodes.Ldsfld, memory);
                     il.Emit(OpCodes.Add);
-                    
-                    var stringmethod = GetType().GetMethod(nameof(StringToHeap2));
                     il.Emit(OpCodes.Ldarg, i + 1);
-                    il.EmitCall(OpCodes.Call, stringmethod, [typeof(byte*), typeof(string)]);
-                }else if (p.ParameterType == typeof(Span<byte>))
+                    il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(StringToHeap2))!, [typeof(byte*), typeof(string)]);
+                }
+                else if (p.ParameterType == typeof(Span<byte>))
                 {
                     var loc = il.DeclareLocal(typeof(int));
                     il.Emit(OpCodes.Ldsfld, memory);
-                    
                     il.Emit(OpCodes.Ldarg, i + 1);
-                    il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(SpanLength)), null);
-                    il.EmitCall(OpCodes.Call, malloc, null);
+                    il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(SpanLength))!, null);
+                    il.EmitCall(OpCodes.Call, malloc!, null);
                     il.Emit(OpCodes.Dup);
                     il.Emit(OpCodes.Stloc, loc);
                     freeLocals.Add(loc);
-                    
                     il.Emit(OpCodes.Add);
                     il.Emit(OpCodes.Ldarg, i + 1);
-                    il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(CopyFromSpan)), null);
+                    il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(CopyFromSpan))!, null);
                     il.Emit(OpCodes.Ldloc, loc);
-
                     copyBack.Add((loc, i + 1));
-                    // copy the data to a
-                }else if (p.ParameterType == typeof(ReadOnlySpan<byte>))
+                }
+                else if (p.ParameterType == typeof(ReadOnlySpan<byte>))
                 {
                     var loc = il.DeclareLocal(typeof(int));
                     il.Emit(OpCodes.Ldarg, i + 1);
-                    il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(ReadOnlySpanLength)), null);
-                    il.EmitCall(OpCodes.Call, malloc, null);
+                    il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(ReadOnlySpanLength))!, null);
+                    il.EmitCall(OpCodes.Call, malloc!, null);
                     il.Emit(OpCodes.Dup);
                     il.Emit(OpCodes.Stloc, loc);
                     freeLocals.Add(loc);
                     il.Emit(OpCodes.Ldsfld, memory);
                     il.Emit(OpCodes.Add);
                     il.Emit(OpCodes.Ldarg, i + 1);
-                    il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(CopyFromReadOnlySpan)), null);
+                    il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(CopyFromReadOnlySpan))!, null);
                     il.Emit(OpCodes.Ldloc, loc);
                 }
                 else if (p.ParameterType.IsAssignableTo(typeof(Delegate)))
                 {
-                    throw new ImplementException(
-                        "Delegates not yet supported in this API. They can be wrabbed manually");
-
+                    throw new ImplementException("Delegates not yet supported. They can be wrapped manually.");
+                }
+                else if (p.ParameterType.IsPointer)
+                {
+                    il.Emit(OpCodes.Ldarg, i + 1);
+                    il.Emit(OpCodes.Ldsfld, memory);
+                    il.Emit(OpCodes.Sub);
                 }
                 else
                 {
-                    if (p.ParameterType.IsPointer)
-                    {
-                        il.Emit(OpCodes.Ldarg, i + 1);
-                        il.Emit(OpCodes.Ldsfld, memory);
-                        il.Emit(OpCodes.Sub);
-                        
-                    }
-                    else
-                    {
-                        il.Emit(OpCodes.Ldarg, i + 1);
-                    }
-
+                    il.Emit(OpCodes.Ldarg, i + 1);
                 }
             }
 
-            LocalBuilder retLoc = null;
-            // Call the static method
+            LocalBuilder? retLoc = null;
             il.Emit(OpCodes.Call, staticMethod);
 
             foreach (var (l, idx) in copyBack)
             {
-                
-                // get the span
                 il.Emit(OpCodes.Ldarg, idx);
-                
-                // get the byte pointer address
                 il.Emit(OpCodes.Ldloc, l);
                 il.Emit(OpCodes.Ldsfld, memory);
                 il.Emit(OpCodes.Add);
-                // copy back to the span.
-                il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(CopyToSpan)), null);
-                
+                il.EmitCall(OpCodes.Call, GetType().GetMethod(nameof(CopyToSpan))!, null);
             }
-            if (freeLocals.Any())
+
+            if (freeLocals.Count > 0)
             {
                 if (staticMethod.ReturnType != typeof(void))
                 {
@@ -358,7 +319,7 @@ public class WasmAssembly
                 foreach (var local in freeLocals)
                 {
                     il.Emit(OpCodes.Ldloc, local);
-                    il.Emit(OpCodes.Call, free);
+                    il.Emit(OpCodes.Call, free!);
                 }
             }
 
@@ -371,14 +332,11 @@ public class WasmAssembly
             typeBuilder.DefineMethodOverride(methodBuilder, method);
         }
 
-        return (T) Activator.CreateInstance(typeBuilder.CreateType());
+        return (T)Activator.CreateInstance(typeBuilder.CreateType()!)!;
     }
 }
 
 public class ImplementException : Exception
 {
-    public ImplementException(string s) : base(s)
-    {
-        
-    }
+    public ImplementException(string s) : base(s) { }
 }

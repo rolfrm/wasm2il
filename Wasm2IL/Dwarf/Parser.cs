@@ -2,74 +2,48 @@ namespace Wasm2IL.Dwarf;
 
 internal class Parser
 {
-    public class AbbreviationTable
-    {
-        public Dictionary<ulong, Abbreviation> AbbreviationData = new();
-        
-        public void Add(Abbreviation abbrev)
-        {
-            AbbreviationData[abbrev.Code] = abbrev;
-        }
-        
-        public Abbreviation? GetAbbreviation(ulong code)
-        {
-            return AbbreviationData.TryGetValue(code, out var abbrev) ? abbrev : null;
-        }
-    }
-    public List<DwarfCompilationUnit> ParseDebugInfo(BinReader _reader)
+    readonly AbbreviationTable _abbreviationTable = new();
+    int _addressSize = 4;
+
+    public List<DwarfCompilationUnit> ParseDebugInfo(BinReader reader)
     {
         var compilationUnits = new List<DwarfCompilationUnit>();
-
-        while (_reader.ReadToEnd() == false)
+        while (!reader.IsAtEnd)
         {
-            var cu = ParseCompilationUnit(_reader);
+            var cu = ParseCompilationUnit(reader);
             if (cu == null) break;
             compilationUnits.Add(cu);
         }
-
         return compilationUnits;
     }
 
-    private DwarfCompilationUnit ParseCompilationUnit(BinReader _reader)
+    DwarfCompilationUnit? ParseCompilationUnit(BinReader reader)
     {
-        
-        // Read compilation unit header
-        var unitLength = _reader.ReadU32();
-        if (unitLength == 0) return null; // End of debug_info
+        var unitLength = reader.ReadU32();
+        if (unitLength == 0) return null;
 
-        var version = _reader.ReadU16();
-        var debugAbbrevOffset = _reader.ReadU32();
-        var addressSize = _reader.ReadByte();
+        var version = reader.ReadU16();
+        var debugAbbrevOffset = reader.ReadU32();
+        var addressSize = reader.ReadByte();
 
         _addressSize = addressSize;
 
-        var cu = new DwarfCompilationUnit
+        return new DwarfCompilationUnit
         {
             UnitLength = unitLength,
             Version = version,
             DebugAbbrevOffset = debugAbbrevOffset,
-            AddressSize = addressSize
+            AddressSize = addressSize,
+            RootDIE = ParseDIE(reader)
         };
-
-        // Parse the DIE tree (root should be DW_TAG_compile_unit)
-        cu.RootDIE = ParseDIE(_reader);
-
-        return cu;
     }
 
-    private AbbreviationTable _abbreviationTable = new();
     public void ParseAbbrev(BinReader reader)
     {
-        var table = _abbreviationTable;
-        
         while (true)
         {
             var code = reader.ReadU64Leb();
-            if (code == 0) 
-            {
-                // End of abbreviation table
-                break;
-            }
+            if (code == 0) break;
 
             var tag = (DwarfTag)reader.ReadU64Leb();
             var hasChildren = reader.ReadByte() == 1;
@@ -81,68 +55,47 @@ internal class Parser
                 HasChildren = hasChildren
             };
 
-            // Read attributes until we hit 0, 0
             while (true)
             {
                 var attrName = (AttributeEncoding)reader.ReadU64Leb();
-                var attrForm = (DwarfForm) reader.ReadU64Leb();
-
-                if (attrName == 0 && attrForm == 0) 
-                {
-                    // End of this abbreviation's attributes
-                    break;
-                }
-
+                var attrForm = (DwarfForm)reader.ReadU64Leb();
+                if (attrName == 0 && attrForm == 0) break;
                 abbrev.Attributes.Add(new AttributeData(attrName, attrForm));
             }
 
-            table.Add(abbrev);
+            _abbreviationTable.Add(abbrev);
         }
-
     }
-    DwarfDIE ParseDIE(BinReader reader)
+
+    DwarfDIE? ParseDIE(BinReader reader)
     {
         var abbreviationCode = reader.ReadU64Leb();
-        
-        if (abbreviationCode == 0)
-        {
-            // Null entry - signals end of children
-            return null;
-        }
+        if (abbreviationCode == 0) return null;
 
-        var abbreviation = _abbreviationTable.GetAbbreviation(abbreviationCode);
-        if (abbreviation == null)
-        {
-            throw new InvalidDataException($"Unknown abbreviation code: {abbreviationCode}");
-        }
+        var abbreviation = _abbreviationTable.GetAbbreviation(abbreviationCode)
+            ?? throw new InvalidDataException($"Unknown abbreviation code: {abbreviationCode}");
 
         var die = new DwarfDIE
         {
             AbbreviationCode = abbreviationCode,
             Tag = abbreviation.Tag
         };
-        if (die.Tag == DwarfTag.DW_TAG_formal_parameter)
-        {
-            
-        }
-        // Read all attributes for this DIE
+
         foreach (var attrSpec in abbreviation.Attributes)
         {
-            var value = ReadAttributeValue(reader, attrSpec.Form);
             die.Attributes[attrSpec.Name] = new DwarfAttributeValue
             {
                 Form = attrSpec.Form,
-                Value = value
+                Value = ReadAttributeValue(reader, attrSpec.Form)
             };
         }
 
-        // If this DIE has children, parse them recursively
         if (abbreviation.HasChildren)
         {
             while (true)
             {
                 var child = ParseDIE(reader);
-                if (child == null) break; // Null entry = end of children
+                if (child == null) break;
                 die.Children.Add(child);
             }
         }
@@ -150,131 +103,60 @@ internal class Parser
         return die;
     }
 
-    private object ReadAttributeValue(BinReader _reader, DwarfForm form)
+    object ReadAttributeValue(BinReader reader, DwarfForm form) => form switch
     {
-        switch (form)
-        {
-            case DwarfForm.DW_FORM_addr:
-                return ReadAddress(_reader);
+        DwarfForm.DW_FORM_addr => ReadAddress(reader),
+        DwarfForm.DW_FORM_block1 => reader.ReadBytes(reader.ReadByte()),
+        DwarfForm.DW_FORM_block2 => reader.ReadBytes(reader.ReadU16()),
+        DwarfForm.DW_FORM_block4 => reader.ReadBytes((int)reader.ReadU32()),
+        DwarfForm.DW_FORM_block => reader.ReadBytes((int)reader.ReadU64Leb()),
+        DwarfForm.DW_FORM_data1 => reader.ReadByte(),
+        DwarfForm.DW_FORM_data2 => reader.ReadU16(),
+        DwarfForm.DW_FORM_data4 => reader.ReadU32(),
+        DwarfForm.DW_FORM_data8 => reader.ReadU64(),
+        DwarfForm.DW_FORM_sdata => reader.ReadSLeb64(),
+        DwarfForm.DW_FORM_udata => reader.ReadU64Leb(),
+        DwarfForm.DW_FORM_string => ReadNullTerminatedString(reader),
+        DwarfForm.DW_FORM_strp => reader.ReadU32(),
+        DwarfForm.DW_FORM_flag => reader.ReadByte() != 0,
+        DwarfForm.DW_FORM_flag_present => true,
+        DwarfForm.DW_FORM_ref1 => reader.ReadByte(),
+        DwarfForm.DW_FORM_ref2 => reader.ReadU16(),
+        DwarfForm.DW_FORM_ref4 => reader.ReadU32(),
+        DwarfForm.DW_FORM_ref8 => reader.ReadU64(),
+        DwarfForm.DW_FORM_ref_udata => reader.ReadU64Leb(),
+        DwarfForm.DW_FORM_ref_addr => ReadAddress(reader),
+        DwarfForm.DW_FORM_ref_sig8 => reader.ReadU64(),
+        DwarfForm.DW_FORM_sec_offset => reader.ReadU32(),
+        DwarfForm.DW_FORM_exprloc => reader.ReadBytes((int)reader.ReadU64Leb()),
+        DwarfForm.DW_FORM_indirect => ReadAttributeValue(reader, (DwarfForm)reader.ReadU64Leb()),
+        _ => throw new NotImplementedException($"DWARF form {form} not implemented")
+    };
 
-            case DwarfForm.DW_FORM_block1:
-                {
-                    var length = _reader.ReadByte();
-                    return _reader.ReadBytes(length);
-                }
-
-            case DwarfForm.DW_FORM_block2:
-                {
-                    var length = _reader.ReadU16();
-                    return _reader.ReadBytes(length);
-                }
-
-            case DwarfForm.DW_FORM_block4:
-                {
-                    var length = (int)_reader.ReadU32();
-                    return _reader.ReadBytes(length);
-                }
-
-            case DwarfForm.DW_FORM_block:
-                {
-                    var length = _reader.ReadU64Leb();
-                    return _reader.ReadBytes((int)length);
-                }
-
-            case DwarfForm.DW_FORM_data1:
-                return _reader.ReadByte();
-
-            case DwarfForm.DW_FORM_data2:
-                return _reader.ReadU16();
-
-            case DwarfForm.DW_FORM_data4:
-                return _reader.ReadU32();
-
-            case DwarfForm.DW_FORM_data8:
-                return _reader.ReadU64();
-
-            case DwarfForm.DW_FORM_sdata:
-                return _reader.ReadSLeb64();
-
-            case DwarfForm.DW_FORM_udata:
-                return _reader.ReadU64Leb();
-
-            case DwarfForm.DW_FORM_string:
-                return ReadNullTerminatedString(_reader);
-
-            case DwarfForm.DW_FORM_strp:
-                return _reader.ReadU32(); // Offset into .debug_str section
-
-            case DwarfForm.DW_FORM_flag:
-                return _reader.ReadByte() != 0;
-
-            case DwarfForm.DW_FORM_flag_present:
-                return true; // Presence of attribute means true
-
-            case DwarfForm.DW_FORM_ref1:
-                return _reader.ReadByte();
-
-            case DwarfForm.DW_FORM_ref2:
-                return _reader.ReadU16();
-
-            case DwarfForm.DW_FORM_ref4:
-                return _reader.ReadU32();
-
-            case DwarfForm.DW_FORM_ref8:
-                return _reader.ReadU64();
-
-            case DwarfForm.DW_FORM_ref_udata:
-                return _reader.ReadU64Leb();
-
-            case DwarfForm.DW_FORM_ref_addr:
-                return ReadAddress(_reader);
-
-            case DwarfForm.DW_FORM_ref_sig8:
-                return _reader.ReadU64(); // Type signature
-
-            case DwarfForm.DW_FORM_sec_offset:
-                return _reader.ReadU32(); // Or UInt64 in 64-bit DWARF
-
-            case DwarfForm.DW_FORM_exprloc:
-            {
-                var length = _reader.ReadU64Leb();
-                    return _reader.ReadBytes((int)length);
-                }
-
-            case DwarfForm.DW_FORM_indirect:
-                // The actual form follows as ULEB128
-                var actualForm = (DwarfForm)_reader.ReadU64Leb();
-                return ReadAttributeValue(_reader, actualForm);
-
-            default:
-                throw new NotImplementedException($"Form {form} not implemented");
-        }
-
-       
-    }
-    int _addressSize = 4;
-    private ulong ReadAddress(BinReader _reader)
+    ulong ReadAddress(BinReader reader) => _addressSize switch
     {
-        switch (_addressSize)
-        {
-            case 4:
-                return _reader.ReadU32();
-            case 8:
-                return _reader.ReadU64();
-            default:
-                throw new InvalidDataException($"Unsupported address size: {_addressSize}");
-        }
-    }
+        4 => reader.ReadU32(),
+        8 => reader.ReadU64(),
+        _ => throw new InvalidDataException($"Unsupported address size: {_addressSize}")
+    };
 
-    private string ReadNullTerminatedString(BinReader _reader)
+    static string ReadNullTerminatedString(BinReader reader)
     {
         var bytes = new List<byte>();
         byte b;
-        while ((b = _reader.ReadByte()) != 0)
-        {
+        while ((b = reader.ReadByte()) != 0)
             bytes.Add(b);
-        }
         return System.Text.Encoding.UTF8.GetString(bytes.ToArray());
+    }
+
+    class AbbreviationTable
+    {
+        readonly Dictionary<ulong, Abbreviation> _data = new();
+
+        public void Add(Abbreviation abbrev) => _data[abbrev.Code] = abbrev;
+
+        public Abbreviation? GetAbbreviation(ulong code) =>
+            _data.TryGetValue(code, out var abbrev) ? abbrev : null;
     }
 }
 
@@ -284,25 +166,19 @@ public class DwarfCompilationUnit
     public ushort Version { get; set; }
     public uint DebugAbbrevOffset { get; set; }
     public byte AddressSize { get; set; }
-    public DwarfDIE RootDIE { get; set; }
+    public DwarfDIE? RootDIE { get; set; }
 }
 
 public class DwarfDIE
 {
     public ulong AbbreviationCode { get; set; }
     public DwarfTag Tag { get; set; }
-    public Dictionary<AttributeEncoding, DwarfAttributeValue> Attributes { get; set; }
-    public List<DwarfDIE> Children { get; set; }
-
-    public DwarfDIE()
-    {
-        Attributes = new Dictionary<AttributeEncoding, DwarfAttributeValue>();
-        Children = new List<DwarfDIE>();
-    }
+    public Dictionary<AttributeEncoding, DwarfAttributeValue> Attributes { get; } = new();
+    public List<DwarfDIE> Children { get; } = new();
 }
 
 public class DwarfAttributeValue
 {
     public DwarfForm Form { get; set; }
-    public object Value { get; set; }  // Can be various types depending on form
+    public object? Value { get; set; }
 }
