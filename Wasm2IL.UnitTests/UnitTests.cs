@@ -35,7 +35,7 @@ namespace Wasm2IL.UnitTests
         {
 
             var memstr = new MemoryStream();
-            var writer = new Wasm.BinWriter(memstr);
+            var writer = new Wasm2IL.BinWriter(memstr);
             long[] longs = {0xA, 0xAB, 0xABCD, 0xABCDEF, -0XAABBCCDDAABBCC, 0XAABBCCDDAABBCC};
             ulong[] ulongs = {0xA, 0xAB, 0xABCD, 0xABCDEF, 0XAABBCCDDAABBCC, 0x123456789};
             byte[] bytes = {1, 5, 8, 10, 200};
