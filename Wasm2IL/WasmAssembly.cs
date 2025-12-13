@@ -204,7 +204,7 @@ public class WasmAssembly
 
             var staticMethod = code.GetMethods(BindingFlags.Static | BindingFlags.Public)
                 .FirstOrDefault(m => m.Name == targetName)
-                ?? throw new ImplementException($"Static method '{targetName}' not found in {code.Name}");
+                ?? throw new InvalidOperationException($"Static method '{targetName}' not found in {code.Name}");
 
             if (method.ReturnType == typeof(void) && staticMethod.ReturnType != typeof(void))
                 throw new ImplementException(
