@@ -66,12 +66,12 @@ namespace Wasm2IL
 
         public VariableDefinition GetHelperVariable(TypeReference tr, int idx = 0)
         {
-            if (!HelperVars.ContainsKey(idx))
-                HelperVars[idx] = new();
-            var dict = HelperVars[idx];
-            if (tr == VoidType) throw new Exception("void type");
-            if (dict.TryGetValue(tr, out var x))
-                return x;
+            if (!HelperVars.TryGetValue(idx, out var dict))
+                HelperVars[idx] = dict = new();
+            if (tr == VoidType)
+                throw new InvalidOperationException("Cannot get helper variable for void type");
+            if (dict.TryGetValue(tr, out var existing))
+                return existing;
             var v = new VariableDefinition(tr);
             Method.Body.Variables.Add(v);
             dict[tr] = v;
@@ -80,19 +80,17 @@ namespace Wasm2IL
 
         public void PushType(TypeReference? tr)
         {
-            if (tr == null) throw new Exception("??");
+            if (tr == null)
+                throw new ArgumentNullException(nameof(tr));
             if (tr != VoidType)
                 TypeStack.Push(tr);
         }
 
         public TypeReference PopType(int count = 1)
         {
-            if (count == 0) return default;
-            while (count > 1)
-            {
+            if (count == 0) return default!;
+            while (count-- > 1)
                 TypeStack.Pop();
-                count--;
-            }
             return TypeStack.Pop();
         }
 
@@ -280,7 +278,7 @@ namespace Wasm2IL
             var reader = new BinReader(str2);
             var header = reader.ReadStrl(4);
             if (magicHeader != header)
-                throw new Exception("invalid header");
+                throw new TransformException("Invalid WASM header");
             var wasmVersion = new byte[4];
             reader.Read(wasmVersion);
             if (!wasmVersion.SequenceEqual((byte[])[1, 0, 0, 0]))
@@ -462,84 +460,73 @@ namespace Wasm2IL
             }
         }
 
-        private void ReadElementSection(BinReader reader)
+        void ReadElementSection(BinReader reader)
         {
             var cnt = reader.ReadU32Leb();
             for (int i = 0; i < cnt; i++)
             {
                 var tableIndex = reader.ReadU32Leb();
                 if (tableIndex != 0)
-                    throw new Exception("Multiple tables are not supported");
-                var instr2 = (instr) reader.ReadU8();
-                if (instr2 == instr.VECTOR_INSTRUCTION)
-                {
-                    var ext2 = reader.ReadU8();
-                    instr2 = (instr) (0xFD00 | ext2);
-                }
+                    throw new NotSupportedException("Multiple tables not supported");
 
-                Assert.AreEqual(Wasm.Instruction.I32_CONST, instr2);
+                var op = (instr)reader.ReadU8();
+                if (op == instr.VECTOR_INSTRUCTION)
+                    op = (instr)(0xFD00 | reader.ReadU8());
+                if (op != instr.I32_CONST)
+                    throw new TransformException($"Expected I32_CONST in element section, got {op}");
+
                 var elementOffset = reader.ReadU32Leb();
-                var end = (instr) reader.ReadU8();
+                var end = (instr)reader.ReadU8();
                 if (end != instr.END)
-                    throw new Exception("Expected END opcode");
-                var fncCnt = reader.ReadU32Leb();
+                    throw new TransformException($"Expected END opcode in element section, got {end}");
 
+                var funcCount = reader.ReadU32Leb();
                 var ctor = cls.GetStaticConstructor();
                 ctor.Body.Instructions.RemoveAt(ctor.Body.Instructions.Count - 1);
                 var il = ctor.Body.GetILProcessor();
-                il.Emit(OpCodes.Ldc_I4, (int) fncCnt + 1);
+                il.Emit(OpCodes.Ldc_I4, (int)funcCount + 1);
                 il.Emit(OpCodes.Newarr, def.MainModule.TypeSystem.Object);
                 il.Emit(OpCodes.Stsfld, functionTable);
 
-                for (var i2 = 0; i2 < fncCnt; i2++)
+                for (var j = 0; j < funcCount; j++)
                 {
                     il.Emit(OpCodes.Ldsfld, functionTable);
-                    il.Emit(OpCodes.Ldc_I4, (int)(i2 + elementOffset));
-
+                    il.Emit(OpCodes.Ldc_I4, (int)(j + elementOffset));
                     il.Emit(OpCodes.Ldnull);
+
                     var funcId = reader.ReadU32Leb();
+                    MethodReference method;
+                    TypeId typeId;
+
                     if (funcId < ImportFuncs.Count)
                     {
                         var imp = ImportFuncs[funcId];
-                        var t = Types[(uint) imp.TypeId];
+                        typeId = Types[(uint)imp.TypeId!];
                         if (imp.Method == null)
                         {
-                            var method = ResolveImportedMethod(imp.Module, imp.Name);
-                            if (method != null)
+                            var resolved = ResolveImportedMethod(imp.Module, imp.Name);
+                            if (resolved != null)
                             {
-                                var reference = method is MethodReference mr
-                                    ? mr
-                                    : def.MainModule.ImportReference((MethodInfo) method);
-                                reference = MaybeWrap(reference);
-                                imp.Method = reference;
+                                var reference = resolved is MethodReference mr
+                                    ? mr : def.MainModule.ImportReference((MethodInfo)resolved);
+                                imp.Method = MaybeWrap(reference);
                             }
                         }
-
-                        if (imp.Method == null)
-                            throw new InvalidOperationException($"Failed to resolve imported function: {imp.Module}.{imp.Name}");
-
-                        {
-                            il.Emit(OpCodes.Ldftn, imp.Method);
-                            var ftype = typeToFunc(t);
-                            var constr = ftype.GetConstructors().First();
-                            var cref = def.MainModule.ImportReference(constr);
-                            il.Emit(OpCodes.Newobj, cref);
-                            il.Emit(OpCodes.Stelem_Any, def.MainModule.TypeSystem.Object);
-                        }
+                        method = imp.Method
+                            ?? throw new TransformException($"Failed to resolve import: {imp.Module}.{imp.Name}");
                     }
                     else
                     {
-                        var importFunc = FuncDecl[(uint) (funcId - ImportFuncs.Count)];
-                        var t = Types[importFunc.TypeId];
-                        il.Emit(OpCodes.Ldftn, FuncDecl[(uint) (funcId - ImportFuncs.Count)].Method);
-                        var ftype = typeToFunc(t);
-                        var constr = ftype.GetConstructors().First();
-                        var cref = def.MainModule.ImportReference(constr);
-                        il.Emit(OpCodes.Newobj, cref);
-                        il.Emit(OpCodes.Stelem_Any, def.MainModule.TypeSystem.Object);
+                        var funcDecl = FuncDecl[(uint)(funcId - ImportFuncs.Count)];
+                        typeId = Types[funcDecl.TypeId];
+                        method = funcDecl.Method!;
                     }
-                }
 
+                    il.Emit(OpCodes.Ldftn, method);
+                    var delegateType = typeToFunc(typeId);
+                    il.Emit(OpCodes.Newobj, def.MainModule.ImportReference(delegateType.GetConstructors().First()));
+                    il.Emit(OpCodes.Stelem_Any, def.MainModule.TypeSystem.Object);
+                }
                 il.Emit(IlInstr.Ret);
             }
         }
@@ -592,28 +579,26 @@ namespace Wasm2IL
             {
                 uint memidx = reader.ReadU32Leb();
                 if (memidx != 0)
-                    throw new Exception("Multipe memories are not supported");
+                    throw new NotSupportedException("Multiple memories not supported");
 
                 int offset = 0;
                 while (true)
                 {
-                    var instr = (instr) reader.ReadU8();
-                    switch (instr)
+                    var op = (instr)reader.ReadU8();
+                    switch (op)
                     {
                         case instr.I32_CONST:
-                            var _offset = (int) reader.ReadI64Leb();
-                            offset = _offset;
+                            offset = (int)reader.ReadI64Leb();
                             break;
                         case instr.GLOBAL_GET:
                             throw new NotSupportedException("GLOBAL_GET in data section offset expression not supported");
                         case instr.END:
                             goto read_end;
                         default:
-                            throw new Exception("Unknown instruction");
+                            throw new TransformException($"Unsupported instruction {op} in data section offset expression");
                     }
                 }
-
-                read_end: ;
+                read_end:
                 // load the data into the heap one byte at a time.
                 // consider finding a way to load it based on static data instead.
                 uint byteCount = reader.ReadU32Leb();
@@ -658,11 +643,11 @@ namespace Wasm2IL
             }
         }
 
-        class LabelType
+        class LabelType(byte type, Instruction? endLabel, Instruction? startLabel)
         {
-            public byte Type;
-            public Instruction? EndLabel;
-            public Instruction? StartLabel;
+            public byte Type = type;
+            public Instruction? EndLabel = endLabel;
+            public Instruction? StartLabel = startLabel;
         }
 
         MethodReference? resolveMethod(uint func)
@@ -818,8 +803,7 @@ namespace Wasm2IL
                 m1.Body.Variables.Add(new VariableDefinition(def.MainModule.TypeSystem.Int32)); // heapaddr
                 m1.Body.Variables.Add(heapVar);
                 
-                var labelStack = new List<LabelType>();
-                labelStack.Add(new LabelType());
+                var labelStack = new List<LabelType> { new(0, null, null) };
 
                 while (next > reader.Position)
                 {
@@ -874,36 +858,38 @@ namespace Wasm2IL
                             ctx.PushType(ftp.ReturnType);
                             break;
                         case instr.BLOCK:
+                        {
                             var blockType = reader.ReadU8();
                             var endLabel = il.Create(OpCodes.Nop);
-                            var blk = new LabelType { Type = blockType, EndLabel = endLabel, StartLabel = endLabel };
-                            labelStack.Add(blk);
+                            labelStack.Add(new LabelType(blockType, endLabel, endLabel));
                             break;
+                        }
                         case instr.LOOP:
-                            blockType = reader.ReadU8();
+                        {
+                            var blockType = reader.ReadU8();
                             var startLabel = il.Create(OpCodes.Nop);
                             il.Append(startLabel);
-                            blk = new LabelType {Type = blockType, EndLabel = null, StartLabel = startLabel};
-                            labelStack.Add(blk);
+                            labelStack.Add(new LabelType(blockType, null, startLabel));
                             break;
-                        case instr.IF:
-                            blockType = reader.ReadU8();
-                        {
-                            endLabel = il.Create(OpCodes.Nop);
-                            il.Emit(IlInstr.Brfalse, endLabel);
-                            blk = new LabelType {Type = blockType, EndLabel = endLabel, StartLabel = null};
-                            labelStack.Add(blk);
                         }
+                        case instr.IF:
+                        {
+                            var blockType = reader.ReadU8();
+                            var endLabel = il.Create(OpCodes.Nop);
+                            il.Emit(IlInstr.Brfalse, endLabel);
+                            labelStack.Add(new LabelType(blockType, endLabel, null));
                             break;
+                        }
                         case instr.ELSE:
-                            endLabel = il.Create(OpCodes.Nop);
+                        {
+                            var endLabel = il.Create(OpCodes.Nop);
                             il.Emit(OpCodes.Br, endLabel);
-                            blk = labelStack.Last();
-                            labelStack.Remove(blk);
+                            var blk = labelStack[^1];
+                            labelStack.RemoveAt(labelStack.Count - 1);
                             il.Append(blk.EndLabel);
-                            blk = new LabelType {Type = blk.Type, EndLabel = endLabel, StartLabel = null};
-                            labelStack.Add(blk);
+                            labelStack.Add(new LabelType(blk.Type, endLabel, null));
                             break;
+                        }
 
                         case instr.BR:
                         case instr.BR_IF:
@@ -920,38 +906,38 @@ namespace Wasm2IL
 
                             break;
                         case instr.BR_TABLE:
+                        {
                             var cnt = reader.ReadU32Leb();
                             var items = new Instruction[cnt];
                             for (int i2 = 0; i2 < cnt; i2++)
                             {
                                 var brindex2 = reader.ReadU32Leb();
-                                var brindex3 = (int) (labelStack.Count - brindex2 - 1);
-                                items[i2] = labelStack[brindex3].StartLabel;
+                                items[i2] = labelStack[labelStack.Count - (int)brindex2 - 1].StartLabel!;
                             }
-
                             var defaultLabelIndex = reader.ReadU32Leb();
-                            var defaultLabel = labelStack[(int) (labelStack.Count - defaultLabelIndex - 1)].StartLabel;
+                            var defaultLabel = labelStack[labelStack.Count - (int)defaultLabelIndex - 1].StartLabel
+                                ?? throw new TransformException("BR_TABLE default label not found");
                             il.Emit(OpCodes.Switch, items);
-                            if (defaultLabel == null)
-                                throw new Exception("Unexpected situation");
                             il.Emit(OpCodes.Br, defaultLabel);
-
                             ctx.PopType(1);
                             break;
+                        }
                         case instr.SELECT:
-                            // select(a,b,c) = a ? b : c
-                            // we have to keep track of the type on top of the stack.
+                        {
+                            // select(cond, a, b) = cond ? a : b
                             var t = ctx.PopType(2);
-                            var nextLabel = il.Create(IlInstr.Stloc, ctx.GetHelperVariable(t));
-                            endLabel = il.Create(IlInstr.Nop);
-                            il.Emit(IlInstr.Brfalse, nextLabel);
+                            var helper = ctx.GetHelperVariable(t);
+                            var keepSecond = il.Create(IlInstr.Stloc, helper);
+                            var endLabel = il.Create(IlInstr.Nop);
+                            il.Emit(IlInstr.Brfalse, keepSecond);
                             il.Emit(IlInstr.Pop);
                             il.Emit(IlInstr.Br, endLabel);
-                            il.Append(nextLabel);
+                            il.Append(keepSecond);
                             il.Emit(IlInstr.Pop);
-                            il.Emit(IlInstr.Ldloc, ctx.GetHelperVariable(t));
+                            il.Emit(IlInstr.Ldloc, helper);
                             il.Append(endLabel);
                             break;
+                        }
                         case instr.GLOBAL_GET:
                             var offset2 = reader.ReadU32Leb();
                             var glob = globals[offset2];
@@ -1097,35 +1083,32 @@ namespace Wasm2IL
                         case instr.I64_STORE_16:
                         case instr.F32_STORE:
                         case instr.F64_STORE:
-                            reader.ReadU32Leb(); // align hint (ignored)
+                        {
+                            reader.ReadU32Leb(); // alignment hint (unused - loads/stores are unaligned)
                             var offset = reader.ReadU32Leb();
-                            VariableDefinition stvar = null;
-                            if (instr.ToString().Contains("STORE"))
+                            VariableDefinition? stvar = null;
+                            var instrName = instr.ToString();
+                            if (instrName.Contains("STORE"))
                             {
-                                if (instr.ToString().Contains("F32"))
-                                    stvar = ctx.GetHelperVariable(f32Type);
-                                else if (instr.ToString().Contains("F64"))
-                                    stvar = ctx.GetHelperVariable(f64Type);
-                                else if (instr.ToString().Contains("I64"))
-                                    stvar = ctx.GetHelperVariable(i64Type);
-                                else if (instr.ToString().Contains("I32"))
-                                    stvar = ctx.GetHelperVariable(i32Type);
-                                else throw new Exception("Unknown type");
+                                stvar = ctx.GetHelperVariable(
+                                    instrName.Contains("F32") ? f32Type :
+                                    instrName.Contains("F64") ? f64Type :
+                                    instrName.Contains("I64") ? i64Type :
+                                    instrName.Contains("I32") ? i32Type :
+                                    throw new TransformException($"Unknown store type: {instr}"));
                                 il.Emit(IlInstr.Stloc, stvar);
                                 ctx.PopType(1);
                             }
 
-                            // adjust according to the offset 
                             if (offset != 0)
                             {
                                 il.Emit(IlInstr.Ldc_I4, (int)offset);
                                 il.Emit(IlInstr.Add);
                             }
-                            
                             ctx.LoadMemory();
                             il.Emit(IlInstr.Add);
 
-                            
+
 
                             switch (instr)
                             {
@@ -1220,10 +1203,10 @@ namespace Wasm2IL
                                     il.Emit(IlInstr.Conv_U8);
                                     break;
                                 default:
-                                    throw new Exception("Unexpected opcode");
+                                    throw new UnreachableException();
                             }
-
                             break;
+                        }
                         case instr.I64_EXTEND_I32_U:
                             il.Emit(IlInstr.Conv_U8);
                             ctx.PopType(1);
@@ -2286,58 +2269,40 @@ namespace Wasm2IL
             Log.WriteLine("Globals: {0}", globals.Count);
         }
 
-        unsafe void ReadMemorySection(BinReader reader)
+        void ReadMemorySection(BinReader reader)
         {
             var memCount = reader.ReadU32Leb();
-            Assert.AreEqual<uint>(1, memCount);
-            for (uint i = 0; i < memCount; i++)
-            {
-                var type = reader.ReadU8();
-                var min = reader.ReadU32Leb();
-                if (type == 0)
-                {
-                    Log.WriteLine("Memory: {0} pages", min);
-                    var cctoril = cls.GetStaticConstructor().Body.GetILProcessor();
-                    cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
-                    cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
-                    // Allocate 4GB of virtual memory so we'll never have to move the heap pointer.
-                    cctoril.Emit(OpCodes.Ldc_I8, 4L * 1024L * 1024L * 1024L);
-                    cctoril.EmitCall(() => MemoryAllocator.AllocateMemory);
-                    cctoril.Emit(OpCodes.Stsfld, memoryField);
-                    cctoril.Emit(OpCodes.Stsfld, memoryFieldSize);
-                    cctoril.Emit(OpCodes.Ret);
-                }
-                else if (type == 1)
-                {
-                    var max = reader.ReadU32Leb();
+            if (memCount != 1)
+                throw new NotSupportedException($"Expected 1 memory, got {memCount}");
 
-                    Log.WriteLine("Memory of {0}-{1} pages ({2} - {3})", min, max, min * page_size,
-                        max * page_size);
-                    var cctoril = cls.GetStaticConstructor().Body.GetILProcessor();
-                    cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
+            var limitType = reader.ReadU8();
+            var min = reader.ReadU32Leb();
+            uint? max = limitType == 1 ? reader.ReadU32Leb() : null;
 
-                    // Allocate 4GB of virtual memory so we'll never have to move the heap pointer.
-                    cctoril.Emit(OpCodes.Ldc_I8, 4L * 1024L * 1024L * 1024L);
-                    cctoril.EmitCall(() => MemoryAllocator.AllocateMemory);
-                    cctoril.Emit(OpCodes.Stsfld, memoryField);
-                    cctoril.Emit(OpCodes.Ldc_I4, (int) (min * page_size));
-                    cctoril.Emit(OpCodes.Stsfld, memoryFieldSize);
+            Log.WriteLine(max.HasValue
+                ? $"Memory: {min}-{max} pages ({min * page_size} - {max * page_size} bytes)"
+                : $"Memory: {min} pages ({min * page_size} bytes)");
 
-                    cctoril.Emit(OpCodes.Ret);
-                }
-            }
+            var il = cls.GetStaticConstructor().Body.GetILProcessor();
+            il.Body.Instructions.RemoveAt(il.Body.Instructions.Count - 1);
+
+            // Reserve 4GB virtual address space so heap never needs to move
+            il.Emit(OpCodes.Ldc_I8, 4L * 1024 * 1024 * 1024);
+            il.EmitCall(() => MemoryAllocator.AllocateMemory);
+            il.Emit(OpCodes.Stsfld, memoryField);
+            il.Emit(OpCodes.Ldc_I4, (int)(min * page_size));
+            il.Emit(OpCodes.Stsfld, memoryFieldSize);
+            il.Emit(OpCodes.Ret);
         }
 
-        void EmitCall(ILProcessor gen, Expression expr)
+        void EmitCall(ILProcessor il, Expression expr)
         {
-            var f =
-                (((expr as LambdaExpression).Body as UnaryExpression).Operand as MethodCallExpression).Object as
-                ConstantExpression;
-            var method = (MethodInfo) f.Value;
-            var declType = gen.Body.Method.DeclaringType;
-            var reference = declType.Module.ImportReference(method);
-            reference = MaybeWrap(reference);
-            gen.Emit(OpCodes.Call, reference);
+            var body = ((LambdaExpression)expr).Body;
+            var operand = ((UnaryExpression)body).Operand;
+            var constant = (ConstantExpression)((MethodCallExpression)operand).Object!;
+            var method = (MethodInfo)constant.Value!;
+            var reference = il.Body.Method.DeclaringType!.Module.ImportReference(method);
+            il.Emit(OpCodes.Call, MaybeWrap(reference));
         }
 
         void ReadFunctionSection(BinReader reader)

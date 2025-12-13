@@ -11,16 +11,12 @@ namespace Wasm2IL;
 public static partial class Lib
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe byte* Alloc(int size)
-    {
-        throw new Exception("!!");
-    }
+    public static unsafe byte* Alloc(int size) =>
+        throw new NotImplementedException("Alloc not available - WASM module should provide malloc");
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe byte* Realloc(byte* ptr, int size)
-    {
-        throw new Exception("!!");
-    }
+    public static unsafe byte* Realloc(byte* ptr, int size) =>
+        throw new NotImplementedException("Realloc not available - WASM module should provide realloc");
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void MemoryFill(void* loc, int value, int N)
@@ -711,11 +707,6 @@ public static partial class Lib
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void v128_store64_lane(long* a, int lane, Vector128<long> v) => *a = v.GetElement(lane);
 
-    public static Vector128<byte> not_implemented_vec128_vec128(Vector128<byte> a)
-    {
-        throw new NotImplementedException();
-    }
-
     [WasmOpcode(ExtendedInstruction.I32_TRUNC_SAT_F32_S)]
     public static int I32_TRUNC_SAT_F32_S(float f)
     {
@@ -804,22 +795,7 @@ public static partial class Lib
     }
 }
 
-public class WasmOpcodeAttribute : Attribute
+public class WasmOpcodeAttribute(object key) : Attribute
 {
-    public object Key { get; }
-
-    public WasmOpcodeAttribute(VectorInstructions vectorInstruction)
-    {
-        Key = vectorInstruction;
-    }
-
-    public WasmOpcodeAttribute(Instruction instruction)
-    {
-        Key = instruction;
-    }
-
-    public WasmOpcodeAttribute(ExtendedInstruction instruction)
-    {
-        Key = instruction;
-    }
+    public object Key { get; } = key;
 }
