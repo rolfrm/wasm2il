@@ -131,19 +131,16 @@ namespace Wasm2IL
         {
             if (OnResolveImport != null)
             {
-                ResolveImportEventArgs resolveEventArgs = new ResolveImportEventArgs()
+                var resolveEventArgs = new ResolveImportEventArgs
                 {
                     Name = name,
                     ModuleName = moduleName,
-
                     TypeBuilder = cls,
                     ModuleDefinition = def.MainModule
                 };
-                OnResolveImport?.Invoke(this, resolveEventArgs);
+                OnResolveImport.Invoke(this, resolveEventArgs);
                 if (resolveEventArgs.Handled)
-                {
                     return resolveEventArgs.Result;
-                }
             }
 
             if (importModules.TryGetValue(moduleName, out var t))
@@ -208,7 +205,6 @@ namespace Wasm2IL
 
         Dictionary<uint, TypeId> Types = new();
 
-        // function declaration to function type
         Dictionary<uint, FuncDeclType> FuncDecl = new();
         AssemblyDefinition def;
         TypeDefinition cls;
@@ -253,14 +249,10 @@ namespace Wasm2IL
 
             memoryField = new FieldDefinition("Memory", FieldAttributes.Static | FieldAttributes.Public,
                 asm.MainModule.TypeSystem.Byte.MakePointerType());
-            memoryField.IsStatic = true;
-            // todo: Figure out how to init based on data.
             cls.Fields.Add(memoryField);
 
             memoryFieldSize = new FieldDefinition("MemorySize", FieldAttributes.Static | FieldAttributes.Public,
                 asm.MainModule.TypeSystem.Int32);
-            memoryFieldSize.IsStatic = true;
-
             cls.Fields.Add(memoryFieldSize);
 
             functionTable = new FieldDefinition("FunctionTable", FieldAttributes.Static | FieldAttributes.Public,
@@ -291,8 +283,8 @@ namespace Wasm2IL
                 throw new Exception("invalid header");
             var wasmVersion = new byte[4];
             reader.Read(wasmVersion);
-            if (!wasmVersion.SequenceEqual(new byte[] {1, 0, 0, 0}))
-                throw new Exception("Unsupported wasm version");
+            if (!wasmVersion.SequenceEqual([1, 0, 0, 0]))
+                throw new NotSupportedException($"Unsupported wasm version: {BitConverter.ToString(wasmVersion)}");
             Log.WriteLine("Wasm Version: {0}", string.Join(" ", wasmVersion));
 
             Init(asmName, version);
@@ -364,19 +356,12 @@ namespace Wasm2IL
                 var m = new MethodDefinition(imp.Name, MethodAttributes.Public | MethodAttributes.Static,
                     type.ReturnType);
                 foreach (var p in type.ParamTypes)
-                {
                     m.Parameters.Add(new ParameterDefinition(p));
-                }
 
-                // throw exception
+                // Stub throws at runtime
                 m.Body.InitLocals = true;
-
                 var il = m.Body.GetILProcessor();
-
-                // let's implemented 
-
-                il.Emit(IlInstr.Nop);
-                il.Emit(IlInstr.Ldstr, imp.Name + " not Implemented");
+                il.Emit(IlInstr.Ldstr, $"{imp.Name} not implemented");
                 il.Emit(IlInstr.Newobj, ResolveTypeConstructor(typeof(Exception), typeof(string)));
                 il.Emit(IlInstr.Throw);
                 cls.Methods.Add(m);
@@ -403,13 +388,13 @@ namespace Wasm2IL
                 {
                     if (declaredFunctions.TryGetValue(method.Name, out var id))
                     {
-                        OverrideFuncs[id] = new ImportFunc()
+                        OverrideFuncs[id] = new ImportFunc
                         {
                             Index = id,
                             CustomName = method.Name,
                             Method = def.MainModule.ImportReference(method),
                             Name = method.Name,
-                            Module = "??",
+                            Module = "override",
                             TypeId = FuncDecl[id].TypeId
                         };
                     }
@@ -419,14 +404,11 @@ namespace Wasm2IL
             reader.Position = codeLoc;
             ReadCodeSection(reader);
 
-            // Run IL optimizations if enabled
             if (EnableOptimizations)
             {
                 ILOptimizer.OptimizeType(cls);
                 foreach (var method in cls.Methods)
-                {
                     method.Body.Optimize();
-                }
             }
 
             def.Write(outStream);
@@ -447,25 +429,21 @@ namespace Wasm2IL
                     case ImportType.FUNC:
                         var typeid = reader.ReadU32Leb();
                         var funid = (uint) ImportFuncs.Count;
-                        ImportFuncs[funid] = new ImportFunc()
-                            {Name = itemName, TypeId = typeid, Index = funid, Module = moduleName};
+                        ImportFuncs[funid] = new ImportFunc
+                        {
+                            Name = itemName,
+                            TypeId = typeid,
+                            Index = funid,
+                            Module = moduleName
+                        };
                         break;
                     case ImportType.TABLE:
                         var elemType = reader.ReadU8();
-                        Assert.AreEqual(elemType, 0x70);
+                        if (elemType != 0x70)
+                            throw new NotSupportedException($"Unsupported table element type 0x{elemType:X2}");
                         byte limitt = reader.ReadU8();
-                        uint min = 0, max = 0;
-                        if (limitt == 0)
-                        {
-                            min = reader.ReadU32Leb();
-                            max = min;
-                        }
-                        else
-                        {
-                            min = reader.ReadU32Leb();
-                            max = reader.ReadU32Leb();
-                        }
-
+                        uint min = reader.ReadU32Leb();
+                        uint max = limitt == 0 ? min : reader.ReadU32Leb();
                         Log.WriteLine("Table: {0}.{1} {2}-{3}", moduleName, itemName, min, max);
                         break;
                     case ImportType.GLOBAL:
@@ -475,22 +453,10 @@ namespace Wasm2IL
                         Log.WriteLine("Global: {0}.{1} {2}-{3}", moduleName, itemName, valType, mut);
                         break;
                     case ImportType.MEM:
-                        //elemType = reader.ReadU8();
-                        //Assert.AreEqual(elemType, 0x70);
                         limitt = reader.ReadU8();
-                        if (limitt == 0)
-                        {
-                            min = reader.ReadU32Leb();
-                            max = min;
-                        }
-                        else
-                        {
-                            min = reader.ReadU32Leb();
-                            max = reader.ReadU32Leb();
-                        }
-
+                        min = reader.ReadU32Leb();
+                        max = limitt == 0 ? min : reader.ReadU32Leb();
                         Log.WriteLine("Memory: {0}.{1} {2}-{3}", moduleName, itemName, min, max);
-
                         break;
                 }
             }
@@ -550,9 +516,7 @@ namespace Wasm2IL
                         }
 
                         if (imp.Method == null)
-                        {
-                            throw new InvalidOperationException("!");
-                        }
+                            throw new InvalidOperationException($"Failed to resolve imported function: {imp.Module}.{imp.Name}");
 
                         {
                             il.Emit(OpCodes.Ldftn, imp.Method);
@@ -641,10 +605,7 @@ namespace Wasm2IL
                             offset = _offset;
                             break;
                         case instr.GLOBAL_GET:
-                            throw new Exception("Check this!");
-                            _offset = (int) reader.ReadI64Leb();
-                            offset = _offset;
-                            break;
+                            throw new NotSupportedException("GLOBAL_GET in data section offset expression not supported");
                         case instr.END:
                             goto read_end;
                         default:
@@ -743,54 +704,39 @@ namespace Wasm2IL
 
                     var type = Types[(uint) importFun.TypeId];
                     var m = new MethodDefinition(importFun.Name.Replace(":", "_"),
-                        MethodAttributes.Static | MethodAttributes.Public,
-                        type.ReturnType);
+                        MethodAttributes.Static | MethodAttributes.Public, type.ReturnType);
+                    foreach (var param in type.ParamTypes)
+                        m.Parameters.Add(new ParameterDefinition(param));
                     m.Body.InitLocals = true;
                     var il = m.Body.GetILProcessor();
-
-                    il.Emit(IlInstr.Ldstr, importFun.Name + " not Implemented");
+                    il.Emit(IlInstr.Ldstr, $"{importFun.Name} not implemented");
                     il.Emit(IlInstr.Newobj, ResolveTypeConstructor(typeof(Exception), typeof(string)));
                     il.Emit(IlInstr.Throw);
                     importFun.Method = m;
                     cls.Methods.Add(m);
-                    foreach (var param in type.ParamTypes)
-                    {
-                        m.Parameters.Add(new ParameterDefinition(param));
-                    }
                 }
 
                 return importFun.Method;
             }
 
             if (OverrideFuncs.TryGetValue(func - (uint) ImportFuncs.Count, out var reference))
-            {
                 return reference.Method;
-            }
 
-            var decl = FuncDecl[func - (uint) ImportFuncs.Count];
-            var declFun = decl.Method;
-            return declFun;
+            return FuncDecl[func - (uint) ImportFuncs.Count].Method;
         }
 
         void EmitLdc(ILProcessor il, int cint)
         {
-            var opcode = cint switch
+            OpCode? shortForm = cint switch
             {
-                -1 => IlInstr.Ldc_I4_M1,
-                0 => IlInstr.Ldc_I4_0,
-                1 => IlInstr.Ldc_I4_1,
-                2 => IlInstr.Ldc_I4_2,
-                3 => IlInstr.Ldc_I4_3,
-                4 => IlInstr.Ldc_I4_4,
-                5 => IlInstr.Ldc_I4_5,
-                6 => IlInstr.Ldc_I4_6,
-                7 => IlInstr.Ldc_I4_7,
-                8 => IlInstr.Ldc_I4_8,
-                _ => IlInstr.Ldc_I4
+                -1 => IlInstr.Ldc_I4_M1, 0 => IlInstr.Ldc_I4_0, 1 => IlInstr.Ldc_I4_1,
+                2 => IlInstr.Ldc_I4_2, 3 => IlInstr.Ldc_I4_3, 4 => IlInstr.Ldc_I4_4,
+                5 => IlInstr.Ldc_I4_5, 6 => IlInstr.Ldc_I4_6, 7 => IlInstr.Ldc_I4_7,
+                8 => IlInstr.Ldc_I4_8, _ => null
             };
-            if (opcode != IlInstr.Ldc_I4)
-                il.Emit(opcode);
-            else if (cint is < 126 and > -126)
+            if (shortForm is { } op)
+                il.Emit(op);
+            else if (cint is > -128 and < 128)
                 il.Emit(IlInstr.Ldc_I4_S, (sbyte) cint);
             else
                 il.Emit(IlInstr.Ldc_I4, cint);
@@ -881,10 +827,7 @@ namespace Wasm2IL
                     for (uint i3 = 0; i3 < n; i3++)
                     {
                         var tp = ByteToTypeReference(t);
-                        var lv_y_4 = new VariableDefinition(tp)
-                        {
-                        };
-                        m1.Body.Variables.Add(lv_y_4);
+                        m1.Body.Variables.Add(new VariableDefinition(tp));
                     }
                 }
 
@@ -913,8 +856,7 @@ namespace Wasm2IL
                             var fcn = reader.ReadU32Leb();
                             var otherFun = resolveMethod(fcn);
                             if (otherFun == null)
-                                throw new Exception("");
-
+                                throw new InvalidOperationException($"Cannot resolve function at index {fcn}");
                             otherFun = MaybeWrap(otherFun);
 
                             il.Emit(IlInstr.Call, otherFun);
@@ -1133,18 +1075,25 @@ namespace Wasm2IL
                             il.Emit(IlInstr.Ldc_R8, reader.ReadF64());
                             break;
                         case instr.MEMORY_SIZE:
-                            if (reader.ReadU8() != 0)
+                        {
+                            var memIdx = reader.ReadU8();
+                            if (memIdx != 0)
                                 throw new NotSupportedException("Multiple memories not supported");
-                            ctx.PushType(i32Type);
                             ctx.LoadMemory();
                             il.Emit(IlInstr.Ldlen);
                             il.Emit(IlInstr.Ldc_I4, (int) page_size);
                             il.Emit(IlInstr.Div);
                             il.Emit(IlInstr.Conv_I4);
+                            ctx.PushType(i32Type);
                             break;
+                        }
                         case instr.MEMORY_GROW:
-                            reader.ReadU8(); // memory index, must be 0
+                        {
+                            var memIdx = reader.ReadU8();
+                            if (memIdx != 0)
+                                throw new NotSupportedException("Multiple memories not supported");
                             throw new NotSupportedException("memory.grow is not supported");
+                        }
                         case instr.I32_LOAD:
                         case instr.I32_LOAD8_S:
                         case instr.I32_LOAD8_U:
@@ -2015,12 +1964,10 @@ namespace Wasm2IL
 
                                 case VectorInstructions.I8X16_ADD_SAT_S:
                                 case VectorInstructions.I8X16_ADD_SAT_U:
-                                    throw new Exception("not implemented"); //il.EmitCall(() => Lib.i8x16_add);
-                                    break;
+                                    throw new NotImplementedException("I8X16_ADD_SAT not implemented");
                                 case VectorInstructions.I8X16_SUB_SAT_S:
                                 case VectorInstructions.I8X16_SUB_SAT_U:
-                                    throw new Exception("not implemented"); //;il.EmitCall(() => Lib.i8x16_sub);
-                                    break;
+                                    throw new NotImplementedException("I8X16_SUB_SAT not implemented");
 
                                 case VectorInstructions.V128_LOAD8_SPLAT:
                                 case VectorInstructions.V128_LOAD16_SPLAT:
@@ -2175,16 +2122,11 @@ namespace Wasm2IL
         unsafe MethodReference WrapMethod(MethodReference m)
         {
             if (cls.Methods.FirstOrDefault(x => x.Name == m.Name + "__wrap") is { } ext)
-            {
                 return ext;
-            }
 
             var m2 = new MethodDefinition(m.Name + "__wrap",
-                MethodAttributes.Static | MethodAttributes.Public,
-                m.ReturnType);
-            ConstructorInfo methodImplConstructor =
-                typeof(MethodImplAttribute).GetConstructor([typeof(MethodImplOptions)]);
-            // Create a CustomAttributeBuilder with the MethodImplOptions value
+                MethodAttributes.Static | MethodAttributes.Public, m.ReturnType);
+            var methodImplConstructor = typeof(MethodImplAttribute).GetConstructor([typeof(MethodImplOptions)]);
             var attr = new CustomAttribute(def.MainModule.ImportReference(methodImplConstructor));
             attr.ConstructorArguments.Add(new CustomAttributeArgument(
                 def.MainModule.ImportReference(typeof(MethodImplOptions)), MethodImplOptions.AggressiveInlining));
@@ -2216,18 +2158,15 @@ namespace Wasm2IL
                 else if (p.ParameterType.IsPointer)
                 {
                     p2.ParameterType = i32Type;
-
                     il2.Emit(OpCodes.Ldsfld, memoryField);
                     il2.Emit(OpCodes.Ldarg, argidx);
                     il2.Emit(OpCodes.Add);
-                    //il2.Emit(OpCodes.Conv_U);
                 }
                 else
                 {
                     il2.Emit(OpCodes.Ldarg, argidx);
                 }
-
-                argidx += 1;
+                argidx++;
             }
 
             il2.Emit(OpCodes.Call, m);
@@ -2517,7 +2456,7 @@ namespace Wasm2IL
 
             if (name == ".debug_types")
             {
-                // not used yet. 
+                // Not used yet
             }
         }
 
