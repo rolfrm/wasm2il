@@ -787,6 +787,21 @@ public static partial class Lib
         if (f <= ulong.MinValue) return ulong.MinValue;
         return (ulong)f;
     }
+
+    // Non-saturating truncation (throws on overflow)
+    public static long I64_TRUNC_F32_S(float f)
+    {
+        if (f >= long.MaxValue || f <= long.MinValue || float.IsNaN(f))
+            throw new OverflowException("i64.trunc_f32_s overflow");
+        return (long)f;
+    }
+
+    public static ulong I64_TRUNC_F32_U(float f)
+    {
+        if (f >= ulong.MaxValue || f < 0 || float.IsNaN(f))
+            throw new OverflowException("i64.trunc_f32_u overflow");
+        return (ulong)f;
+    }
 }
 
 public class WasmOpcodeAttribute : Attribute
