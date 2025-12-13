@@ -1737,6 +1737,7 @@ namespace Wasm2IL
 
                         case instr.VECTOR_INSTRUCTION:
                             var instr2 = (VectorInstructions) reader.ReadU32Leb();
+                            VariableDefinition? stvar = null;
                             switch (instr2)
                             {
                                 case VectorInstructions.V128_STORE:

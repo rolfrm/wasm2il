@@ -118,9 +118,9 @@ internal class Parser
         DwarfForm.DW_FORM_udata => reader.ReadU64Leb(),
         DwarfForm.DW_FORM_string => ReadNullTerminatedString(reader),
         DwarfForm.DW_FORM_strp => reader.ReadU32(),
-        DwarfForm.DW_FORM_flag => reader.ReadByte() != 0,
+        DwarfForm.DW_FORM_flag => reader.ReadU8() != 0,
         DwarfForm.DW_FORM_flag_present => true,
-        DwarfForm.DW_FORM_ref1 => reader.ReadByte(),
+        DwarfForm.DW_FORM_ref1 => reader.ReadU8(),
         DwarfForm.DW_FORM_ref2 => reader.ReadU16(),
         DwarfForm.DW_FORM_ref4 => reader.ReadU32(),
         DwarfForm.DW_FORM_ref8 => reader.ReadU64(),
@@ -144,7 +144,7 @@ internal class Parser
     {
         var bytes = new List<byte>();
         byte b;
-        while ((b = reader.ReadByte()) != 0)
+        while ((b = reader.ReadU8()) != 0)
             bytes.Add(b);
         return System.Text.Encoding.UTF8.GetString(bytes.ToArray());
     }
