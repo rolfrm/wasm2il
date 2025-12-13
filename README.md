@@ -1,15 +1,40 @@
 # wasm2il
-WebAssembly to .NET IL bytecode compiler
+
+A WebAssembly to .NET IL bytecode compiler that converts WASM modules directly into .NET assemblies.
 
 **License: MIT**
 
-## Status: Experiment
+## What is wasm2il?
 
-This is currently an experiment and not a finished application.
+wasm2il bridges the gap between WebAssembly and the .NET ecosystem. It takes WebAssembly binary modules (`.wasm` files) and compiles them directly into .NET assemblies (`.dll` files), enabling code originally written in C, C++, Rust, or any language that compiles to WebAssembly to run natively on the .NET runtime.
 
-It is capable of converting most instructions from WASM32 1.0 to IL.
+### Core Idea
 
-Implementing a WASI-compliant set of functions is something that needs to be solved.
+Instead of interpreting WebAssembly bytecode at runtime, wasm2il performs ahead-of-time compilation by translating each WASM instruction into equivalent .NET IL opcodes. The generated assembly can then be JIT-compiled by the .NET runtime, benefiting from all of .NET's runtime optimizations.
+
+**Example translation:**
+- `i32.add` → `IL.Add`
+- `i32.load` → pointer dereference with `IL.Ldind_I4`
+- `call` → `IL.Call` to the appropriate method
+
+WASM linear memory is represented as a native `byte*` pointer, and function tables enable indirect calls for things like callbacks.
+
+### Features
+
+- **Direct IL Generation** – Compiles WASM directly to .NET IL using Mono.Cecil, producing standard .NET assemblies
+- **WASM 1.0 Support** – Handles most WASM32 1.0 instructions including arithmetic, memory, control flow, and type conversions
+- **SIMD Operations** – Vector128 support for WASM SIMD instructions
+- **C# Interop** – Import C# methods into WASM and export WASM functions for C# to call
+- **Typed Wrappers** – Use `AsImplementation<T>` to create clean, strongly-typed C# interfaces over WASM exports
+- **Automatic Marshaling** – Strings and `Span<byte>` are automatically copied to/from WASM heap memory
+- **Memory Access** – Direct heap access via spans and pointers for advanced scenarios
+- **Optimization** – Constant folding and peephole optimization for cleaner IL output
+
+## Status: Experimental
+
+This project is an experiment and not production-ready.
+
+It is capable of converting most instructions from WASM32 1.0 to IL. WASI (WebAssembly System Interface) is not implemented—you must provide your own C# implementations for system APIs via the import module mechanism.
 
 ## How to Run
 
