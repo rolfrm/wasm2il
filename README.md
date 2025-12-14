@@ -12,7 +12,7 @@
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-1.0-654FF0?logo=webassembly)](https://webassembly.org/)
 [![Status](https://img.shields.io/badge/Status-⚠️_Experimental-orange)](https://github.com/rolfrm/Wasm2IL)
 
-[Features](#features) • [Quick Start](#quick-start) • [Installation](#installation) • [Usage](#complete-example-wrapping-a-c-library) • [API Reference](#step-7-working-with-wasm-memory)
+[Features](#features) • [Quick Start](#quick-start) • [Installation](#installation) • [Compiling C to WASM](#compiling-c-to-webassembly-with-clang) • [Usage](#complete-example-wrapping-a-c-library) • [API Reference](#step-7-working-with-wasm-memory)
 
 </div>
 
@@ -166,6 +166,191 @@ Or add it to your `.csproj`:
 ```xml
 <PackageReference Include="Wasm2IL" Version="0.1.0-alpha.10" />
 ```
+
+---
+
+## Compiling C to WebAssembly with Clang
+
+This section provides a comprehensive guide to compiling C code to WebAssembly using Clang, including optimization levels and recommended flags.
+
+### Basic Compilation Command
+
+```bash
+clang --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-dynamic \
+    -o output.wasm input.c
+```
+
+### Essential Compiler Flags
+
+| Flag | Description |
+|------|-------------|
+| `--target=wasm32` | Target 32-bit WebAssembly (required) |
+| `--target=wasm64` | Target 64-bit WebAssembly (experimental) |
+| `-nostdlib` | Don't link the standard library |
+| `-Wl,--no-entry` | No `_start` entry point required |
+| `-Wl,--export-dynamic` | Export functions with `visibility("default")` |
+| `-Wl,--export-all` | Export all symbols (use sparingly) |
+| `-Wl,--allow-undefined` | Allow unresolved imports (for runtime linking) |
+| `-Wl,--import-memory` | Import memory from host environment |
+| `-Wl,--initial-memory=N` | Set initial memory size in bytes (must be multiple of 65536) |
+| `-Wl,--max-memory=N` | Set maximum memory size in bytes |
+
+### Optimization Levels
+
+Clang supports several optimization levels, all of which work with the WebAssembly target:
+
+| Level | Description | Use Case |
+|-------|-------------|----------|
+| `-O0` | No optimization | Debugging, fastest compile time |
+| `-O1` | Basic optimizations | Quick builds with some optimization |
+| `-O2` | Standard optimizations | **Recommended for most use cases** |
+| `-O3` | Aggressive optimizations | Maximum performance, larger code size |
+| `-Os` | Optimize for size | Small binary, good performance |
+| `-Oz` | Aggressive size optimization | Smallest binary, may sacrifice performance |
+
+#### What Each Optimization Level Does
+
+**`-O0` (No Optimization)**
+- No optimization passes applied
+- Fastest compilation
+- Generates larger, slower code
+- Best for debugging since code maps directly to source
+
+**`-O1` (Basic Optimization)**
+- Enables basic optimizations that don't significantly increase compile time
+- Dead code elimination
+- Constant folding and propagation
+- Simple loop optimizations
+
+**`-O2` (Standard Optimization)** ✓ Recommended
+- All `-O1` optimizations plus:
+- Function inlining for small functions
+- Loop unrolling (moderate)
+- Vectorization where beneficial
+- Better register allocation
+- Tail call optimization
+- Best balance of performance and code size
+
+**`-O3` (Aggressive Optimization)**
+- All `-O2` optimizations plus:
+- Aggressive function inlining
+- Loop vectorization
+- Unrolling more loops
+- May significantly increase code size
+- Can sometimes be slower due to cache effects
+
+**`-Os` (Size Optimization)**
+- Similar to `-O2` but prioritizes smaller code
+- Disables optimizations that increase code size
+- Useful when binary size matters (web delivery)
+- Generally good performance
+
+**`-Oz` (Minimum Size)**
+- Most aggressive size reduction
+- May disable inlining entirely
+- Useful for very constrained environments
+- Performance may suffer
+
+### WebAssembly-Specific Optimizations
+
+#### SIMD Support
+
+Enable WebAssembly SIMD for vectorized operations:
+
+```bash
+clang --target=wasm32 -msimd128 -O2 -nostdlib -Wl,--no-entry \
+    -Wl,--export-dynamic -o output.wasm input.c
+```
+
+| Flag | Description |
+|------|-------------|
+| `-msimd128` | Enable 128-bit SIMD operations |
+| `-mrelaxed-simd` | Enable relaxed SIMD (non-deterministic, faster) |
+
+> [!NOTE]
+> wasm2il supports SIMD instructions and maps them to .NET's `Vector128<T>` operations.
+
+#### Tail Call Optimization
+
+Enable tail call optimization to reduce stack usage:
+
+```bash
+clang --target=wasm32 -mtail-call -O2 -nostdlib -Wl,--no-entry \
+    -Wl,--export-dynamic -o output.wasm input.c
+```
+
+#### Bulk Memory Operations
+
+Enable efficient memory operations:
+
+```bash
+clang --target=wasm32 -mbulk-memory -O2 -nostdlib -Wl,--no-entry \
+    -Wl,--export-dynamic -o output.wasm input.c
+```
+
+### Link-Time Optimization (LTO)
+
+LTO provides additional optimization by analyzing the entire program at link time:
+
+```bash
+clang --target=wasm32 -O2 -flto -nostdlib -Wl,--no-entry \
+    -Wl,--export-dynamic -o output.wasm input.c
+```
+
+Benefits of LTO:
+- Cross-file inlining
+- Better dead code elimination
+- Whole program constant propagation
+- Can significantly reduce binary size
+
+### Recommended Compilation Commands
+
+**For Development/Debugging:**
+```bash
+clang --target=wasm32 -O0 -g -nostdlib -Wl,--no-entry \
+    -Wl,--export-dynamic -o output.wasm input.c
+```
+
+**For Production (balanced):**
+```bash
+clang --target=wasm32 -O2 -flto -nostdlib -Wl,--no-entry \
+    -Wl,--export-dynamic -o output.wasm input.c
+```
+
+**For Maximum Performance:**
+```bash
+clang --target=wasm32 -O3 -flto -msimd128 -nostdlib -Wl,--no-entry \
+    -Wl,--export-dynamic -o output.wasm input.c
+```
+
+**For Minimum Size (web delivery):**
+```bash
+clang --target=wasm32 -Oz -flto -nostdlib -Wl,--no-entry \
+    -Wl,--export-dynamic -o output.wasm input.c
+```
+
+### Using wasm-opt for Additional Optimization
+
+After compiling with Clang, you can use `wasm-opt` from [Binaryen](https://github.com/WebAssembly/binaryen) for further optimization:
+
+```bash
+# Install Binaryen
+# Ubuntu/Debian: sudo apt-get install binaryen
+# macOS: brew install binaryen
+
+# Optimize the WASM file
+wasm-opt -O3 -o output-optimized.wasm output.wasm
+
+# Optimize for size
+wasm-opt -Oz -o output-small.wasm output.wasm
+```
+
+`wasm-opt` provides WebAssembly-specific optimizations beyond what Clang offers:
+- Dead code elimination at the WASM level
+- Local variable coalescing
+- Stack slot optimization
+- Memory access optimization
+- Control flow simplification
 
 ---
 
