@@ -176,7 +176,7 @@ This section provides a comprehensive guide to compiling C code to WebAssembly u
 ### Basic Compilation Command
 
 ```bash
-clang --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-dynamic \
+clang --target=wasm32-unknown-unknown -nostdlib -Wl,--no-entry -Wl,--export-dynamic \
     -o output.wasm input.c
 ```
 
@@ -184,8 +184,8 @@ clang --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-dynamic \
 
 | Flag | Description |
 |------|-------------|
-| `--target=wasm32` | Target 32-bit WebAssembly (required) |
-| `--target=wasm64` | Target 64-bit WebAssembly (experimental) |
+| `--target=wasm32-unknown-unknown` | Target 32-bit WebAssembly (required) |
+| `--target=wasm64-unknown-unknown` | Target 64-bit WebAssembly (experimental) |
 | `-nostdlib` | Don't link the standard library |
 | `-Wl,--no-entry` | No `_start` entry point required |
 | `-Wl,--export-dynamic` | Export functions with `visibility("default")` |
@@ -228,7 +228,6 @@ Clang supports several optimization levels, all of which work with the WebAssemb
 - Loop unrolling (moderate)
 - Vectorization where beneficial
 - Better register allocation
-- Tail call optimization
 - Best balance of performance and code size
 
 **`-O3` (Aggressive Optimization)**
@@ -258,7 +257,7 @@ Clang supports several optimization levels, all of which work with the WebAssemb
 Enable WebAssembly SIMD for vectorized operations:
 
 ```bash
-clang --target=wasm32 -msimd128 -O2 -nostdlib -Wl,--no-entry \
+clang --target=wasm32-unknown-unknown -msimd128 -O2 -nostdlib -Wl,--no-entry \
     -Wl,--export-dynamic -o output.wasm input.c
 ```
 
@@ -270,30 +269,26 @@ clang --target=wasm32 -msimd128 -O2 -nostdlib -Wl,--no-entry \
 > [!NOTE]
 > wasm2il supports SIMD instructions and maps them to .NET's `Vector128<T>` operations.
 
-#### Tail Call Optimization
-
-Enable tail call optimization to reduce stack usage:
-
-```bash
-clang --target=wasm32 -mtail-call -O2 -nostdlib -Wl,--no-entry \
-    -Wl,--export-dynamic -o output.wasm input.c
-```
-
 #### Bulk Memory Operations
 
 Enable efficient memory operations:
 
 ```bash
-clang --target=wasm32 -mbulk-memory -O2 -nostdlib -Wl,--no-entry \
+clang --target=wasm32-unknown-unknown -mbulk-memory -O2 -nostdlib -Wl,--no-entry \
     -Wl,--export-dynamic -o output.wasm input.c
 ```
+
+| Flag | Description |
+|------|-------------|
+| `-mbulk-memory` | Enable bulk memory operations (memory.copy, memory.fill) |
+| `-mbulk-memory-opt` | Additional bulk memory optimizations |
 
 ### Link-Time Optimization (LTO)
 
 LTO provides additional optimization by analyzing the entire program at link time:
 
 ```bash
-clang --target=wasm32 -O2 -flto -nostdlib -Wl,--no-entry \
+clang --target=wasm32-unknown-unknown -O2 -flto -nostdlib -Wl,--no-entry \
     -Wl,--export-dynamic -o output.wasm input.c
 ```
 
@@ -307,25 +302,25 @@ Benefits of LTO:
 
 **For Development/Debugging:**
 ```bash
-clang --target=wasm32 -O0 -g -nostdlib -Wl,--no-entry \
+clang --target=wasm32-unknown-unknown -O0 -g -nostdlib -Wl,--no-entry \
     -Wl,--export-dynamic -o output.wasm input.c
 ```
 
 **For Production (balanced):**
 ```bash
-clang --target=wasm32 -O2 -flto -nostdlib -Wl,--no-entry \
+clang --target=wasm32-unknown-unknown -O2 -flto -nostdlib -Wl,--no-entry \
     -Wl,--export-dynamic -o output.wasm input.c
 ```
 
 **For Maximum Performance:**
 ```bash
-clang --target=wasm32 -O3 -flto -msimd128 -nostdlib -Wl,--no-entry \
-    -Wl,--export-dynamic -o output.wasm input.c
+clang --target=wasm32-unknown-unknown -O3 -flto -msimd128 -mbulk-memory -nostdlib \
+    -Wl,--no-entry -Wl,--export-dynamic -o output.wasm input.c
 ```
 
 **For Minimum Size (web delivery):**
 ```bash
-clang --target=wasm32 -Oz -flto -nostdlib -Wl,--no-entry \
+clang --target=wasm32-unknown-unknown -Oz -flto -nostdlib -Wl,--no-entry \
     -Wl,--export-dynamic -o output.wasm input.c
 ```
 
@@ -422,16 +417,16 @@ Use clang to compile your C code to WASM:
 
 ```bash
 # Basic compilation
-clang --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-dynamic \
+clang --target=wasm32-unknown-unknown -nostdlib -Wl,--no-entry -Wl,--export-dynamic \
     -o mathlib.wasm mathlib.c
 
 # With optimizations
-clang --target=wasm32 -O2 -nostdlib -Wl,--no-entry -Wl,--export-dynamic \
+clang --target=wasm32-unknown-unknown -O2 -nostdlib -Wl,--no-entry -Wl,--export-dynamic \
     -o mathlib.wasm mathlib.c
 ```
 
 **Key compiler flags:**
-- `--target=wasm32` - Target WebAssembly 32-bit
+- `--target=wasm32-unknown-unknown` - Target WebAssembly 32-bit
 - `-nostdlib` - Don't link standard library (or link a WASM-compatible one)
 - `-Wl,--no-entry` - No `_start` entry point required
 - `-Wl,--export-dynamic` - Export functions marked with visibility("default")
@@ -443,7 +438,7 @@ If you need libc functions (malloc, strlen, etc.), link against a WASM libc:
 curl -L -o libc.wasm https://github.com/rolfrm/minlibc/releases/download/prototype1/libc.wasm
 
 # Compile with libc
-clang --target=wasm32 -O2 -Wl,--no-entry -Wl,--export-dynamic \
+clang --target=wasm32-unknown-unknown -O2 -Wl,--no-entry -Wl,--export-dynamic \
     libc.wasm -o mathlib.wasm mathlib.c
 ```
 
