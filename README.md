@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🔄 wasm2il
+# wasm2il
 
 **A WebAssembly to .NET IL bytecode compiler**
 
@@ -10,18 +10,19 @@
 [![.NET](https://img.shields.io/badge/.NET-9.0+-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![NuGet](https://img.shields.io/nuget/v/Wasm2IL?color=004880&logo=nuget)](https://www.nuget.org/packages/Wasm2IL)
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-1.0-654FF0?logo=webassembly)](https://webassembly.org/)
+[![Status](https://img.shields.io/badge/Status-⚠️_Experimental-orange)](https://github.com/rolfrm/Wasm2IL)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Installation](#-installation) • [Usage](#-complete-example-wrapping-a-c-library) • [API Reference](#step-7-working-with-wasm-memory)
+[Features](#features) • [Quick Start](#quick-start) • [Installation](#installation) • [Usage](#complete-example-wrapping-a-c-library) • [API Reference](#step-7-working-with-wasm-memory)
 
 </div>
 
 ---
 
-## 📖 What is wasm2il?
+## What is wasm2il?
 
 wasm2il bridges the gap between WebAssembly and the .NET ecosystem. It takes WebAssembly binary modules (`.wasm` files) and compiles them directly into .NET assemblies (`.dll` files), enabling code originally written in C, C++, Rust, or any language that compiles to WebAssembly to run natively on the .NET runtime.
 
-### 💡 Core Idea
+### Core Idea
 
 Instead of interpreting WebAssembly bytecode at runtime, wasm2il performs **ahead-of-time compilation** by translating each WASM instruction into equivalent .NET IL opcodes. The generated assembly can then be JIT-compiled by the .NET runtime, benefiting from all of .NET's runtime optimizations.
 
@@ -46,18 +47,18 @@ WASM linear memory is represented as a native `byte*` pointer, and function tabl
 
 ---
 
-## ✨ Features
+## Features
 
 | Feature | Description |
 |---------|-------------|
-| 🔧 **Direct IL Generation** | Compiles WASM directly to .NET IL using Mono.Cecil, producing standard .NET assemblies |
-| 📦 **WASM 1.0 Support** | Handles most WASM32 1.0 instructions including arithmetic, memory, control flow, and type conversions |
-| ⚡ **SIMD Operations** | Vector128 support for WASM SIMD instructions |
-| 🔗 **C# Interop** | Import C# methods into WASM and export WASM functions for C# to call |
-| 🎯 **Typed Wrappers** | Use `AsImplementation<T>` to create clean, strongly-typed C# interfaces over WASM exports |
-| 🔄 **Automatic Marshaling** | Strings and `Span<byte>` are automatically copied to/from WASM heap memory |
-| 💾 **Memory Access** | Direct heap access via spans and pointers for advanced scenarios |
-| 🚀 **Optimization** | Constant folding and peephole optimization for cleaner IL output |
+| **Direct IL Generation** | Compiles WASM directly to .NET IL using Mono.Cecil, producing standard .NET assemblies |
+| **WASM 1.0 Support** | Handles most WASM32 1.0 instructions including arithmetic, memory, control flow, and type conversions |
+| **SIMD Operations** | Vector128 support for WASM SIMD instructions |
+| **C# Interop** | Import C# methods into WASM and export WASM functions for C# to call |
+| **Typed Wrappers** | Use `AsImplementation<T>` to create clean, strongly-typed C# interfaces over WASM exports |
+| **Automatic Marshaling** | Strings and `Span<byte>` are automatically copied to/from WASM heap memory |
+| **Memory Access** | Direct heap access via spans and pointers for advanced scenarios |
+| **Optimization** | Constant folding and peephole optimization for cleaner IL output |
 
 ---
 
@@ -70,7 +71,7 @@ It is capable of converting most instructions from WASM32 1.0 to IL. WASI (WebAs
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ```csharp
 using Wasm2IL;
@@ -95,15 +96,15 @@ Console.WriteLine(module.Add(5, 3)); // Output: 8
 
 ---
 
-## 📥 Installation
+## Installation
 
-### 📋 Prerequisites
+### Prerequisites
 
 - [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) or later
 - [wabt](https://github.com/WebAssembly/wabt) (WebAssembly Binary Toolkit) - provides `wat2wasm` for compiling `.wat` files
 - (Optional) clang with WebAssembly target support - only needed for building test WASM files from C
 
-#### 💻 Installing Prerequisites
+#### Installing Prerequisites
 
 **Ubuntu/Debian:**
 ```bash
@@ -119,7 +120,7 @@ brew install wabt llvm
 **Windows:**
 Download wabt binaries from the [releases page](https://github.com/WebAssembly/wabt/releases).
 
-### 🔨 Building
+### Building
 
 ```bash
 # Clone the repository
@@ -133,7 +134,7 @@ dotnet restore
 dotnet build
 ```
 
-### 🧪 Running Tests
+### Running Tests
 
 ```bash
 # Run unit tests
@@ -152,7 +153,7 @@ cd TestCCode
 make callback_test.wasm
 ```
 
-### 📦 Using as a Library
+### Using as a Library
 
 Add the NuGet package to your project:
 
@@ -168,11 +169,11 @@ Or add it to your `.csproj`:
 
 ---
 
-## 📚 Complete Example: Wrapping a C Library
+## Complete Example: Wrapping a C Library
 
 This section demonstrates how to compile C code to WASM, convert it to a .NET DLL, and use it from C#.
 
-### 📝 Step 1: Write C Code with Exports and Imports
+### Step 1: Write C Code with Exports and Imports
 
 Create a file `mathlib.c`:
 
@@ -230,7 +231,7 @@ int read_file_size(const char *path) {
 }
 ```
 
-### ⚙️ Step 2: Compile C to WebAssembly
+### Step 2: Compile C to WebAssembly
 
 Use clang to compile your C code to WASM:
 
@@ -261,7 +262,7 @@ clang --target=wasm32 -O2 -Wl,--no-entry -Wl,--export-dynamic \
     libc.wasm -o mathlib.wasm mathlib.c
 ```
 
-### 🔌 Step 3: Implement Imported APIs in C#
+### Step 3: Implement Imported APIs in C#
 
 Create a static class with methods matching the imported function signatures:
 
@@ -327,7 +328,7 @@ public static class FsModule
 > [!TIP]
 > The `CString` type is provided by Wasm2IL for null-terminated string parameters.
 
-### 📂 Step 4: Load WASM and Register Import Modules
+### Step 4: Load WASM and Register Import Modules
 
 ```csharp
 using Wasm2IL;
@@ -359,7 +360,7 @@ transformer.Transform(
 var asm = new WasmAssembly(Assembly.LoadFile("MathLib.dll"));
 ```
 
-### 📞 Step 5: Call WASM Functions Directly
+### Step 5: Call WASM Functions Directly
 
 You can invoke WASM functions using reflection or the helper methods:
 
@@ -375,7 +376,7 @@ var addMethod = moduleType.GetMethod("add");
 int sum2 = (int)addMethod.Invoke(null, new object[] { 10, 20 });
 ```
 
-### 🎯 Step 6: Wrap as a Typed C# Interface
+### Step 6: Wrap as a Typed C# Interface
 
 For a cleaner API, define an interface and use `AsImplementation<T>`:
 
@@ -420,7 +421,7 @@ int size = fileLib.ReadFileSize("/path/to/file.txt");
 - `ReadOnlySpan<byte>` - Copied to heap (read-only)
 - Pointer types (`byte*`, `int*`) - Direct memory access
 
-### 💾 Step 7: Working with WASM Memory
+### Step 7: Working with WASM Memory
 
 For advanced scenarios, you can directly access and manipulate WASM linear memory.
 
@@ -456,7 +457,7 @@ asm.Free(strPtr);
 
 ---
 
-### ✅ Complete Working Example
+### Complete Working Example
 
 ```csharp
 using Wasm2IL;
@@ -498,17 +499,17 @@ class Program
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Feel free to:
 
-- 🐛 Report bugs by opening an issue
-- 💡 Suggest features or improvements
-- 🔧 Submit pull requests
+- Report bugs by opening an issue
+- Suggest features or improvements
+- Submit pull requests
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
@@ -516,8 +517,6 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 <div align="center">
 
-**Made with ❤️ for the .NET and WebAssembly communities**
-
-⭐ Star this repo if you find it useful!
+**Made for the .NET and WebAssembly communities**
 
 </div>
