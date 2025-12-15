@@ -601,13 +601,13 @@ namespace Wasm2IL
 
                         m2 = MaybeWrap(m2);
 
-                        if (m2.ReturnType.FullName == (voidType.FullName) && (type2.ReturnCount != 0))
+                        if (m2.ReturnType.FullName == voidType.FullName && type2.ReturnCount != 0)
                         {
                             throw new Exception(
                                 $"Type signature of {importFun.Name} does not match declared type. (return arguments)");
                         }
 
-                        if (m2.ReturnType.FullName != (voidType.FullName) && (type2.ReturnCount == 0))
+                        if (m2.ReturnType.FullName != voidType.FullName && type2.ReturnCount == 0)
                         {
                             throw new Exception(
                                 $"Type signature of {importFun.Name} does not match declared type. (return arguments)");
@@ -645,22 +645,6 @@ namespace Wasm2IL
             return FuncDecl[func - (uint) ImportFuncs.Count].Method;
         }
         
-        Type InstrType(WOp instruction, bool unsigned = false)
-        {
-            var s = instruction.ToString();
-            if (s.Contains("F32")) return typeof(float);
-            if (s.Contains("F64")) return typeof(double);
-            if (s.Contains("I32")) return unsigned ? typeof(uint) : typeof(int);
-            if (s.Contains("I64")) return unsigned ? typeof(ulong) : typeof(long);
-            return typeof(void);
-        }
-
-        MethodReference GetMethodRef(Type classT, string method, params Type[] argTypes)
-        {
-            var csm = classT.GetMethod(method, BindingFlags.Static | BindingFlags.Public, argTypes);
-            return def.MainModule.ImportReference(csm);
-        }
-
         unsafe void ReadCodeSection(BinReader reader)
         {
             uint funcCount = reader.ReadU32Leb();
@@ -745,7 +729,6 @@ namespace Wasm2IL
                 while (next > reader.Position)
                 {
                     var instr = (WOp) reader.ReadU8();
-                    bool is64 = instr.ToString().Contains("64");
 
                     OpCode? jmpInstr = null;
                     switch (instr)
@@ -1346,27 +1329,15 @@ namespace Wasm2IL
                             {
                                 instr = (WOp) reader.ReadU8();
                                 ctx.PopType(1);
-                                if (unsigned)
-                                {
-                                    if (le)
-                                        jmpInstr = IlOp.Ble_Un;
-                                    else
-                                        jmpInstr = IlOp.Bge_Un;
-                                }
-                                else
-                                {
-                                    if (le)
-                                        jmpInstr = IlOp.Ble;
-                                    else
-                                        jmpInstr = IlOp.Bge;
-                                }
-
+                                jmpInstr = unsigned ? 
+                                    le ? IlOp.Ble_Un : IlOp.Bge_Un : 
+                                    le ? IlOp.Ble : IlOp.Bge;
                                 goto case WOp.BR_IF;
                             }
 
                             OpCode cmp = le
-                                ? (unsigned ? IlOp.Cgt_Un : IlOp.Cgt)
-                                : (unsigned ? IlOp.Clt_Un : IlOp.Clt);
+                                ? unsigned ? IlOp.Cgt_Un : IlOp.Cgt
+                                : unsigned ? IlOp.Clt_Un : IlOp.Clt;
 
                             il.Emit(cmp);
                             il.Emit(IlOp.Ldc_I4_0);
@@ -1976,10 +1947,10 @@ namespace Wasm2IL
                 {
                     case ImportType.FUNC:
                         uint index = reader.ReadU32Leb();
-                        if (ExportFunc.ContainsKey(index))
+                        if (ExportFunc.TryGetValue(index, out var value))
                         {
                             Log.WriteLine("Export already defined: {0} {1} - {2}", index, name,
-                                ExportFunc[index].Name);
+                                value.Name);
                         }
                         else
                             ExportFunc[index] = new ImportFunc {Name = name, Index = index};
