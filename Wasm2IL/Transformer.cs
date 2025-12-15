@@ -26,87 +26,8 @@ using TypeReference = Mono.Cecil.TypeReference;
 
 namespace Wasm2IL
 {
-    using instr = Wasm.Instruction;
-    using IlInstr = OpCodes;
-
-    public class ResolveImportEventArgs : EventArgs
-    {
-        public TypeDefinition TypeBuilder { get; set; }
-        public string ModuleName { get; set; }
-        public string Name { get; set; }
-        public object Result { get; set; }
-        public bool Handled { get; set; }
-        public ModuleDefinition ModuleDefinition { get; set; }
-    }
-
-    class CodeGenContext
-    {
-        public ILProcessor IL { get; }
-        public MethodDefinition Method { get; }
-        public Dictionary<int, Dictionary<TypeReference, VariableDefinition>> HelperVars { get; } = new();
-        public Stack<TypeReference> TypeStack { get; } = new();
-        public VariableDefinition HeapVar { get; }
-        public bool HeapInited { get; set; }
-        public TypeReference VoidType { get; }
-        public FieldDefinition MemoryField { get; }
-
-        public CodeGenContext(
-            ILProcessor il,
-            MethodDefinition method,
-            VariableDefinition heapVar,
-            TypeReference voidType,
-            FieldDefinition memoryField)
-        {
-            IL = il;
-            Method = method;
-            HeapVar = heapVar;
-            VoidType = voidType;
-            MemoryField = memoryField;
-        }
-
-        public VariableDefinition GetHelperVariable(TypeReference tr, int idx = 0)
-        {
-            if (!HelperVars.ContainsKey(idx))
-                HelperVars[idx] = new();
-            var dict = HelperVars[idx];
-            if (tr == VoidType) throw new Exception("void type");
-            if (dict.TryGetValue(tr, out var x))
-                return x;
-            var v = new VariableDefinition(tr);
-            Method.Body.Variables.Add(v);
-            dict[tr] = v;
-            return v;
-        }
-
-        public void PushType(TypeReference? tr)
-        {
-            if (tr == null) throw new Exception("??");
-            if (tr != VoidType)
-                TypeStack.Push(tr);
-        }
-
-        public TypeReference PopType(int count = 1)
-        {
-            if (count == 0) return default;
-            while (count > 1)
-            {
-                TypeStack.Pop();
-                count--;
-            }
-            return TypeStack.Pop();
-        }
-
-        public void LoadMemory()
-        {
-            if (!HeapInited)
-            {
-                HeapInited = true;
-                IL.InsertAfter(0, IL.Create(OpCodes.Ldsfld, MemoryField));
-                IL.InsertAfter(1, IL.Create(OpCodes.Stloc, HeapVar));
-            }
-            IL.Emit(IlInstr.Ldloc, HeapVar);
-        }
-    }
+    using WOp = Wasm.Instruction;
+    using IlOp = OpCodes;
 
     public class Transformer
     {
@@ -361,9 +282,9 @@ namespace Wasm2IL
                 // Stub throws at runtime
                 m.Body.InitLocals = true;
                 var il = m.Body.GetILProcessor();
-                il.Emit(IlInstr.Ldstr, $"{imp.Name} not implemented");
-                il.Emit(IlInstr.Newobj, ResolveTypeConstructor(typeof(Exception), typeof(string)));
-                il.Emit(IlInstr.Throw);
+                il.Emit(IlOp.Ldstr, $"{imp.Name} not implemented");
+                il.Emit(IlOp.Newobj, ResolveTypeConstructor(typeof(Exception), typeof(string)));
+                il.Emit(IlOp.Throw);
                 cls.Methods.Add(m);
                 imp.Method = m;
                 ImportFuncs[kv.Key] = imp;
@@ -470,17 +391,17 @@ namespace Wasm2IL
                 var tableIndex = reader.ReadU32Leb();
                 if (tableIndex != 0)
                     throw new Exception("Multiple tables are not supported");
-                var instr2 = (instr) reader.ReadU8();
-                if (instr2 == instr.VECTOR_INSTRUCTION)
+                var instr2 = (WOp) reader.ReadU8();
+                if (instr2 == WOp.VECTOR_INSTRUCTION)
                 {
                     var ext2 = reader.ReadU8();
-                    instr2 = (instr) (0xFD00 | ext2);
+                    instr2 = (WOp) (0xFD00 | ext2);
                 }
 
                 Assert.AreEqual(Wasm.Instruction.I32_CONST, instr2);
                 var elementOffset = reader.ReadU32Leb();
-                var end = (instr) reader.ReadU8();
-                if (end != instr.END)
+                var end = (WOp) reader.ReadU8();
+                if (end != WOp.END)
                     throw new Exception("Expected END opcode");
                 var fncCnt = reader.ReadU32Leb();
 
@@ -540,7 +461,7 @@ namespace Wasm2IL
                     }
                 }
 
-                il.Emit(IlInstr.Ret);
+                il.Emit(IlOp.Ret);
             }
         }
 
@@ -597,16 +518,16 @@ namespace Wasm2IL
                 int offset = 0;
                 while (true)
                 {
-                    var instr = (instr) reader.ReadU8();
+                    var instr = (WOp) reader.ReadU8();
                     switch (instr)
                     {
-                        case instr.I32_CONST:
+                        case WOp.I32_CONST:
                             var _offset = (int) reader.ReadI64Leb();
                             offset = _offset;
                             break;
-                        case instr.GLOBAL_GET:
+                        case WOp.GLOBAL_GET:
                             throw new NotSupportedException("GLOBAL_GET in data section offset expression not supported");
-                        case instr.END:
+                        case WOp.END:
                             goto read_end;
                         default:
                             throw new Exception("Unknown instruction");
@@ -623,9 +544,9 @@ namespace Wasm2IL
                 var il = cctor.Body.GetILProcessor();
                 il.RemoveAt(cctor.Body.Instructions.Count - 1); // remove RET
 
-                il.Emit(IlInstr.Ldsfld, memoryField);
-                il.Emit(IlInstr.Ldc_I4, offset);
-                il.Emit(IlInstr.Add);
+                il.Emit(IlOp.Ldsfld, memoryField);
+                il.Emit(IlOp.Ldc_I4, offset);
+                il.Emit(IlOp.Add);
                 for (int i2 = 0; i2 < byteCount; i2++)
                 {
                     if (byteCount - i2 >= 8)
@@ -633,28 +554,28 @@ namespace Wasm2IL
                         var v = BitConverter.ToInt64(bc.AsSpan(i2, 8));
                         if (v != 0)
                         {
-                            il.Emit(IlInstr.Dup);
-                            il.Emit(IlInstr.Ldc_I8, v);
-                            il.Emit(IlInstr.Stind_I8);
+                            il.Emit(IlOp.Dup);
+                            il.Emit(IlOp.Ldc_I8, v);
+                            il.Emit(IlOp.Stind_I8);
                         }
 
-                        il.Emit(IlInstr.Ldc_I4_8);
-                        il.Emit(IlInstr.Add);
+                        il.Emit(IlOp.Ldc_I4_8);
+                        il.Emit(IlOp.Add);
 
                         i2 += 7;
                     }
                     else if (bc[i2] != 0)
                     {
-                        il.Emit(IlInstr.Dup);
-                        il.Emit(IlInstr.Ldc_I4, (int) bc[i2]);
-                        il.Emit(IlInstr.Stind_I1);
-                        il.Emit(IlInstr.Ldc_I4_1);
-                        il.Emit(IlInstr.Add);
+                        il.Emit(IlOp.Dup);
+                        il.Emit(IlOp.Ldc_I4, (int) bc[i2]);
+                        il.Emit(IlOp.Stind_I1);
+                        il.Emit(IlOp.Ldc_I4_1);
+                        il.Emit(IlOp.Add);
                     }
                 }
 
-                il.Emit(IlInstr.Pop);
-                il.Emit(IlInstr.Ret);
+                il.Emit(IlOp.Pop);
+                il.Emit(IlOp.Ret);
             }
         }
 
@@ -708,9 +629,9 @@ namespace Wasm2IL
                     foreach (var param in type.ParamTypes)
                         m.Parameters.Add(new ParameterDefinition(param));
                     var il = m.Body.GetILProcessor();
-                    il.Emit(IlInstr.Ldstr, $"{importFun.Name} not implemented");
-                    il.Emit(IlInstr.Newobj, ResolveTypeConstructor(typeof(Exception), typeof(string)));
-                    il.Emit(IlInstr.Throw);
+                    il.Emit(IlOp.Ldstr, $"{importFun.Name} not implemented");
+                    il.Emit(IlOp.Newobj, ResolveTypeConstructor(typeof(Exception), typeof(string)));
+                    il.Emit(IlOp.Throw);
                     importFun.Method = m;
                     cls.Methods.Add(m);
                 }
@@ -724,7 +645,7 @@ namespace Wasm2IL
             return FuncDecl[func - (uint) ImportFuncs.Count].Method;
         }
         
-        Type InstrType(instr instruction, bool unsigned = false)
+        Type InstrType(WOp instruction, bool unsigned = false)
         {
             var s = instruction.ToString();
             if (s.Contains("F32")) return typeof(float);
@@ -777,12 +698,15 @@ namespace Wasm2IL
             }
 
             Dictionary<object, MethodInfo> callMethods = new();
-            foreach (var method in typeof(Lib).GetMethods()
-                         .Where(x => x.IsStatic && x.GetCustomAttribute<WasmOpcodeAttribute>() is { } i))
+            foreach (var method in typeof(Lib).GetMethods())
             {
-                var key = method.GetCustomAttribute<WasmOpcodeAttribute>().Key;
-
-                callMethods.Add(key, method);
+                foreach (var attr in method.GetCustomAttributes<WasmOpcodeAttribute>())
+                {
+                    var key = attr.Key;
+                    callMethods.Add(key, method);
+                    if (!method.IsStatic)
+                        throw new InvalidOperationException("Methods must be static for injecting at compile time.");
+                }
             }
 
             for (uint i = 0; i < funcCount; i++)
@@ -799,12 +723,10 @@ namespace Wasm2IL
                 var next = reader.Position + codeSize;
 
                 var localCount = reader.ReadU32Leb();
-                uint localTotal = 0;
                 for (uint i2 = 0; i2 < localCount; i2++)
                 {
                     uint n = reader.ReadU32Leb();
                     var t = reader.ReadU8();
-                    localTotal += n;
                     for (uint i3 = 0; i3 < n; i3++)
                     {
                         var tp = ByteToTypeReference(t);
@@ -818,84 +740,83 @@ namespace Wasm2IL
                 m1.Body.Variables.Add(new VariableDefinition(def.MainModule.TypeSystem.Int32)); // heapaddr
                 m1.Body.Variables.Add(heapVar);
                 
-                var labelStack = new List<LabelType>();
-                labelStack.Add(new LabelType());
+                var labelStack = new List<LabelType> {new()};
 
                 while (next > reader.Position)
                 {
-                    var instr = (instr) reader.ReadU8();
+                    var instr = (WOp) reader.ReadU8();
                     bool is64 = instr.ToString().Contains("64");
 
                     OpCode? jmpInstr = null;
                     switch (instr)
                     {
-                        case instr.NOP:
-                            il.Emit(IlInstr.Nop);
+                        case WOp.NOP:
+                            il.Emit(IlOp.Nop);
                             break;
-                        case instr.CALL:
+                        case WOp.CALL:
                             var fcn = reader.ReadU32Leb();
                             var otherFun = resolveMethod(fcn);
                             if (otherFun == null)
                                 throw new InvalidOperationException($"Cannot resolve function at index {fcn}");
                             otherFun = MaybeWrap(otherFun);
 
-                            il.Emit(IlInstr.Call, otherFun);
+                            il.Emit(IlOp.Call, otherFun);
 
                             ctx.PopType(otherFun.Parameters.Count);
 
                             ctx.PushType(otherFun.ReturnType);
                             break;
-                        case instr.CALL_INDIRECT:
+                        case WOp.CALL_INDIRECT:
                             var typeidx = reader.ReadU32Leb();
                             var table = reader.ReadU32Leb();
                             if (table != 0)
                                 throw new NotSupportedException("Multiple tables not supported");
                             var ftp = Types[typeidx];
 
-                            il.Emit(IlInstr.Stloc, ctx.GetHelperVariable(i32Type));
+                            il.Emit(IlOp.Stloc, ctx.GetHelperVariable(i32Type));
                             for (int _i2 = 0; _i2 < ftp.ParamCount; _i2++)
                             {
                                 var i2 = ftp.ParamCount - _i2 - 1;
-                                il.Emit(IlInstr.Stloc, ctx.GetHelperVariable(ftp.ParamTypes[i2], (int) i2 + 1));
+                                il.Emit(IlOp.Stloc, ctx.GetHelperVariable(ftp.ParamTypes[i2], (int) i2 + 1));
                             }
 
                             // get function from global table
-                            il.Emit(IlInstr.Ldsfld, functionTable);
-                            il.Emit(IlInstr.Ldloc, ctx.GetHelperVariable(i32Type));
+                            il.Emit(IlOp.Ldsfld, functionTable);
+                            il.Emit(IlOp.Ldloc, ctx.GetHelperVariable(i32Type));
                             var funct = typeToFunc(ftp);
 
-                            il.Emit(IlInstr.Ldelem_Any, def.MainModule.TypeSystem.Object);
-                            il.Emit(IlInstr.Castclass, def.MainModule.ImportReference(funct));
+                            il.Emit(IlOp.Ldelem_Any, def.MainModule.TypeSystem.Object);
+                            il.Emit(IlOp.Castclass, def.MainModule.ImportReference(funct));
                             for (int i2 = 0; i2 < ftp.ParamCount; i2++)
-                                il.Emit(IlInstr.Ldloc, ctx.GetHelperVariable(ftp.ParamTypes[i2], i2 + 1));
+                                il.Emit(IlOp.Ldloc, ctx.GetHelperVariable(ftp.ParamTypes[i2], i2 + 1));
                             var invoke = funct.GetMethod("Invoke");
-                            il.Emit(IlInstr.Callvirt, def.MainModule.ImportReference(invoke));
+                            il.Emit(IlOp.Callvirt, def.MainModule.ImportReference(invoke));
                             ctx.PopType((int) ftp.ParamCount);
                             ctx.PushType(ftp.ReturnType);
                             break;
-                        case instr.BLOCK:
+                        case WOp.BLOCK:
                             var blockType = reader.ReadU8();
                             var endLabel = il.Create(OpCodes.Nop);
                             var blk = new LabelType { Type = blockType, EndLabel = endLabel, StartLabel = endLabel };
                             labelStack.Add(blk);
                             break;
-                        case instr.LOOP:
+                        case WOp.LOOP:
                             blockType = reader.ReadU8();
                             var startLabel = il.Create(OpCodes.Nop);
                             il.Append(startLabel);
                             blk = new LabelType {Type = blockType, EndLabel = null, StartLabel = startLabel};
                             labelStack.Add(blk);
                             break;
-                        case instr.IF:
+                        case WOp.IF:
                             blockType = reader.ReadU8();
                         {
                             endLabel = il.Create(OpCodes.Nop);
-                            il.Emit(IlInstr.Brfalse, endLabel);
+                            il.Emit(IlOp.Brfalse, endLabel);
                             blk = new LabelType {Type = blockType, EndLabel = endLabel, StartLabel = null};
                             labelStack.Add(blk);
                         }
                             break;
-                        case instr.ELSE:
+                        case WOp.ELSE:
                             endLabel = il.Create(OpCodes.Nop);
                             il.Emit(OpCodes.Br, endLabel);
                             blk = labelStack.Last();
@@ -905,11 +826,11 @@ namespace Wasm2IL
                             labelStack.Add(blk);
                             break;
 
-                        case instr.BR:
-                        case instr.BR_IF:
+                        case WOp.BR:
+                        case WOp.BR_IF:
 
                             var brindex = reader.ReadU32Leb();
-                            if (instr == instr.BR_IF)
+                            if (instr == WOp.BR_IF)
                             {
                                 ctx.PopType(1);
                                 il.Emit(jmpInstr ?? OpCodes.Brtrue,
@@ -919,7 +840,7 @@ namespace Wasm2IL
                                 il.Emit(OpCodes.Br, labelStack[(int) (labelStack.Count - brindex - 1)].StartLabel);
 
                             break;
-                        case instr.BR_TABLE:
+                        case WOp.BR_TABLE:
                             var cnt = reader.ReadU32Leb();
                             var items = new Instruction[cnt];
                             for (int i2 = 0; i2 < cnt; i2++)
@@ -938,35 +859,35 @@ namespace Wasm2IL
 
                             ctx.PopType(1);
                             break;
-                        case instr.SELECT:
+                        case WOp.SELECT:
                             // select(a,b,c) = a ? b : c
                             // we have to keep track of the type on top of the stack.
                             var t = ctx.PopType(2);
-                            var nextLabel = il.Create(IlInstr.Stloc, ctx.GetHelperVariable(t));
-                            endLabel = il.Create(IlInstr.Nop);
-                            il.Emit(IlInstr.Brfalse, nextLabel);
-                            il.Emit(IlInstr.Pop);
-                            il.Emit(IlInstr.Br, endLabel);
+                            var nextLabel = il.Create(IlOp.Stloc, ctx.GetHelperVariable(t));
+                            endLabel = il.Create(IlOp.Nop);
+                            il.Emit(IlOp.Brfalse, nextLabel);
+                            il.Emit(IlOp.Pop);
+                            il.Emit(IlOp.Br, endLabel);
                             il.Append(nextLabel);
-                            il.Emit(IlInstr.Pop);
-                            il.Emit(IlInstr.Ldloc, ctx.GetHelperVariable(t));
+                            il.Emit(IlOp.Pop);
+                            il.Emit(IlOp.Ldloc, ctx.GetHelperVariable(t));
                             il.Append(endLabel);
                             break;
-                        case instr.GLOBAL_GET:
+                        case WOp.GLOBAL_GET:
                             var offset2 = reader.ReadU32Leb();
                             var glob = globals[offset2];
-                            il.Emit(IlInstr.Ldsfld, glob.Field);
+                            il.Emit(IlOp.Ldsfld, glob.Field);
                             ctx.PushType(glob.Field.FieldType);
                             break;
-                        case instr.GLOBAL_SET:
+                        case WOp.GLOBAL_SET:
                             offset2 = reader.ReadU32Leb();
                             glob = globals[offset2];
-                            il.Emit(IlInstr.Stsfld, glob.Field);
+                            il.Emit(IlOp.Stsfld, glob.Field);
                             ctx.PopType(1);
                             break;
-                        case instr.LOCAL_SET:
-                        case instr.LOCAL_GET:
-                        case instr.LOCAL_TEE:
+                        case WOp.LOCAL_SET:
+                        case WOp.LOCAL_GET:
+                        case WOp.LOCAL_TEE:
                             VariableDefinition localVar = null;
                             ParameterDefinition param = null;
                             uint localIndex = reader.ReadU32Leb();
@@ -983,120 +904,120 @@ namespace Wasm2IL
 
                             switch (instr)
                             {
-                                case instr.LOCAL_GET:
+                                case WOp.LOCAL_GET:
                                     if (!isArg && localIndex < 4)
                                     {
                                         il.Emit(new[]
-                                            {IlInstr.Ldloc_0, IlInstr.Ldloc_1, IlInstr.Ldloc_2, IlInstr.Ldloc_3}[
+                                            {IlOp.Ldloc_0, IlOp.Ldloc_1, IlOp.Ldloc_2, IlOp.Ldloc_3}[
                                             localIndex]);
                                     }
                                     else if (isArg && localIndex < 4)
                                     {
                                         il.Emit(new[]
-                                            {IlInstr.Ldarg_0, IlInstr.Ldarg_1, IlInstr.Ldarg_2, IlInstr.Ldarg_3}[
+                                            {IlOp.Ldarg_0, IlOp.Ldarg_1, IlOp.Ldarg_2, IlOp.Ldarg_3}[
                                             localIndex]);
                                     }
                                     else if (localIndex < 256)
                                     {
-                                        il.Emit(isArg ? IlInstr.Ldarg_S : IlInstr.Ldloc_S, (byte) localIndex);
+                                        il.Emit(isArg ? IlOp.Ldarg_S : IlOp.Ldloc_S, (byte) localIndex);
                                     }
                                     else
                                     {
-                                        il.Emit(isArg ? IlInstr.Ldarg : IlInstr.Ldloc, (int) localIndex);
+                                        il.Emit(isArg ? IlOp.Ldarg : IlOp.Ldloc, (int) localIndex);
                                     }
                                     ctx.PushType(param?.ParameterType ?? localVar?.VariableType);
                                     break;
-                                case instr.LOCAL_SET:
+                                case WOp.LOCAL_SET:
                                     if (!isArg && localIndex < 4)
                                     {
                                         il.Emit(new[]
-                                            {IlInstr.Stloc_0, IlInstr.Stloc_1, IlInstr.Stloc_2, IlInstr.Stloc_3}[
+                                            {IlOp.Stloc_0, IlOp.Stloc_1, IlOp.Stloc_2, IlOp.Stloc_3}[
                                             localIndex]);
                                     }
                                     else
                                     {
                                         if (localIndex < 256)
                                         {
-                                            il.Emit(isArg ? IlInstr.Starg_S : IlInstr.Stloc_S, (byte) localIndex);
+                                            il.Emit(isArg ? IlOp.Starg_S : IlOp.Stloc_S, (byte) localIndex);
                                         }
                                         else
                                         {
-                                            il.Emit(isArg ? IlInstr.Starg : IlInstr.Stloc, (int) localIndex);
+                                            il.Emit(isArg ? IlOp.Starg : IlOp.Stloc, (int) localIndex);
                                         }
                                     }
 
                                     ctx.PopType(1);
                                     break;
-                                case instr.LOCAL_TEE:
-                                    il.Emit(IlInstr.Dup);
-                                    il.Emit(isArg ? IlInstr.Starg : IlInstr.Stloc, (int) localIndex);
+                                case WOp.LOCAL_TEE:
+                                    il.Emit(IlOp.Dup);
+                                    il.Emit(isArg ? IlOp.Starg : IlOp.Stloc, (int) localIndex);
                                     break;
                             }
 
                             break;
-                        case instr.I32_CONST:
+                        case WOp.I32_CONST:
                         {
                             var cint = (int) reader.ReadI64Leb();
-                            il.Emit(IlInstr.Ldc_I4, cint);
+                            il.Emit(IlOp.Ldc_I4, cint);
 
                             ctx.PushType(i32Type);
                             break;
                         }
-                        case instr.I64_CONST:
+                        case WOp.I64_CONST:
                             ctx.PushType(i64Type);
-                            il.Emit(IlInstr.Ldc_I8, reader.ReadI64Leb());
+                            il.Emit(IlOp.Ldc_I8, reader.ReadI64Leb());
                             break;
-                        case instr.F32_CONST:
+                        case WOp.F32_CONST:
                             ctx.PushType(f32Type);
-                            il.Emit(IlInstr.Ldc_R4, reader.ReadF32());
+                            il.Emit(IlOp.Ldc_R4, reader.ReadF32());
                             break;
-                        case instr.F64_CONST:
+                        case WOp.F64_CONST:
                             ctx.PushType(f64Type);
-                            il.Emit(IlInstr.Ldc_R8, reader.ReadF64());
+                            il.Emit(IlOp.Ldc_R8, reader.ReadF64());
                             break;
-                        case instr.MEMORY_SIZE:
+                        case WOp.MEMORY_SIZE:
                         {
                             var memIdx = reader.ReadU8();
                             if (memIdx != 0)
                                 throw new NotSupportedException("Multiple memories not supported");
                             ctx.LoadMemory();
-                            il.Emit(IlInstr.Ldlen);
-                            il.Emit(IlInstr.Ldc_I4, (int) page_size);
-                            il.Emit(IlInstr.Div);
-                            il.Emit(IlInstr.Conv_I4);
+                            il.Emit(IlOp.Ldlen);
+                            il.Emit(IlOp.Ldc_I4, (int) page_size);
+                            il.Emit(IlOp.Div);
+                            il.Emit(IlOp.Conv_I4);
                             ctx.PushType(i32Type);
                             break;
                         }
-                        case instr.MEMORY_GROW:
+                        case WOp.MEMORY_GROW:
                         {
                             var memIdx = reader.ReadU8();
                             if (memIdx != 0)
                                 throw new NotSupportedException("Multiple memories not supported");
                             throw new NotSupportedException("memory.grow is not supported");
                         }
-                        case instr.I32_LOAD:
-                        case instr.I32_LOAD8_S:
-                        case instr.I32_LOAD8_U:
-                        case instr.I32_LOAD16_U:
-                        case instr.I32_LOAD16_S:
-                        case instr.I64_LOAD8_S:
-                        case instr.I64_LOAD8_U:
-                        case instr.I64_LOAD16_S:
-                        case instr.I64_LOAD16_U:
-                        case instr.I64_LOAD32_S:
-                        case instr.I64_LOAD32_U:
-                        case instr.I64_LOAD:
-                        case instr.F32_LOAD:
-                        case instr.F64_LOAD:
-                        case instr.I32_STORE:
-                        case instr.I32_STORE_8:
-                        case instr.I32_STORE_16:
-                        case instr.I64_STORE:
-                        case instr.I64_STORE_32:
-                        case instr.I64_STORE_8:
-                        case instr.I64_STORE_16:
-                        case instr.F32_STORE:
-                        case instr.F64_STORE:
+                        case WOp.I32_LOAD:
+                        case WOp.I32_LOAD8_S:
+                        case WOp.I32_LOAD8_U:
+                        case WOp.I32_LOAD16_U:
+                        case WOp.I32_LOAD16_S:
+                        case WOp.I64_LOAD8_S:
+                        case WOp.I64_LOAD8_U:
+                        case WOp.I64_LOAD16_S:
+                        case WOp.I64_LOAD16_U:
+                        case WOp.I64_LOAD32_S:
+                        case WOp.I64_LOAD32_U:
+                        case WOp.I64_LOAD:
+                        case WOp.F32_LOAD:
+                        case WOp.F64_LOAD:
+                        case WOp.I32_STORE:
+                        case WOp.I32_STORE_8:
+                        case WOp.I32_STORE_16:
+                        case WOp.I64_STORE:
+                        case WOp.I64_STORE_32:
+                        case WOp.I64_STORE_8:
+                        case WOp.I64_STORE_16:
+                        case WOp.F32_STORE:
+                        case WOp.F64_STORE:
                             reader.ReadU32Leb(); // align hint (ignored)
                             var offset = reader.ReadU32Leb();
                             VariableDefinition stvar = null;
@@ -1111,554 +1032,452 @@ namespace Wasm2IL
                                 else if (instr.ToString().Contains("I32"))
                                     stvar = ctx.GetHelperVariable(i32Type);
                                 else throw new Exception("Unknown type");
-                                il.Emit(IlInstr.Stloc, stvar);
+                                il.Emit(IlOp.Stloc, stvar);
                                 ctx.PopType(1);
                             }
 
                             // adjust according to the offset 
                             if (offset != 0)
                             {
-                                il.Emit(IlInstr.Ldc_I4, (int)offset);
-                                il.Emit(IlInstr.Add);
+                                il.Emit(IlOp.Ldc_I4, (int)offset);
+                                il.Emit(IlOp.Add);
                             }
                             
                             ctx.LoadMemory();
-                            il.Emit(IlInstr.Add);
+                            il.Emit(IlOp.Add);
 
                             
 
                             switch (instr)
                             {
                                 // pop address, value. store value in address according to size.
-                                case instr.I32_STORE_8:
-                                case instr.I64_STORE_8:
-                                    il.Emit(IlInstr.Ldloc, stvar);
-                                    il.Emit(IlInstr.Stind_I1);
+                                case WOp.I32_STORE_8:
+                                case WOp.I64_STORE_8:
+                                    il.Emit(IlOp.Ldloc, stvar);
+                                    il.Emit(IlOp.Stind_I1);
                                     break;
-                                case instr.I32_STORE_16:
-                                case instr.I64_STORE_16:
-                                    il.Emit(IlInstr.Ldloc, stvar);
-                                    il.Emit(IlInstr.Stind_I2);
+                                case WOp.I32_STORE_16:
+                                case WOp.I64_STORE_16:
+                                    il.Emit(IlOp.Ldloc, stvar);
+                                    il.Emit(IlOp.Stind_I2);
                                     break;
-                                case instr.I32_STORE:
-                                case instr.I64_STORE_32:
-                                    il.Emit(IlInstr.Ldloc, stvar);
-                                    il.Emit(IlInstr.Stind_I4);
+                                case WOp.I32_STORE:
+                                case WOp.I64_STORE_32:
+                                    il.Emit(IlOp.Ldloc, stvar);
+                                    il.Emit(IlOp.Stind_I4);
                                     break;
-                                case instr.I64_STORE:
-                                    il.Emit(IlInstr.Ldloc, stvar);
-                                    il.Emit(IlInstr.Stind_I8);
+                                case WOp.I64_STORE:
+                                    il.Emit(IlOp.Ldloc, stvar);
+                                    il.Emit(IlOp.Stind_I8);
                                     break;
-                                case instr.F32_STORE:
-                                    il.Emit(IlInstr.Ldloc, stvar);
-                                    il.Emit(IlInstr.Stind_R4);
+                                case WOp.F32_STORE:
+                                    il.Emit(IlOp.Ldloc, stvar);
+                                    il.Emit(IlOp.Stind_R4);
                                     break;
-                                case instr.F64_STORE:
-                                    il.Emit(IlInstr.Ldloc, stvar);
-                                    il.Emit(IlInstr.Stind_R8);
+                                case WOp.F64_STORE:
+                                    il.Emit(IlOp.Ldloc, stvar);
+                                    il.Emit(IlOp.Stind_R8);
                                     break;
-                                case instr.I32_LOAD:
-                                    il.Emit(IlInstr.Ldind_I4);
+                                case WOp.I32_LOAD:
+                                    il.Emit(IlOp.Ldind_I4);
                                     ctx.PushType(i32Type);
                                     break;
-                                case instr.I32_LOAD8_S:
-                                    il.Emit(IlInstr.Ldind_I1);
+                                case WOp.I32_LOAD8_S:
+                                    il.Emit(IlOp.Ldind_I1);
                                     ctx.PushType(i32Type);
                                     break;
-                                case instr.I32_LOAD8_U:
-                                    il.Emit(IlInstr.Ldind_U1);
+                                case WOp.I32_LOAD8_U:
+                                    il.Emit(IlOp.Ldind_U1);
                                     ctx.PushType(i32Type);
                                     break;
-                                case instr.I32_LOAD16_U:
-                                    il.Emit(IlInstr.Ldind_U2);
+                                case WOp.I32_LOAD16_U:
+                                    il.Emit(IlOp.Ldind_U2);
                                     ctx.PushType(i32Type);
                                     break;
-                                case instr.I32_LOAD16_S:
-                                    il.Emit(IlInstr.Ldind_I2);
+                                case WOp.I32_LOAD16_S:
+                                    il.Emit(IlOp.Ldind_I2);
                                     ctx.PushType(i32Type);
                                     break;
-                                case instr.I64_LOAD:
+                                case WOp.I64_LOAD:
                                     ctx.PushType(i64Type);
-                                    il.Emit(IlInstr.Ldind_I8);
+                                    il.Emit(IlOp.Ldind_I8);
                                     break;
-                                case instr.F32_LOAD:
+                                case WOp.F32_LOAD:
                                     ctx.PushType(f32Type);
-                                    il.Emit(IlInstr.Ldind_R4);
+                                    il.Emit(IlOp.Ldind_R4);
                                     break;
-                                case instr.F64_LOAD:
+                                case WOp.F64_LOAD:
                                     ctx.PushType(f64Type);
-                                    il.Emit(IlInstr.Ldind_R8);
+                                    il.Emit(IlOp.Ldind_R8);
                                     break;
-                                case instr.I64_LOAD8_S:
+                                case WOp.I64_LOAD8_S:
                                     ctx.PushType(i64Type);
-                                    il.Emit(IlInstr.Ldind_I1);
-                                    il.Emit(IlInstr.Conv_I8);
+                                    il.Emit(IlOp.Ldind_I1);
+                                    il.Emit(IlOp.Conv_I8);
                                     break;
-                                case instr.I64_LOAD8_U:
+                                case WOp.I64_LOAD8_U:
                                     ctx.PushType(i64Type);
-                                    il.Emit(IlInstr.Ldind_U1);
-                                    il.Emit(IlInstr.Conv_U8);
+                                    il.Emit(IlOp.Ldind_U1);
+                                    il.Emit(IlOp.Conv_U8);
                                     break;
-                                case instr.I64_LOAD16_S:
+                                case WOp.I64_LOAD16_S:
                                     ctx.PushType(i64Type);
-                                    il.Emit(IlInstr.Ldind_I2);
-                                    il.Emit(IlInstr.Conv_I8);
+                                    il.Emit(IlOp.Ldind_I2);
+                                    il.Emit(IlOp.Conv_I8);
                                     break;
-                                case instr.I64_LOAD16_U:
+                                case WOp.I64_LOAD16_U:
                                     ctx.PushType(i64Type);
-                                    il.Emit(IlInstr.Ldind_U2);
-                                    il.Emit(IlInstr.Conv_U8);
+                                    il.Emit(IlOp.Ldind_U2);
+                                    il.Emit(IlOp.Conv_U8);
                                     break;
-                                case instr.I64_LOAD32_S:
+                                case WOp.I64_LOAD32_S:
                                     ctx.PushType(i64Type);
-                                    il.Emit(IlInstr.Ldind_I4);
-                                    il.Emit(IlInstr.Conv_I8);
+                                    il.Emit(IlOp.Ldind_I4);
+                                    il.Emit(IlOp.Conv_I8);
                                     break;
-                                case instr.I64_LOAD32_U:
+                                case WOp.I64_LOAD32_U:
                                     ctx.PushType(i64Type);
-                                    il.Emit(IlInstr.Ldind_U4);
-                                    il.Emit(IlInstr.Conv_U8);
+                                    il.Emit(IlOp.Ldind_U4);
+                                    il.Emit(IlOp.Conv_U8);
                                     break;
                                 default:
                                     throw new Exception("Unexpected opcode");
                             }
 
                             break;
-                        case instr.I64_EXTEND_I32_U:
-                            il.Emit(IlInstr.Conv_U8);
+                        case WOp.I64_EXTEND_I32_U:
+                            il.Emit(IlOp.Conv_U8);
                             ctx.PopType(1);
                             ctx.PushType(i64Type);
                             break;
-                        case instr.I64_EXTEND_I32_S:
-                            il.Emit(IlInstr.Conv_I8);
+                        case WOp.I64_EXTEND_I32_S:
+                            il.Emit(IlOp.Conv_I8);
                             ctx.PopType(1);
                             ctx.PushType(i64Type);
                             break;
-                        case instr.I32_WRAP_I64:
-                            il.Emit(IlInstr.Conv_I4);
-                            ctx.PopType(1);
-                            ctx.PushType(i32Type);
-                            break;
-                        case instr.I64_REINTERPRET_F64:
-                            var m = typeof(BitConverter).GetMethod(nameof(BitConverter.DoubleToInt64Bits));
-                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
-                            ctx.PopType(1);
-                            ctx.PushType(i64Type);
-                            break;
-                        case instr.I32_REINTERPRET_F32:
-                            m = typeof(BitConverter).GetMethod(nameof(BitConverter.SingleToInt32Bits));
-                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
+                        case WOp.I32_WRAP_I64:
+                            il.Emit(IlOp.Conv_I4);
                             ctx.PopType(1);
                             ctx.PushType(i32Type);
                             break;
 
-                        case instr.F32_REINTERPRET_I32:
-                            m = typeof(BitConverter).GetMethod(nameof(BitConverter.Int32BitsToSingle));
-                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
-                            ctx.PopType(1);
-                            ctx.PushType(f32Type);
-                            break;
-                        case instr.F64_REINTERPRET_I64:
-                            m = typeof(BitConverter).GetMethod(nameof(BitConverter.Int64BitsToDouble));
-                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
+                        case WOp.F64_PROMOTE_F32:
+                            il.Emit(IlOp.Conv_R8);
                             ctx.PopType(1);
                             ctx.PushType(f64Type);
                             break;
-
-                        case instr.F64_PROMOTE_F32:
-                            il.Emit(IlInstr.Conv_R8);
-                            ctx.PopType(1);
-                            ctx.PushType(f64Type);
-                            break;
-                        case instr.F32_DEMOTE_F64:
-                            il.Emit(IlInstr.Conv_R4);
+                        case WOp.F32_DEMOTE_F64:
+                            il.Emit(IlOp.Conv_R4);
                             ctx.PopType(1);
                             ctx.PushType(f32Type);
                             break;
 
-                        case instr.I32_TRUNC_F32_S:
-                        case instr.I32_TRUNC_F32_U:
-                            il.Emit(IlInstr.Conv_I4);
+                        case WOp.I32_TRUNC_F32_S:
+                        case WOp.I32_TRUNC_F32_U:
+                            il.Emit(IlOp.Conv_I4);
                             ctx.PopType(1);
                             ctx.PushType(i32Type);
                             break;
-                        case instr.I32_TRUNC_F64_U:
-                            il.Emit(IlInstr.Conv_U4);
+                        case WOp.I32_TRUNC_F64_U:
+                            il.Emit(IlOp.Conv_U4);
                             ctx.PopType(1);
                             ctx.PushType(i32Type);
-                            goto case instr.I32_TRUNC_F64_S;
-                        case instr.I32_TRUNC_F64_S:
-                            il.Emit(IlInstr.Conv_I4);
+                            goto case WOp.I32_TRUNC_F64_S;
+                        case WOp.I32_TRUNC_F64_S:
+                            il.Emit(IlOp.Conv_I4);
                             ctx.PopType(1);
                             ctx.PushType(i32Type);
                             break;
-                        case instr.I64_TRUNC_F64_U:
-                            il.Emit(IlInstr.Conv_U8);
+                        case WOp.I64_TRUNC_F64_U:
+                            il.Emit(IlOp.Conv_U8);
                             ctx.PopType(1);
                             ctx.PushType(i64Type);
-                            goto case instr.I64_TRUNC_F64_S;
-                        case instr.I64_TRUNC_F64_S:
-                            il.Emit(IlInstr.Conv_I8);
+                            goto case WOp.I64_TRUNC_F64_S;
+                        case WOp.I64_TRUNC_F64_S:
+                            il.Emit(IlOp.Conv_I8);
                             ctx.PopType(1);
                             ctx.PushType(i64Type);
                             break;
-                        case instr.F32_CONVERT_I32_S:
-                        case instr.F32_CONVERT_I32_U:
-                        case instr.F32_CONVERT_I64_S:
-                        case instr.F32_CONVERT_I64_U:
+                        case WOp.F32_CONVERT_I32_S:
+                        case WOp.F32_CONVERT_I32_U:
+                        case WOp.F32_CONVERT_I64_S:
+                        case WOp.F32_CONVERT_I64_U:
                             if (instr.ToString().EndsWith("_U"))
-                                il.Emit(IlInstr.Conv_U8);
-                            il.Emit(IlInstr.Conv_R4);
+                                il.Emit(IlOp.Conv_U8);
+                            il.Emit(IlOp.Conv_R4);
                             ctx.PopType(1);
                             ctx.PushType(f32Type);
                             break;
-                        case instr.F64_CONVERT_I32_S:
-                        case instr.F64_CONVERT_I32_U:
-                        case instr.F64_CONVERT_I64_S:
-                        case instr.F64_CONVERT_I64_U:
+                        case WOp.F64_CONVERT_I32_S:
+                        case WOp.F64_CONVERT_I32_U:
+                        case WOp.F64_CONVERT_I64_S:
+                        case WOp.F64_CONVERT_I64_U:
                             if (instr.ToString().EndsWith("_U"))
-                                il.Emit(IlInstr.Conv_U8);
-                            il.Emit(IlInstr.Conv_R8);
+                                il.Emit(IlOp.Conv_U8);
+                            il.Emit(IlOp.Conv_R8);
                             ctx.PopType(1);
                             ctx.PushType(f64Type);
                             break;
 
-                        case instr.F32_ADD:
-                        case instr.F64_ADD:
-                        case instr.I32_ADD:
-                        case instr.I64_ADD:
-                            il.Emit(IlInstr.Add);
+                        case WOp.F32_ADD:
+                        case WOp.F64_ADD:
+                        case WOp.I32_ADD:
+                        case WOp.I64_ADD:
+                            il.Emit(IlOp.Add);
                             ctx.PopType(1);
                             break;
-                        case instr.F32_SUB:
-                        case instr.F64_SUB:
-                        case instr.I32_SUB:
-                        case instr.I64_SUB:
-                            il.Emit(IlInstr.Sub);
+                        case WOp.F32_SUB:
+                        case WOp.F64_SUB:
+                        case WOp.I32_SUB:
+                        case WOp.I64_SUB:
+                            il.Emit(IlOp.Sub);
                             ctx.PopType(1);
                             break;
-                        case instr.F32_MUL:
-                        case instr.F64_MUL:
-                        case instr.I32_MUL:
-                        case instr.I64_MUL:
-                            il.Emit(IlInstr.Mul);
+                        case WOp.F32_MUL:
+                        case WOp.F64_MUL:
+                        case WOp.I32_MUL:
+                        case WOp.I64_MUL:
+                            il.Emit(IlOp.Mul);
                             ctx.PopType(1);
                             break;
-                        case instr.F32_DIV:
-                        case instr.F64_DIV:
-                        case instr.I32_DIV_S:
-                        case instr.I64_DIV_S:
-                            il.Emit(IlInstr.Div);
+                        case WOp.F32_DIV:
+                        case WOp.F64_DIV:
+                        case WOp.I32_DIV_S:
+                        case WOp.I64_DIV_S:
+                            il.Emit(IlOp.Div);
                             ctx.PopType(1);
                             break;
-                        case instr.I32_DIV_U:
-                        case instr.I64_DIV_U:
-                            il.Emit(IlInstr.Div_Un);
+                        case WOp.I32_DIV_U:
+                        case WOp.I64_DIV_U:
+                            il.Emit(IlOp.Div_Un);
                             ctx.PopType(1);
                             break;
-                        case instr.I32_REM_S:
-                        case instr.I64_REM_S:
-                            il.Emit(IlInstr.Rem);
+                        case WOp.I32_REM_S:
+                        case WOp.I64_REM_S:
+                            il.Emit(IlOp.Rem);
                             ctx.PopType(1);
                             break;
-                        case instr.I32_REM_U:
-                        case instr.I64_REM_U:
-                            il.Emit(IlInstr.Rem_Un);
+                        case WOp.I32_REM_U:
+                        case WOp.I64_REM_U:
+                            il.Emit(IlOp.Rem_Un);
                             ctx.PopType(1);
                             break;
 
-                        case instr.I32_LT_U:
-                        case instr.I64_LT_U:
+                        case WOp.I32_LT_U:
+                        case WOp.I64_LT_U:
                             // Peephole: fuse comparison + br_if into a single conditional branch
-                            if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
+                            if ((WOp) reader.Clone().ReadU8() == WOp.BR_IF)
                             {
-                                instr = (instr) reader.ReadU8();
+                                instr = (WOp) reader.ReadU8();
                                 ctx.PopType(1);
-                                jmpInstr = IlInstr.Blt_Un;
-                                goto case instr.BR_IF;
+                                jmpInstr = IlOp.Blt_Un;
+                                goto case WOp.BR_IF;
                             }
 
-                            il.Emit(IlInstr.Clt_Un);
+                            il.Emit(IlOp.Clt_Un);
                             ctx.PopType(2);
                             ctx.PushType(i32Type);
                             break;
-                        case instr.I32_LT_S:
-                        case instr.I64_LT_S:
-                        case instr.F64_LT:
-                        case instr.F32_LT:
-                            if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
+                        case WOp.I32_LT_S:
+                        case WOp.I64_LT_S:
+                        case WOp.F64_LT:
+                        case WOp.F32_LT:
+                            if ((WOp) reader.Clone().ReadU8() == WOp.BR_IF)
                             {
-                                instr = (instr) reader.ReadU8();
+                                instr = (WOp) reader.ReadU8();
                                 ctx.PopType(1);
-                                jmpInstr = IlInstr.Blt;
-                                goto case instr.BR_IF;
+                                jmpInstr = IlOp.Blt;
+                                goto case WOp.BR_IF;
                             }
 
-                            il.Emit(IlInstr.Clt);
+                            il.Emit(IlOp.Clt);
                             ctx.PopType(2);
                             ctx.PushType(i32Type);
                             break;
-                        case instr.I32_GT_U:
-                        case instr.I64_GT_U:
-                            if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
+                        case WOp.I32_GT_U:
+                        case WOp.I64_GT_U:
+                            if ((WOp) reader.Clone().ReadU8() == WOp.BR_IF)
                             {
-                                instr = (instr) reader.ReadU8();
+                                instr = (WOp) reader.ReadU8();
                                 ctx.PopType(1);
-                                jmpInstr = IlInstr.Bgt_Un;
-                                goto case instr.BR_IF;
+                                jmpInstr = IlOp.Bgt_Un;
+                                goto case WOp.BR_IF;
                             }
 
-                            il.Emit(IlInstr.Cgt_Un);
+                            il.Emit(IlOp.Cgt_Un);
                             ctx.PopType(2);
                             ctx.PushType(i32Type);
                             break;
-                        case instr.I32_GT_S:
-                        case instr.I64_GT_S:
-                        case instr.F64_GT:
-                        case instr.F32_GT:
+                        case WOp.I32_GT_S:
+                        case WOp.I64_GT_S:
+                        case WOp.F64_GT:
+                        case WOp.F32_GT:
 
-                            if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
+                            if ((WOp) reader.Clone().ReadU8() == WOp.BR_IF)
                             {
-                                instr = (instr) reader.ReadU8();
+                                instr = (WOp) reader.ReadU8();
                                 ctx.PopType(1);
-                                jmpInstr = IlInstr.Bgt;
-                                goto case instr.BR_IF;
+                                jmpInstr = IlOp.Bgt;
+                                goto case WOp.BR_IF;
                             }
 
-                            il.Emit(IlInstr.Cgt);
+                            il.Emit(IlOp.Cgt);
                             ctx.PopType(2);
                             ctx.PushType(i32Type);
                             break;
-                        case instr.I32_GE_S:
-                        case instr.I32_GE_U:
-                        case instr.I64_GE_S:
-                        case instr.I64_GE_U:
-                        case instr.F64_GE:
-                        case instr.F32_GE:
-                        case instr.I32_LE_S:
-                        case instr.I32_LE_U:
-                        case instr.I64_LE_S:
-                        case instr.I64_LE_U:
-                        case instr.F64_LE:
-                        case instr.F32_LE:
+                        case WOp.I32_GE_S:
+                        case WOp.I32_GE_U:
+                        case WOp.I64_GE_S:
+                        case WOp.I64_GE_U:
+                        case WOp.F64_GE:
+                        case WOp.F32_GE:
+                        case WOp.I32_LE_S:
+                        case WOp.I32_LE_U:
+                        case WOp.I64_LE_S:
+                        case WOp.I64_LE_U:
+                        case WOp.F64_LE:
+                        case WOp.F32_LE:
 
                             // invert the logic
                             var unsigned = instr.ToString().Contains("_U");
                             var le = instr.ToString().Contains("LE");
 
-                            if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
+                            if ((WOp) reader.Clone().ReadU8() == WOp.BR_IF)
                             {
-                                instr = (instr) reader.ReadU8();
+                                instr = (WOp) reader.ReadU8();
                                 ctx.PopType(1);
                                 if (unsigned)
                                 {
                                     if (le)
-                                        jmpInstr = IlInstr.Ble_Un;
+                                        jmpInstr = IlOp.Ble_Un;
                                     else
-                                        jmpInstr = IlInstr.Bge_Un;
+                                        jmpInstr = IlOp.Bge_Un;
                                 }
                                 else
                                 {
                                     if (le)
-                                        jmpInstr = IlInstr.Ble;
+                                        jmpInstr = IlOp.Ble;
                                     else
-                                        jmpInstr = IlInstr.Bge;
+                                        jmpInstr = IlOp.Bge;
                                 }
 
-                                goto case instr.BR_IF;
+                                goto case WOp.BR_IF;
                             }
 
                             OpCode cmp = le
-                                ? (unsigned ? IlInstr.Cgt_Un : IlInstr.Cgt)
-                                : (unsigned ? IlInstr.Clt_Un : IlInstr.Clt);
+                                ? (unsigned ? IlOp.Cgt_Un : IlOp.Cgt)
+                                : (unsigned ? IlOp.Clt_Un : IlOp.Clt);
 
                             il.Emit(cmp);
-                            il.Emit(IlInstr.Ldc_I4_0);
-                            il.Emit(IlInstr.Ceq);
+                            il.Emit(IlOp.Ldc_I4_0);
+                            il.Emit(IlOp.Ceq);
                             ctx.PopType(2);
                             ctx.PushType(i32Type);
                             break;
-                        case instr.I32_EQ:
-                        case instr.I64_EQ:
-                        case instr.F64_EQ:
-                        case instr.F32_EQ:
-                            if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
+                        case WOp.I32_EQ:
+                        case WOp.I64_EQ:
+                        case WOp.F64_EQ:
+                        case WOp.F32_EQ:
+                            if ((WOp) reader.Clone().ReadU8() == WOp.BR_IF)
                             {
-                                instr = (instr) reader.ReadU8();
+                                instr = (WOp) reader.ReadU8();
                                 ctx.PopType(1);
-                                jmpInstr = IlInstr.Beq;
-                                goto case instr.BR_IF;
+                                jmpInstr = IlOp.Beq;
+                                goto case WOp.BR_IF;
                             }
 
-                            il.Emit(IlInstr.Ceq);
+                            il.Emit(IlOp.Ceq);
                             ctx.PopType(2);
                             ctx.PushType(i32Type);
                             break;
-                        case instr.I32_NE:
-                        case instr.I64_NE:
-                        case instr.F64_NE:
-                        case instr.F32_NE:
-                            if ((instr) reader.Clone().ReadU8() == instr.BR_IF)
+                        case WOp.I32_NE:
+                        case WOp.I64_NE:
+                        case WOp.F64_NE:
+                        case WOp.F32_NE:
+                            if ((WOp) reader.Clone().ReadU8() == WOp.BR_IF)
                             {
-                                instr = (instr) reader.ReadU8();
+                                instr = (WOp) reader.ReadU8();
                                 ctx.PopType(1);
-                                jmpInstr = IlInstr.Bne_Un;
+                                jmpInstr = IlOp.Bne_Un;
 
-                                goto case instr.BR_IF;
+                                goto case WOp.BR_IF;
                             }
 
-                            il.Emit(IlInstr.Ceq);
-                            il.Emit(IlInstr.Ldc_I4_0);
-                            il.Emit(IlInstr.Ceq);
+                            il.Emit(IlOp.Ceq);
+                            il.Emit(IlOp.Ldc_I4_0);
+                            il.Emit(IlOp.Ceq);
                             ctx.PopType(2);
                             ctx.PushType(i32Type);
                             break;
-                        case instr.F32_NEG:
-                        case instr.F64_NEG:
-                            il.Emit(IlInstr.Neg);
+                        case WOp.F32_NEG:
+                        case WOp.F64_NEG:
+                            il.Emit(IlOp.Neg);
                             break;
-                        case instr.F32_ABS:
-                        case instr.F64_ABS:
-                            var m2 = GetMethodRef(typeof(Math), nameof(Math.Abs), InstrType(instr));
-                            il.Emit(IlInstr.Call, m2);
-                            break;
-                        case instr.F32_MIN:
-                        case instr.F64_MIN:
-                        case instr.F32_MAX:
-                        case instr.F64_MAX:
-                            var name = instr.ToString().EndsWith("MAX") ? "Max" : "Min";
-                            m2 = GetMethodRef(typeof(Math), name, InstrType(instr), InstrType(instr));
-                            il.Emit(IlInstr.Call, m2);
-                            ctx.PopType(1);
-                            break;
-                        case instr.F32_SQRT:
-                        case instr.F64_SQRT:
-                            m2 = GetMethodRef(typeof(Math), nameof(Math.Sqrt), InstrType(instr));
-                            il.Emit(IlInstr.Call, m2);
-                            break;
-                        case instr.F64_CEIL:
-                        case instr.F32_CEIL:
-                            m2 = GetMethodRef(typeof(Math), nameof(Math.Ceiling), InstrType(instr));
-                            il.Emit(IlInstr.Call, m2);
-                            break;
-                        case instr.F64_FLOOR:
-                        case instr.F32_FLOOR:
-                            m2 = GetMethodRef(typeof(Math), nameof(Math.Floor), InstrType(instr));
-                            il.Emit(IlInstr.Call, m2);
-                            break;
-                        case instr.F64_COPYSIGN:
-                            m2 = GetMethodRef(typeof(Math), nameof(Math.CopySign), typeof(double), typeof(double));
-                            il.Emit(IlInstr.Call, m2);
-                            ctx.PopType(1);
-                            break;
-                        case instr.F32_COPYSIGN:
-                            m2 = GetMethodRef(typeof(MathF), nameof(MathF.CopySign), typeof(float), typeof(float));
-                            il.Emit(IlInstr.Call, m2);
-                            ctx.PopType(1);
-                            break;
-                        case instr.I32_EQZ:
-                            var nextI = (instr) reader.Clone().ReadU8();
-                            if (nextI == instr.BR_IF)
+                        case WOp.I32_EQZ:
+                            var nextI = (WOp) reader.Clone().ReadU8();
+                            if (nextI == WOp.BR_IF)
                             {
-                                instr = (instr) reader.ReadU8();
+                                instr = (WOp) reader.ReadU8();
 
-                                jmpInstr = IlInstr.Brfalse;
-                                goto case instr.BR_IF;
+                                jmpInstr = IlOp.Brfalse;
+                                goto case WOp.BR_IF;
                             }
 
-                            il.Emit(IlInstr.Ldc_I4_0);
-                            il.Emit(IlInstr.Ceq);
+                            il.Emit(IlOp.Ldc_I4_0);
+                            il.Emit(IlOp.Ceq);
                             ctx.PopType(1);
                             ctx.PushType(i32Type);
                             break;
-                        case instr.I64_EQZ:
-                            il.Emit(IlInstr.Ldc_I8, (long) 0);
-                            il.Emit(IlInstr.Ceq);
+                        case WOp.I64_EQZ:
+                            il.Emit(IlOp.Ldc_I8, (long) 0);
+                            il.Emit(IlOp.Ceq);
                             ctx.PopType(1);
                             ctx.PushType(i32Type);
                             break;
-                        case instr.I32_AND:
-                        case instr.I64_AND:
-                            il.Emit(IlInstr.And);
+                        case WOp.I32_AND:
+                        case WOp.I64_AND:
+                            il.Emit(IlOp.And);
                             ctx.PopType(1);
                             break;
-                        case instr.I32_OR:
-                        case instr.I64_OR:
-                            il.Emit(IlInstr.Or);
+                        case WOp.I32_OR:
+                        case WOp.I64_OR:
+                            il.Emit(IlOp.Or);
                             ctx.PopType(1);
                             break;
-                        case instr.I32_XOR:
-                        case instr.I64_XOR:
-                            il.Emit(IlInstr.Xor);
+                        case WOp.I32_XOR:
+                        case WOp.I64_XOR:
+                            il.Emit(IlOp.Xor);
                             ctx.PopType(1);
                             break;
-                        case instr.I32_ROTR:
-                        case instr.I64_ROTR:
-                            il.Emit(IlInstr.Call, GetMethodRef(typeof(BitOperations), nameof(BitOperations.RotateRight),
-                                InstrType(instr, true),
-                                typeof(int)));
+                        case WOp.I32_SHL:
+                        case WOp.I64_SHL:
+                            il.Emit(IlOp.Shl);
                             ctx.PopType(1);
                             break;
-                        case instr.I32_ROTL:
-                        case instr.I64_ROTL:
-                            il.Emit(IlInstr.Call, GetMethodRef(typeof(BitOperations), nameof(BitOperations.RotateLeft),
-                                InstrType(instr, true),
-                                typeof(int)));
+                        case WOp.I32_SHR_S:
+                        case WOp.I64_SHR_S:
+                            il.Emit(IlOp.Shr);
                             ctx.PopType(1);
                             break;
-                        case instr.I32_SHL:
-                        case instr.I64_SHL:
-                            il.Emit(IlInstr.Shl);
+                        case WOp.I32_SHR_U:
+                        case WOp.I64_SHR_U:
+                            il.Emit(IlOp.Shr_Un);
                             ctx.PopType(1);
                             break;
-                        case instr.I32_SHR_S:
-                        case instr.I64_SHR_S:
-                            il.Emit(IlInstr.Shr);
-                            ctx.PopType(1);
-                            break;
-                        case instr.I32_SHR_U:
-                        case instr.I64_SHR_U:
-                            il.Emit(IlInstr.Shr_Un);
-                            ctx.PopType(1);
-                            break;
-                        case instr.I32_CTZ:
-                        case instr.I64_CTZ:
-                            m = typeof(BitOperations).GetMethod(nameof(BitOperations.TrailingZeroCount),
-                                [is64 ? typeof(ulong) : typeof(uint)]);
-                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
-                            if (is64)
-                                il.Emit(IlInstr.Conv_I8);
-                            break;
-                        case instr.I32_CLZ:
-                        case instr.I64_CLZ:
-                            m = typeof(BitOperations).GetMethod(nameof(BitOperations.LeadingZeroCount),
-                                [is64 ? typeof(ulong) : typeof(uint)]);
-                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
-                            if (is64)
-                                il.Emit(IlInstr.Conv_I8);
-                            break;
-                        case instr.I32_POPCNT:
-                        case instr.I64_POPCNT:
-                            m = typeof(BitOperations).GetMethod(nameof(BitOperations.PopCount),
-                                [is64 ? typeof(ulong) : typeof(uint)]);
-                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
-                            if (is64)
-                                il.Emit(IlInstr.Conv_I8);
-                            break;
-                        case instr.UNREACHABLE:
-                            il.Emit(IlInstr.Ldstr, "Unreachable code");
-                            il.Emit(IlInstr.Newobj, ResolveTypeConstructor(typeof(Exception), typeof(string)));
-                            il.Emit(IlInstr.Throw);
+                        case WOp.UNREACHABLE:
+                            il.Emit(IlOp.Ldstr, "Unreachable code");
+                            il.Emit(IlOp.Newobj, ResolveTypeConstructor(typeof(Exception), typeof(string)));
+                            il.Emit(IlOp.Throw);
                             break;
 
-                        case instr.RETURN:
-                            il.Emit(IlInstr.Ret);
+                        case WOp.RETURN:
+                            il.Emit(IlOp.Ret);
                             break;
-                        case instr.DROP:
-                            il.Emit(IlInstr.Pop);
+                        case WOp.DROP:
+                            il.Emit(IlOp.Pop);
                             ctx.PopType(1);
                             break;
-                        case instr.END:
+                        case WOp.END:
                             if (labelStack.Count > 1)
                             {
                                 var r = labelStack.Last();
@@ -1670,63 +1489,31 @@ namespace Wasm2IL
                             else
                             {
                                 labelStack.RemoveAt(0);
-                                if (il.Body.Instructions.LastOrDefault()?.OpCode != IlInstr.Ret)
-                                    il.Emit(IlInstr.Ret);
+                                if (il.Body.Instructions.LastOrDefault()?.OpCode != IlOp.Ret)
+                                    il.Emit(IlOp.Ret);
                                 goto next;
                             }
 
                             break;
-                        case instr.I32_EXTEND8_S:
-                            il.Emit(IlInstr.Conv_I1);
+                        case WOp.I32_EXTEND8_S:
+                            il.Emit(IlOp.Conv_I1);
                             break;
-                        case instr.I32_EXTEND16_S:
-                            il.Emit(IlInstr.Conv_I2);
+                        case WOp.I32_EXTEND16_S:
+                            il.Emit(IlOp.Conv_I2);
                             break;
-                        case instr.I64_EXTEND8_S:
-                            il.Emit(IlInstr.Conv_I1);
-                            il.Emit(IlInstr.Conv_I8);
+                        case WOp.I64_EXTEND8_S:
+                            il.Emit(IlOp.Conv_I1);
+                            il.Emit(IlOp.Conv_I8);
                             break;
-                        case instr.I64_EXTEND16_S:
-                            il.Emit(IlInstr.Conv_I2);
-                            il.Emit(IlInstr.Conv_I8);
+                        case WOp.I64_EXTEND16_S:
+                            il.Emit(IlOp.Conv_I2);
+                            il.Emit(IlOp.Conv_I8);
                             break;
-                        case instr.I64_EXTEND32_S:
-                            il.Emit(IlInstr.Conv_I4);
-                            il.Emit(IlInstr.Conv_I8);
+                        case WOp.I64_EXTEND32_S:
+                            il.Emit(IlOp.Conv_I4);
+                            il.Emit(IlOp.Conv_I8);
                             break;
-                        case instr.F32_TRUNC:
-                            m = typeof(MathF).GetMethod(nameof(MathF.Truncate),
-                                [typeof(float)]);
-                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
-                            break;
-                        case instr.F32_NEAREST:
-                            m = typeof(MathF).GetMethod(nameof(MathF.Round),
-                                [typeof(float)]);
-                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
-                            break;
-                        case instr.F64_TRUNC:
-                            m = typeof(Math).GetMethod(nameof(Math.Truncate),
-                                [typeof(double)]);
-                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
-                            break;
-
-                        case instr.I64_TRUNC_F32_S:
-                            EmitCall(il, () => Lib.I64_TRUNC_F32_S);
-                            ctx.PopType(1);
-                            ctx.PushType(i64Type);
-                            break;
-                        case instr.I64_TRUNC_F32_U:
-                            EmitCall(il, () => Lib.I64_TRUNC_F32_U);
-                            ctx.PopType(1);
-                            ctx.PushType(i64Type);
-                            break;
-
-                        case instr.F64_NEAREST:
-                            m = typeof(Math).GetMethod(nameof(Math.Round),
-                                [typeof(double)]);
-                            il.Emit(IlInstr.Call, def.MainModule.ImportReference(m));
-                            break;
-                        case instr.EXTENDED_INSTRUCTION:
+                        case WOp.EXTENDED_INSTRUCTION:
                             var einstr = (ExtendedInstruction) reader.ReadU32Leb();
                             switch (einstr)
                             {
@@ -1752,7 +1539,7 @@ namespace Wasm2IL
 
                             break;
 
-                        case instr.VECTOR_INSTRUCTION:
+                        case WOp.VECTOR_INSTRUCTION:
                             var instr2 = (VectorInstructions) reader.ReadU32Leb();
                             switch (instr2)
                             {
@@ -1762,30 +1549,30 @@ namespace Wasm2IL
                                     if (instr2 == VectorInstructions.V128_STORE)
                                     {
                                         stvar = ctx.GetHelperVariable(v128Type);
-                                        il.Emit(IlInstr.Stloc, stvar);
+                                        il.Emit(IlOp.Stloc, stvar);
                                         ctx.PopType(1);
                                     }
 
                                     ctx.LoadMemory();
-                                    il.Emit(IlInstr.Add);
+                                    il.Emit(IlOp.Add);
                                     reader.ReadU32Leb(); // align hint (ignored)
                                     var offset3 = reader.ReadU32Leb();
 
                                     if (offset3 != 0)
                                     {
-                                        il.Emit(IlInstr.Ldc_I4, (int) offset3);
-                                        il.Emit(IlInstr.Add);
+                                        il.Emit(IlOp.Ldc_I4, (int) offset3);
+                                        il.Emit(IlOp.Add);
                                     }
 
                                     var stvar2 = ctx.GetHelperVariable(v128Type);
                                     if (instr2 == VectorInstructions.V128_STORE)
                                     {
-                                        il.Emit(IlInstr.Ldloc, stvar2);
-                                        il.Emit(IlInstr.Stobj, v128Type);
+                                        il.Emit(IlOp.Ldloc, stvar2);
+                                        il.Emit(IlOp.Stobj, v128Type);
                                     }
                                     else
                                     {
-                                        il.Emit(IlInstr.Ldobj, v128Type);
+                                        il.Emit(IlOp.Ldobj, v128Type);
                                         ctx.PushType(v128Type);
                                     }
 
@@ -1799,7 +1586,7 @@ namespace Wasm2IL
                                         reader.Read(buffer);
                                         foreach (var elem in MemoryMarshal.Cast<byte, long>(buffer))
                                         {
-                                            il.Emit(IlInstr.Ldc_I8, elem);
+                                            il.Emit(IlOp.Ldc_I8, elem);
                                         }
 
                                         il.EmitCall(() => Lib.v128_create);
@@ -1818,7 +1605,7 @@ namespace Wasm2IL
                                         reader.Read(buffer);
                                         foreach (var elem in MemoryMarshal.Cast<byte, long>(buffer))
                                         {
-                                            il.Emit(IlInstr.Ldc_I8, elem);
+                                            il.Emit(IlOp.Ldc_I8, elem);
                                         }
 
                                         il.EmitCall(() => Lib.v128_create);
@@ -1921,7 +1708,7 @@ namespace Wasm2IL
                                     reader.ReadU32Leb(); // align hint (ignored)
                                     var offset3 = reader.ReadU32Leb();
                                     ctx.LoadMemory();
-                                    il.Emit(IlInstr.Add);
+                                    il.Emit(IlOp.Add);
                                     if (offset3 != 0)
                                     {
                                         il.Emit(OpCodes.Ldc_I4, (int) offset3);
@@ -1960,7 +1747,7 @@ namespace Wasm2IL
                                     reader.ReadU32Leb(); // align hint (ignored)
                                     var offset3 = reader.ReadU32Leb();
                                     ctx.LoadMemory();
-                                    il.Emit(IlInstr.Add);
+                                    il.Emit(IlOp.Add);
                                     if (offset3 != 0)
                                     {
                                         il.Emit(OpCodes.Ldc_I4, (int) offset3);
@@ -1999,21 +1786,21 @@ namespace Wasm2IL
                                 case VectorInstructions.V128_STORE64_LANE:
                                 {
                                     stvar = ctx.GetHelperVariable(v128Type);
-                                    il.Emit(IlInstr.Stloc, stvar);
+                                    il.Emit(IlOp.Stloc, stvar);
                                     ctx.PopType(1);
                                     reader.ReadU32Leb(); // align hint (ignored)
                                     var offset3 = reader.ReadU32Leb();
                                     var lane = reader.ReadU8();
                                     ctx.LoadMemory();
-                                    il.Emit(IlInstr.Add);
+                                    il.Emit(IlOp.Add);
                                     if (offset3 != 0)
                                     {
                                         il.Emit(OpCodes.Ldc_I4, (int) offset3);
                                         il.Emit(OpCodes.Add);
                                     }
 
-                                    il.Emit(IlInstr.Ldc_I4, (int) lane);
-                                    il.Emit(IlInstr.Ldloc, stvar);
+                                    il.Emit(IlOp.Ldc_I4, (int) lane);
+                                    il.Emit(IlOp.Ldloc, stvar);
 
                                     switch (instr2)
                                     {
@@ -2033,7 +1820,6 @@ namespace Wasm2IL
                                             il.EmitCall(() => Lib.v128_load64_lane);
                                             ctx.PushType(i64Type);
                                             break;
-
                                         case VectorInstructions.V128_STORE8_LANE:
                                             il.EmitCall(() => Lib.v128_store8_lane);
                                             break;
@@ -2064,6 +1850,21 @@ namespace Wasm2IL
                             break;
 
                         default:
+                            if (callMethods.TryGetValue(instr, out var method3) || (method3 = Lib.GetOthers(instr)) != null)
+                            {
+                                if (method3.ReturnParameter.ParameterType == typeof(MethodInfo))
+                                {
+                                    var method4 = (MethodInfo) method3.Invoke(null,method3.GetParameters().Length == 1 ? [instr] : []);
+                                    il.Emit(OpCodes.Call, cls.Module.ImportReference(method4));    
+                                }
+                                else
+                                {
+                                    il.Emit(OpCodes.Call, cls.Module.ImportReference(method3));
+                                }
+
+                                break;
+                            }
+                                
                             throw new Exception("Unsupported instruction: " + instr);
                     }
                 }
@@ -2071,8 +1872,8 @@ namespace Wasm2IL
                 if (labelStack.Count > 0)
                 {
                     Assert.IsTrue(labelStack.Count == 1);
-                    if (il.Body.Instructions.Last().OpCode != IlInstr.Ret)
-                        il.Emit(IlInstr.Ret);
+                    if (il.Body.Instructions.Last().OpCode != IlOp.Ret)
+                        il.Emit(IlOp.Ret);
                 }
 
                 next: ;
@@ -2223,31 +2024,31 @@ namespace Wasm2IL
             {
                 var valType = reader.ReadU8();
                 var mut = reader.ReadU8();
-                var instr = (instr) reader.ReadU8();
+                var instr = (WOp) reader.ReadU8();
                 var glob = new Global();
                 glob.Const = mut == 0;
                 glob.Type = valType;
 
                 switch (instr)
                 {
-                    case instr.I32_CONST:
+                    case WOp.I32_CONST:
                         glob.Value = (int) reader.ReadI64Leb();
                         break;
-                    case instr.I64_CONST:
+                    case WOp.I64_CONST:
                         glob.Value = reader.ReadI64Leb();
                         break;
-                    case instr.F64_CONST:
+                    case WOp.F64_CONST:
                         glob.Value = reader.ReadF64();
                         break;
-                    case instr.F32_CONST:
+                    case WOp.F32_CONST:
                         glob.Value = reader.ReadF32();
                         break;
                     default:
                         throw new Exception("Unsupported constant " + instr);
                 }
 
-                var end = (instr) reader.ReadU8();
-                Assert.AreEqual(instr.END, end);
+                var end = (WOp) reader.ReadU8();
+                Assert.AreEqual(WOp.END, end);
                 globals[i] = glob;
             }
 
@@ -2265,24 +2066,24 @@ namespace Wasm2IL
                 switch (global.Value.Value)
                 {
                     case int i4:
-                        il.Emit(IlInstr.Ldc_I4, i4);
+                        il.Emit(IlOp.Ldc_I4, i4);
                         break;
                     case long i8:
-                        il.Emit(IlInstr.Ldc_I8, i8);
+                        il.Emit(IlOp.Ldc_I8, i8);
                         break;
                     case float r4:
-                        il.Emit(IlInstr.Ldc_R4, r4);
+                        il.Emit(IlOp.Ldc_R4, r4);
                         break;
                     case double r8:
-                        il.Emit(IlInstr.Ldc_R8, r8);
+                        il.Emit(IlOp.Ldc_R8, r8);
                         break;
                     default: throw new Exception("Unsupported type");
                 }
 
-                il.Emit(IlInstr.Stsfld, fld);
+                il.Emit(IlOp.Stsfld, fld);
             }
 
-            il.Emit(IlInstr.Ret);
+            il.Emit(IlOp.Ret);
             Log.WriteLine("Globals: {0}", globals.Count);
         }
 
