@@ -8,16 +8,6 @@ namespace Wasm2IL;
 
 public static partial class Lib
 {
-    static Type InstrType(Instruction instruction, bool unsigned = false)
-    {
-        var s = instruction.ToString();
-        if (s.Contains("F32")) return typeof(float);
-        if (s.Contains("F64")) return typeof(double);
-        if (s.Contains("I32")) return unsigned ? typeof(uint) : typeof(int);
-        if (s.Contains("I64")) return unsigned ? typeof(ulong) : typeof(long);
-        return typeof(void);
-    }
-    
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void MemoryFill(void* loc, int value, int N)
     {
@@ -105,45 +95,21 @@ public static partial class Lib
     [WasmOpcode(Instruction.I64_TRUNC_F32_S)]
     public static long I64_TRUNC_F32_S(float f)
     {
-        if (f >= long.MaxValue || f <= long.MinValue || float.IsNaN(f))
-            throw new OverflowException("i64.trunc_f32_s overflow");
+        if (float.IsNaN(f)) return 0;
+        if (f >= long.MaxValue) return long.MaxValue;
+        if (f < long.MinValue) return long.MinValue;
         return (long)f;
     }
 
     [WasmOpcode(Instruction.I64_TRUNC_F32_U)]
     public static ulong I64_TRUNC_F32_U(float f)
     {
-        if (f >= ulong.MaxValue || f < 0 || float.IsNaN(f))
-            throw new OverflowException("i64.trunc_f32_u overflow");
+        if (float.IsNaN(f)) return 0;
+        if (f >= ulong.MaxValue) return ulong.MaxValue;
+        if (f < ulong.MinValue) return ulong.MinValue;
         return (ulong)f;
     }
-    [WasmOpcode(Instruction.I32_CTZ)]
-    public static MethodInfo ctz()
-    {
-        return typeof(BitOperations).GetMethod(nameof(BitOperations.TrailingZeroCount),
-            [typeof(uint)]);
-    }
 
-    [WasmOpcode(Instruction.I64_CTZ)]
-    public static long ctz64(ulong arg)
-    {
-        return BitOperations.TrailingZeroCount(arg);
-    }
-    
-    [WasmOpcode(Instruction.I32_CLZ)]
-    public static MethodInfo clz()
-    {
-        return typeof(BitOperations).GetMethod(nameof(BitOperations.LeadingZeroCount),
-            [typeof(uint)]);
-    } 
-    
-    [WasmOpcode(Instruction.I64_CLZ)]
-    public static long clz64(ulong arg)
-    {
-        return BitOperations.LeadingZeroCount(arg);
-    }
-
-    
     public static Expression getOthers(Instruction instr)
     {
         switch (instr)
@@ -160,6 +126,14 @@ public static partial class Lib
                 return () => BitOperations.PopCount(0L);
             case Instruction.I32_POPCNT:
                 return () => BitOperations.PopCount(0);
+            case Instruction.I64_CLZ:
+                return () => BitOperations.LeadingZeroCount(0L);
+            case Instruction.I32_CLZ:
+                return () => BitOperations.LeadingZeroCount(0);
+            case Instruction.I64_CTZ:
+                return () => BitOperations.TrailingZeroCount(0L);
+            case Instruction.I32_CTZ:
+                return () => BitOperations.TrailingZeroCount(0);
             case Instruction.I64_REINTERPRET_F64:
                 return () => BitConverter.DoubleToInt64Bits(0.0);
             case Instruction.I32_REINTERPRET_F32:
