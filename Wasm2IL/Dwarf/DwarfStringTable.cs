@@ -2,8 +2,8 @@ namespace Wasm2IL.Dwarf;
 
 public class DwarfStringTable
 {
-    private readonly byte[] _data;
-    private readonly Dictionary<uint, string> _cache;
+    readonly byte[] _data;
+    readonly Dictionary<uint, string> _cache;
 
     public DwarfStringTable(byte[] data)
     {

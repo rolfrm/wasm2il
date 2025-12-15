@@ -11,7 +11,7 @@ namespace Wasm2IL.UnitTests;
 [TestFixture]
 public class TestWasmOperations
 {
-    private WasmAssembly _asm;
+    WasmAssembly _asm;
 
     public TestWasmOperations()
     {
@@ -325,8 +325,8 @@ public class TestWasmOperations
 [TestFixture]
 public class TestWasmSimd
 {
-    private Assembly _assembly;
-    private Type _type;
+    Assembly _assembly;
+    Type _type;
 
     public TestWasmSimd()
     {
@@ -413,7 +413,7 @@ public class TestWasmSimd
 [TestFixture]
 public class TestWasmAssemblyHelpers
 {
-    private WasmAssembly _asm;
+    WasmAssembly _asm;
 
     public TestWasmAssemblyHelpers()
     {
@@ -501,7 +501,7 @@ public class TestInterfaceWrapper
         void Free(int ptr);
     }
 
-    private WasmAssembly _asm;
+    WasmAssembly _asm;
 
     public TestInterfaceWrapper()
     {

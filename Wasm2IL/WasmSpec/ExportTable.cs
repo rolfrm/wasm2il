@@ -1,6 +1,6 @@
 namespace Wasm2IL;
 
-struct ExportTable
+internal struct ExportTable
 {
     public string Name;
     public uint Index;

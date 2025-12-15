@@ -1,8 +1,6 @@
-using System.Runtime.CompilerServices;
-
 namespace Wasm2IL.UnitTests
 {
-    static class Assert
+    internal static class Assert
     {
 
         class AssertException : Exception

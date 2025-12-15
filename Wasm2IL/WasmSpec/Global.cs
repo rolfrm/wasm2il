@@ -2,7 +2,7 @@ using Mono.Cecil;
 
 namespace Wasm2IL;
 
-class Global
+internal class Global
 {
     public bool Const;
     public byte Type;

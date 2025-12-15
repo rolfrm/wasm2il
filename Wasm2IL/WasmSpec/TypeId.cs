@@ -2,7 +2,7 @@ using Mono.Cecil;
 
 namespace Wasm2IL;
 
-struct TypeId
+internal struct TypeId
 {
     public uint ParamCount;
     public uint ReturnCount;

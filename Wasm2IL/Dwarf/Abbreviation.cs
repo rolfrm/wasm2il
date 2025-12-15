@@ -1,5 +1,3 @@
-using System.Collections;
-
 namespace Wasm2IL.Dwarf;
 
 public class Abbreviation

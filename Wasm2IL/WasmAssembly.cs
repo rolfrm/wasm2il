@@ -10,6 +10,7 @@ public class WasmAssembly
 {
     static readonly AssemblyBuilder AsmBuilder = AssemblyBuilder.DefineDynamicAssembly(
         new AssemblyName("WasmWrapper"), AssemblyBuilderAccess.RunAndCollect);
+
     static readonly ModuleBuilder ModuleBuilder = AsmBuilder.DefineDynamicModule("MainModule");
 
     readonly Assembly asm;

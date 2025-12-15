@@ -57,7 +57,7 @@ public class TestLoadSqlite
         int sqlite3_close(int db);
     }
 
-    private static WasmAssembly built = null;
+    static WasmAssembly built;
     static WasmAssembly buildSqlite()
     {
         if (built != null)
@@ -217,8 +217,8 @@ public class TestLoadSqlite
         
 
     }
-    
-    private string sqlitePerfTest0 = @"
+
+    string sqlitePerfTest0 = @"
   
   DROP TABLE IF EXISTS customers;
   
@@ -235,7 +235,8 @@ public class TestLoadSqlite
       i
   FROM c;
   ";
-    private string sqlitePerfTest2 = @"
+
+    string sqlitePerfTest2 = @"
   
   DROP TABLE IF EXISTS customers;
   
@@ -252,8 +253,8 @@ public class TestLoadSqlite
       i
   FROM c;
   ";
-    
-    private string sqlitePerfTest3 = @"
+
+    string sqlitePerfTest3 = @"
   PRAGMA temp_store_directory = './data';
   DROP TABLE IF EXISTS customers;
    DROP TABLE IF EXISTS items;
@@ -287,7 +288,7 @@ public class TestLoadSqlite
   
   ";
 
-    private string sqliteFreeBlob =
+    string sqliteFreeBlob =
         "CREATE TABLE t(x);\nINSERT INTO t VALUES(zeroblob(500*1024*1024));  -- 500 MB\nDROP TABLE t;";
     
     public TestLoadSqlite()
@@ -327,7 +328,7 @@ public class TestLoadSqlite
 
     }
 
-        private string sqlitePerfTestxx = @"
+    string sqlitePerfTestxx = @"
 -- ============================================
 --  Basic SQLite Benchmark Script (No datetime)
 -- ============================================

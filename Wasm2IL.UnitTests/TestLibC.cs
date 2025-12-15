@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Wasm2IL.UnitTests;
@@ -516,8 +515,8 @@ public class TestLibC
 [TestFixture]
 public class TestLibCFileIO
 {
-    private string _testDir;
-    private string _testFile;
+    string _testDir;
+    string _testFile;
 
     public TestLibCFileIO()
     {
@@ -525,13 +524,13 @@ public class TestLibCFileIO
         _testFile = Path.Combine(_testDir, "test.txt");
     }
 
-    private void EnsureTestDir()
+    void EnsureTestDir()
     {
         if (!Directory.Exists(_testDir))
             Directory.CreateDirectory(_testDir);
     }
 
-    private void Cleanup()
+    void Cleanup()
     {
         try
         {

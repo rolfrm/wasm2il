@@ -106,11 +106,11 @@ public class LibC
 
     class ModuleContext 
     {
-        private readonly Type _ctx;
-        
-        private readonly MethodInfo malloc;
-        private readonly MethodInfo free;
-        private readonly FieldInfo memory;
+        readonly Type _ctx;
+
+        readonly MethodInfo malloc;
+        readonly MethodInfo free;
+        readonly FieldInfo memory;
         public Type Ctx => _ctx;
         public int ErrnoLocation { get; }
         public Span<int> ErrorNo => MemoryMarshal.Cast<byte, int>(GetSpan(ErrnoLocation, 4));
@@ -125,9 +125,9 @@ public class LibC
             memorySize = ctx.GetField("MemorySize");
             ErrnoLocation = Malloc(4);
         }
-        
-        private Dictionary<string, int> interned = new();
-        private readonly FieldInfo memorySize;
+
+        Dictionary<string, int> interned = new();
+        readonly FieldInfo memorySize;
 
         public int InternString(string str)
         {
@@ -161,7 +161,7 @@ public class LibC
         }
     }
 
-    private static Dictionary<Type, ModuleContext> modCtx = new(); 
+    static Dictionary<Type, ModuleContext> modCtx = new(); 
 
     static ModuleContext GetModuleContext(Type module)
     {
@@ -174,7 +174,7 @@ public class LibC
         return ctx;
     }
 
-    private static Dictionary<Type, Dictionary<string, int>>
+    static Dictionary<Type, Dictionary<string, int>>
         envLookup = new Dictionary<Type, Dictionary<string, int>>();
     public static int getenv(HeapContext heapCtx, CString name)
     {
@@ -254,9 +254,9 @@ public class LibC
         return Process.GetCurrentProcess().Id;
     }
 
-    private static  int _fd = 990;
+    static  int _fd = 990;
     public static Dictionary<int, FileStream> files = new ();
-    private static Dictionary<int, string> directories = new();
+    static Dictionary<int, string> directories = new();
     public static int open(HeapContext ctx, CString path, OpenFlags flags, OpenMode mode)
     {
         var p = path.ToString();

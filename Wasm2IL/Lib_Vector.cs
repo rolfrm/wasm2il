@@ -222,7 +222,8 @@ public partial class Lib
     public static byte i8x16_extract_lane_u(Vector128<byte> vector, int lane) => vector.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<byte> i8x16_replace_lane(Vector128<byte> vector, byte value, int lane)
+    [WasmOpcode(VectorInstructions.I8X16_REPLACE_LANE)]
+    public static Vector128<byte> i8x16_replace_lane(Vector128<byte> vector, byte value, [WasmConst] byte lane)
         => vector.WithElement(lane, value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -232,35 +233,40 @@ public partial class Lib
     public static ushort i16x8_extract_lane_u(Vector128<ushort> vector, int lane) => vector.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<short> i16x8_replace_lane(Vector128<short> vector, short value, int lane)
+    [WasmOpcode(VectorInstructions.I16X8_REPLACE_LANE)]
+    public static Vector128<short> i16x8_replace_lane(Vector128<short> vector, short value, [WasmConst] byte lane)
         => vector.WithElement(lane, value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int i32x4_extract_lane(Vector128<int> vector, int lane) => vector.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<int> i32x4_replace_lane(Vector128<int> vector, int value, int lane)
+    [WasmOpcode(VectorInstructions.I32X4_REPLACE_LANE)]
+    public static Vector128<int> i32x4_replace_lane(Vector128<int> vector, int value, [WasmConst] byte lane)
         => vector.WithElement(lane, value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static long i64x2_extract_lane(Vector128<long> vector, int lane) => vector.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<long> i64x2_replace_lane(Vector128<long> vector, long value, int lane)
+    [WasmOpcode(VectorInstructions.I64X2_REPLACE_LANE)]
+    public static Vector128<long> i64x2_replace_lane(Vector128<long> vector, long value, [WasmConst] byte lane)
         => vector.WithElement(lane, value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float f32x4_extract_lane(Vector128<float> vector, int lane) => vector.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<float> f32x4_replace_lane(Vector128<float> vector, float value, int lane)
+    [WasmOpcode(VectorInstructions.F32X4_REPLACE_LANE)]
+    public static Vector128<float> f32x4_replace_lane(Vector128<float> vector, float value, [WasmConst] byte lane)
         => vector.WithElement(lane, value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static double f64x2_extract_lane(Vector128<double> vector, int lane) => vector.GetElement(lane);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<double> f64x2_replace_lane(Vector128<double> vector, double value, int lane)
+    [WasmOpcode(VectorInstructions.F64X2_REPLACE_LANE)]
+    public static Vector128<double> f64x2_replace_lane(Vector128<double> vector, double value, [WasmConst] byte lane)
         => vector.WithElement(lane, value);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

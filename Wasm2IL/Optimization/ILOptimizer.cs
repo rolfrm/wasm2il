@@ -9,8 +9,8 @@ namespace Wasm2IL.Optimization;
 /// </summary>
 public class ILOptimizer
 {
-    private readonly MethodBody _body;
-    private readonly List<IOptimizationPass> _passes = new();
+    readonly MethodBody _body;
+    readonly List<IOptimizationPass> _passes = new();
 
     public ILOptimizer(MethodBody body)
     {

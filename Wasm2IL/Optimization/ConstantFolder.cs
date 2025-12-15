@@ -40,7 +40,7 @@ public class ConstantFolder : IOptimizationPass
     /// <summary>
     /// Try to fold a binary operation: ldc A, ldc B, op => ldc result
     /// </summary>
-    private bool TryFoldBinaryOp(MethodBody body, int index)
+    bool TryFoldBinaryOp(MethodBody body, int index)
     {
         var instructions = body.Instructions;
         if (index + 2 >= instructions.Count)
@@ -104,7 +104,7 @@ public class ConstantFolder : IOptimizationPass
     /// <summary>
     /// Try to fold a unary operation: ldc A, op => ldc result
     /// </summary>
-    private bool TryFoldUnaryOp(MethodBody body, int index)
+    bool TryFoldUnaryOp(MethodBody body, int index)
     {
         var instructions = body.Instructions;
         if (index + 1 >= instructions.Count)
@@ -208,7 +208,7 @@ public class ConstantFolder : IOptimizationPass
 
     #region Constant Extraction
 
-    private static bool TryGetI32Constant(Instruction instr, out int value)
+    static bool TryGetI32Constant(Instruction instr, out int value)
     {
         value = 0;
         var opCode = instr.OpCode;
@@ -229,7 +229,7 @@ public class ConstantFolder : IOptimizationPass
         return false;
     }
 
-    private static bool TryGetI64Constant(Instruction instr, out long value)
+    static bool TryGetI64Constant(Instruction instr, out long value)
     {
         value = 0;
         if (instr.OpCode == OpCodes.Ldc_I8)
@@ -240,7 +240,7 @@ public class ConstantFolder : IOptimizationPass
         return false;
     }
 
-    private static bool TryGetF32Constant(Instruction instr, out float value)
+    static bool TryGetF32Constant(Instruction instr, out float value)
     {
         value = 0;
         if (instr.OpCode == OpCodes.Ldc_R4)
@@ -251,7 +251,7 @@ public class ConstantFolder : IOptimizationPass
         return false;
     }
 
-    private static bool TryGetF64Constant(Instruction instr, out double value)
+    static bool TryGetF64Constant(Instruction instr, out double value)
     {
         value = 0;
         if (instr.OpCode == OpCodes.Ldc_R8)
@@ -266,7 +266,7 @@ public class ConstantFolder : IOptimizationPass
 
     #region Binary Operation Evaluation
 
-    private static int? EvaluateI32BinaryOp(OpCode opCode, int a, int b)
+    static int? EvaluateI32BinaryOp(OpCode opCode, int a, int b)
     {
         if (opCode == OpCodes.Add) return a + b;
         if (opCode == OpCodes.Sub) return a - b;
@@ -289,7 +289,7 @@ public class ConstantFolder : IOptimizationPass
         return null;
     }
 
-    private static long? EvaluateI64BinaryOp(OpCode opCode, long a, long b)
+    static long? EvaluateI64BinaryOp(OpCode opCode, long a, long b)
     {
         if (opCode == OpCodes.Add) return a + b;
         if (opCode == OpCodes.Sub) return a - b;
@@ -307,7 +307,7 @@ public class ConstantFolder : IOptimizationPass
         return null;
     }
 
-    private static float? EvaluateF32BinaryOp(OpCode opCode, float a, float b)
+    static float? EvaluateF32BinaryOp(OpCode opCode, float a, float b)
     {
         if (opCode == OpCodes.Add) return a + b;
         if (opCode == OpCodes.Sub) return a - b;
@@ -316,7 +316,7 @@ public class ConstantFolder : IOptimizationPass
         return null;
     }
 
-    private static double? EvaluateF64BinaryOp(OpCode opCode, double a, double b)
+    static double? EvaluateF64BinaryOp(OpCode opCode, double a, double b)
     {
         if (opCode == OpCodes.Add) return a + b;
         if (opCode == OpCodes.Sub) return a - b;
@@ -329,27 +329,27 @@ public class ConstantFolder : IOptimizationPass
 
     #region Unary Operation Evaluation
 
-    private static int? EvaluateI32UnaryOp(OpCode opCode, int a)
+    static int? EvaluateI32UnaryOp(OpCode opCode, int a)
     {
         if (opCode == OpCodes.Neg) return -a;
         if (opCode == OpCodes.Not) return ~a;
         return null;
     }
 
-    private static long? EvaluateI64UnaryOp(OpCode opCode, long a)
+    static long? EvaluateI64UnaryOp(OpCode opCode, long a)
     {
         if (opCode == OpCodes.Neg) return -a;
         if (opCode == OpCodes.Not) return ~a;
         return null;
     }
 
-    private static float? EvaluateF32UnaryOp(OpCode opCode, float a)
+    static float? EvaluateF32UnaryOp(OpCode opCode, float a)
     {
         if (opCode == OpCodes.Neg) return -a;
         return null;
     }
 
-    private static double? EvaluateF64UnaryOp(OpCode opCode, double a)
+    static double? EvaluateF64UnaryOp(OpCode opCode, double a)
     {
         if (opCode == OpCodes.Neg) return -a;
         return null;
@@ -359,7 +359,7 @@ public class ConstantFolder : IOptimizationPass
 
     #region Instruction Replacement
 
-    private void ReplaceBinaryWithConstant(MethodBody body, int index, int value)
+    void ReplaceBinaryWithConstant(MethodBody body, int index, int value)
     {
         var il = body.GetILProcessor();
         var instructions = body.Instructions;
@@ -379,7 +379,7 @@ public class ConstantFolder : IOptimizationPass
         il.Remove(instructions[index + 1]); // was instr2 (now at index+1)
     }
 
-    private void ReplaceBinaryWithI64Constant(MethodBody body, int index, long value)
+    void ReplaceBinaryWithI64Constant(MethodBody body, int index, long value)
     {
         var il = body.GetILProcessor();
         var instructions = body.Instructions;
@@ -392,7 +392,7 @@ public class ConstantFolder : IOptimizationPass
         il.Remove(instructions[index + 1]);
     }
 
-    private void ReplaceBinaryWithF32Constant(MethodBody body, int index, float value)
+    void ReplaceBinaryWithF32Constant(MethodBody body, int index, float value)
     {
         var il = body.GetILProcessor();
         var instructions = body.Instructions;
@@ -405,7 +405,7 @@ public class ConstantFolder : IOptimizationPass
         il.Remove(instructions[index + 1]);
     }
 
-    private void ReplaceBinaryWithF64Constant(MethodBody body, int index, double value)
+    void ReplaceBinaryWithF64Constant(MethodBody body, int index, double value)
     {
         var il = body.GetILProcessor();
         var instructions = body.Instructions;
@@ -418,7 +418,7 @@ public class ConstantFolder : IOptimizationPass
         il.Remove(instructions[index + 1]);
     }
 
-    private void ReplaceUnaryWithConstant(MethodBody body, int index, int value)
+    void ReplaceUnaryWithConstant(MethodBody body, int index, int value)
     {
         var il = body.GetILProcessor();
         var instructions = body.Instructions;
@@ -430,7 +430,7 @@ public class ConstantFolder : IOptimizationPass
         il.Remove(instructions[index + 1]);
     }
 
-    private void ReplaceUnaryWithI64Constant(MethodBody body, int index, long value)
+    void ReplaceUnaryWithI64Constant(MethodBody body, int index, long value)
     {
         var il = body.GetILProcessor();
         var instructions = body.Instructions;
@@ -442,7 +442,7 @@ public class ConstantFolder : IOptimizationPass
         il.Remove(instructions[index + 1]);
     }
 
-    private void ReplaceUnaryWithF32Constant(MethodBody body, int index, float value)
+    void ReplaceUnaryWithF32Constant(MethodBody body, int index, float value)
     {
         var il = body.GetILProcessor();
         var instructions = body.Instructions;
@@ -454,7 +454,7 @@ public class ConstantFolder : IOptimizationPass
         il.Remove(instructions[index + 1]);
     }
 
-    private void ReplaceUnaryWithF64Constant(MethodBody body, int index, double value)
+    void ReplaceUnaryWithF64Constant(MethodBody body, int index, double value)
     {
         var il = body.GetILProcessor();
         var instructions = body.Instructions;
@@ -466,7 +466,7 @@ public class ConstantFolder : IOptimizationPass
         il.Remove(instructions[index + 1]);
     }
 
-    private static Instruction CreateLdcI4(ILProcessor il, int value)
+    static Instruction CreateLdcI4(ILProcessor il, int value)
     {
         return value switch
         {
@@ -488,7 +488,7 @@ public class ConstantFolder : IOptimizationPass
     /// <summary>
     /// Redirect all branches pointing to oldTarget to point to newTarget.
     /// </summary>
-    private static void RedirectBranches(MethodBody body, Instruction oldTarget, Instruction newTarget)
+    static void RedirectBranches(MethodBody body, Instruction oldTarget, Instruction newTarget)
     {
         foreach (var instr in body.Instructions)
         {

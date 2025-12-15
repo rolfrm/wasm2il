@@ -1,8 +1,7 @@
 namespace Wasm2IL
 {
-    static class Assert
+    internal static class Assert
     {
-
         class AssertException : Exception
         {
 

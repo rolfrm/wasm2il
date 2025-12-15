@@ -7,9 +7,9 @@ namespace Wasm2IL.UnitTests;
 [TestFixture]
 public class TestConstantFolding
 {
-    private AssemblyDefinition _assembly;
-    private TypeDefinition _type;
-    private ModuleDefinition _module;
+    AssemblyDefinition _assembly;
+    TypeDefinition _type;
+    ModuleDefinition _module;
 
     public TestConstantFolding()
     {
@@ -22,7 +22,7 @@ public class TestConstantFolding
         _module.Types.Add(_type);
     }
 
-    private MethodDefinition CreateMethod(string name, TypeReference returnType)
+    MethodDefinition CreateMethod(string name, TypeReference returnType)
     {
         var method = new MethodDefinition(name,
             MethodAttributes.Public | MethodAttributes.Static,

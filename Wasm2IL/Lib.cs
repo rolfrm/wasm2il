@@ -9,17 +9,19 @@ namespace Wasm2IL;
 public static partial class Lib
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void MemoryFill(void* loc, int value, int N)
+    [WasmOpcode(ExtendedInstruction.MEMORY_FILL)]
+    public static unsafe void MemoryFill(void* loc, int value, int N, [WasmConst] byte memory)
     {
         Unsafe.InitBlock(loc, (byte) value, (uint) N);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void MemoryCopy(void* dst, void* src, int N)
+    [WasmOpcode(ExtendedInstruction.MEMORY_COPY)]
+    public static unsafe void MemoryCopy(void* dst, void* src, int N, [WasmConst] byte memory1, [WasmConst] byte memory2)
     {
         Unsafe.CopyBlockUnaligned(dst, src, (uint) N);
     }
-
+    
     [WasmOpcode(ExtendedInstruction.I32_TRUNC_SAT_F32_S)]
     public static int I32_TRUNC_SAT_F32_S(float f)
     {
@@ -214,4 +216,9 @@ public class WasmOpcodeAttribute : Attribute
     {
         Key = instruction;
     }
+}
+
+public class WasmConstAttribute : Attribute
+{
+    
 }

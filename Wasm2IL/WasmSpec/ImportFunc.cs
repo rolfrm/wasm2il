@@ -2,7 +2,7 @@ using Mono.Cecil;
 
 namespace Wasm2IL;
 
-struct ImportFunc
+internal struct ImportFunc
 {
     public string Name;
     public string Module;

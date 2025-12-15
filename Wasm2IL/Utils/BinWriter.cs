@@ -6,7 +6,7 @@ using u64 = UInt64;
 using i64 = Int64;
 using u8 = Byte;
 
-class BinWriter(Stream stream)
+internal class BinWriter(Stream stream)
 {
     static System.Text.Encoding Utf8 => System.Text.Encoding.UTF8;
 

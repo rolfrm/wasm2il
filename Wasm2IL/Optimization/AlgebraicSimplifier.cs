@@ -49,7 +49,7 @@ public class AlgebraicSimplifier : IOptimizationPass
     /// Try to simplify: [any], [const], [op] patterns
     /// e.g., a + 0 => a, a * 1 => a, a * 0 => 0
     /// </summary>
-    private bool TrySimplifyBinaryOpWithConstantSecond(MethodBody body, int index)
+    bool TrySimplifyBinaryOpWithConstantSecond(MethodBody body, int index)
     {
         var instructions = body.Instructions;
         if (index + 2 >= instructions.Count)
@@ -107,7 +107,7 @@ public class AlgebraicSimplifier : IOptimizationPass
     /// Try to simplify: [const], [any], [op] patterns
     /// e.g., 0 + a => a, 1 * a => a, 0 * a => 0
     /// </summary>
-    private bool TrySimplifyBinaryOpWithConstantFirst(MethodBody body, int index)
+    bool TrySimplifyBinaryOpWithConstantFirst(MethodBody body, int index)
     {
         var instructions = body.Instructions;
         if (index + 2 >= instructions.Count)
@@ -161,7 +161,7 @@ public class AlgebraicSimplifier : IOptimizationPass
 
     #region I32 Simplification
 
-    private bool TrySimplifyI32WithConstantSecond(MethodBody body, int index, int constVal, OpCode op)
+    bool TrySimplifyI32WithConstantSecond(MethodBody body, int index, int constVal, OpCode op)
     {
         var il = body.GetILProcessor();
         var instructions = body.Instructions;
@@ -214,7 +214,7 @@ public class AlgebraicSimplifier : IOptimizationPass
         return false;
     }
 
-    private bool TrySimplifyI32WithConstantFirst(MethodBody body, int index, int constVal, OpCode op)
+    bool TrySimplifyI32WithConstantFirst(MethodBody body, int index, int constVal, OpCode op)
     {
         var instructions = body.Instructions;
 
@@ -265,7 +265,7 @@ public class AlgebraicSimplifier : IOptimizationPass
 
     #region I64 Simplification
 
-    private bool TrySimplifyI64WithConstantSecond(MethodBody body, int index, long constVal, OpCode op)
+    bool TrySimplifyI64WithConstantSecond(MethodBody body, int index, long constVal, OpCode op)
     {
         var instructions = body.Instructions;
 
@@ -298,7 +298,7 @@ public class AlgebraicSimplifier : IOptimizationPass
         return false;
     }
 
-    private bool TrySimplifyI64WithConstantFirst(MethodBody body, int index, long constVal, OpCode op)
+    bool TrySimplifyI64WithConstantFirst(MethodBody body, int index, long constVal, OpCode op)
     {
         var instructions = body.Instructions;
 
@@ -333,7 +333,7 @@ public class AlgebraicSimplifier : IOptimizationPass
 
     #region F32 Simplification
 
-    private bool TrySimplifyF32WithConstantSecond(MethodBody body, int index, float constVal, OpCode op)
+    bool TrySimplifyF32WithConstantSecond(MethodBody body, int index, float constVal, OpCode op)
     {
         // ReSharper disable once CompareOfFloatsByEqualityOperator
         if (constVal == 0.0f && (op == OpCodes.Add || op == OpCodes.Sub))
@@ -352,7 +352,7 @@ public class AlgebraicSimplifier : IOptimizationPass
         return false;
     }
 
-    private bool TrySimplifyF32WithConstantFirst(MethodBody body, int index, float constVal, OpCode op)
+    bool TrySimplifyF32WithConstantFirst(MethodBody body, int index, float constVal, OpCode op)
     {
         // ReSharper disable once CompareOfFloatsByEqualityOperator
         if (constVal == 0.0f && op == OpCodes.Add)
@@ -375,7 +375,7 @@ public class AlgebraicSimplifier : IOptimizationPass
 
     #region F64 Simplification
 
-    private bool TrySimplifyF64WithConstantSecond(MethodBody body, int index, double constVal, OpCode op)
+    bool TrySimplifyF64WithConstantSecond(MethodBody body, int index, double constVal, OpCode op)
     {
         // ReSharper disable once CompareOfFloatsByEqualityOperator
         if (constVal == 0.0 && (op == OpCodes.Add || op == OpCodes.Sub))
@@ -394,7 +394,7 @@ public class AlgebraicSimplifier : IOptimizationPass
         return false;
     }
 
-    private bool TrySimplifyF64WithConstantFirst(MethodBody body, int index, double constVal, OpCode op)
+    bool TrySimplifyF64WithConstantFirst(MethodBody body, int index, double constVal, OpCode op)
     {
         // ReSharper disable once CompareOfFloatsByEqualityOperator
         if (constVal == 0.0 && op == OpCodes.Add)
@@ -417,7 +417,7 @@ public class AlgebraicSimplifier : IOptimizationPass
 
     #region Helpers
 
-    private static bool IsConstant(Instruction instr)
+    static bool IsConstant(Instruction instr)
     {
         var op = instr.OpCode;
         return op == OpCodes.Ldc_I4_M1 || op == OpCodes.Ldc_I4_0 || op == OpCodes.Ldc_I4_1 ||
@@ -431,7 +431,7 @@ public class AlgebraicSimplifier : IOptimizationPass
     /// Check if an instruction is a "simple load" - pushes exactly 1 value and pops 0 values.
     /// This includes: ldarg, ldloc, ldsfld, constants, and parameterless calls that return a value.
     /// </summary>
-    private static bool IsSimpleLoad(Instruction instr)
+    static bool IsSimpleLoad(Instruction instr)
     {
         var op = instr.OpCode;
 
@@ -461,7 +461,7 @@ public class AlgebraicSimplifier : IOptimizationPass
         return false;
     }
 
-    private static bool TryGetI32Constant(Instruction instr, out int value)
+    static bool TryGetI32Constant(Instruction instr, out int value)
     {
         value = 0;
         var opCode = instr.OpCode;
@@ -482,7 +482,7 @@ public class AlgebraicSimplifier : IOptimizationPass
         return false;
     }
 
-    private static bool TryGetI64Constant(Instruction instr, out long value)
+    static bool TryGetI64Constant(Instruction instr, out long value)
     {
         value = 0;
         if (instr.OpCode == OpCodes.Ldc_I8)
@@ -493,7 +493,7 @@ public class AlgebraicSimplifier : IOptimizationPass
         return false;
     }
 
-    private static bool TryGetF32Constant(Instruction instr, out float value)
+    static bool TryGetF32Constant(Instruction instr, out float value)
     {
         value = 0;
         if (instr.OpCode == OpCodes.Ldc_R4)
@@ -504,7 +504,7 @@ public class AlgebraicSimplifier : IOptimizationPass
         return false;
     }
 
-    private static bool TryGetF64Constant(Instruction instr, out double value)
+    static bool TryGetF64Constant(Instruction instr, out double value)
     {
         value = 0;
         if (instr.OpCode == OpCodes.Ldc_R8)
@@ -519,7 +519,7 @@ public class AlgebraicSimplifier : IOptimizationPass
     /// Remove constant at index and the operation at index+1
     /// Used for patterns like: a, 0, add => a
     /// </summary>
-    private void RemoveConstantAndOp(MethodBody body, int constIndex, bool removeFirst = false)
+    void RemoveConstantAndOp(MethodBody body, int constIndex, bool removeFirst = false)
     {
         var il = body.GetILProcessor();
         var instructions = body.Instructions;
@@ -553,7 +553,7 @@ public class AlgebraicSimplifier : IOptimizationPass
     /// Replace the entire expression with a constant.
     /// Used for patterns like: a * 0 => 0
     /// </summary>
-    private void ReplaceWithConstant(MethodBody body, int index, int value, bool removeSecondOperand = false)
+    void ReplaceWithConstant(MethodBody body, int index, int value, bool removeSecondOperand = false)
     {
         var il = body.GetILProcessor();
         var instructions = body.Instructions;
@@ -567,7 +567,7 @@ public class AlgebraicSimplifier : IOptimizationPass
         il.Remove(instructions[index + 1]); // op
     }
 
-    private void ReplaceWithI64Constant(MethodBody body, int index, long value, bool removeSecondOperand = false)
+    void ReplaceWithI64Constant(MethodBody body, int index, long value, bool removeSecondOperand = false)
     {
         var il = body.GetILProcessor();
         var instructions = body.Instructions;
@@ -581,7 +581,7 @@ public class AlgebraicSimplifier : IOptimizationPass
         il.Remove(instructions[index + 1]);
     }
 
-    private static Instruction CreateLdcI4(ILProcessor il, int value)
+    static Instruction CreateLdcI4(ILProcessor il, int value)
     {
         return value switch
         {
@@ -600,7 +600,7 @@ public class AlgebraicSimplifier : IOptimizationPass
         };
     }
 
-    private static void RedirectBranches(MethodBody body, Instruction oldTarget, Instruction newTarget)
+    static void RedirectBranches(MethodBody body, Instruction oldTarget, Instruction newTarget)
     {
         foreach (var instr in body.Instructions)
         {
