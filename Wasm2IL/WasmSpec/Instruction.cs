@@ -16,6 +16,8 @@ namespace Wasm
         RETURN = 0x0F,
         CALL = 0x10,
         CALL_INDIRECT = 0x11,
+        RETURN_CALL = 0x12,
+        RETURN_CALL_INDIRECT = 0x13,
         DROP = 0x1A,
         SELECT = 0x1B,
         SELECT_T = 0x1C,

@@ -726,20 +726,30 @@ public class Transformer
                     case WOp.NOP:
                         il.Emit(IlOp.Nop);
                         break;
+                    case WOp.RETURN_CALL:
                     case WOp.CALL:
+                    {
+                        var isTailCall = instr == WOp.RETURN_CALL;
                         var fcn = reader.ReadU32Leb();
                         var otherFun = ResolveMethod(moduleContext, fcn);
                         if (otherFun == null)
                             throw new InvalidOperationException($"Cannot resolve function at index {fcn}");
                         otherFun = moduleContext.MaybeWrap(otherFun);
 
+                        if (isTailCall)
+                            il.Emit(IlOp.Tail);
                         il.Emit(IlOp.Call, otherFun);
+                        if (isTailCall)
+                            il.Emit(IlOp.Ret);
 
                         ctx.PopType(otherFun.Parameters.Count);
-
                         ctx.PushType(otherFun.ReturnType);
                         break;
+                    }
+                    case WOp.RETURN_CALL_INDIRECT:
                     case WOp.CALL_INDIRECT:
+                    {
+                        var isTailCall = instr == WOp.RETURN_CALL_INDIRECT;
                         var typeidx = reader.ReadU32Leb();
                         var table = reader.ReadU32Leb();
                         if (table != 0)
@@ -764,10 +774,15 @@ public class Transformer
                         for (int i2 = 0; i2 < ftp.ParamCount; i2++)
                             il.Emit(IlOp.Ldloc, ctx.GetHelperVariable(ftp.ParamTypes[i2], i2 + 1));
                         var invoke = funct.GetMethod("Invoke");
+                        if (isTailCall)
+                            il.Emit(IlOp.Tail);
                         il.Emit(IlOp.Callvirt, def.MainModule.ImportReference(invoke));
+                        if (isTailCall)
+                            il.Emit(IlOp.Ret);
                         ctx.PopType((int) ftp.ParamCount);
                         ctx.PushType(ftp.ReturnType);
                         break;
+                    }
                     case WOp.BLOCK:
                         var blockType = reader.ReadU8();
                         var endLabel = il.Create(OpCodes.Nop);
