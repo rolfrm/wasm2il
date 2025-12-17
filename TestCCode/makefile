@@ -27,13 +27,6 @@ sqlite3.bc: sqlite3.c sqlite3.h
 sqlite3.wat: sqlite3.wasm libc.wasm
 	wasm2wat sqlite3.wasm > sqlite3.wat
     
-#crypto.wasm: crypto.c libc.wasm
-#	clang --target=wasm32-unknown-unknown ./libc.wasm ./libcrypto.wasm -Wl,--no-entry  -nostdlib  -O3 crypto.c -I$(SSL_PATH) -I$(MUSL_INCLUDE) -o crypto.wasm -Wl,--export=hashstr -Wl,--export=set_stdout\
-#	 -Wl,--error-limit=0 -Wl,--allow-undefined
-
-cat.wasm: cat.c
-	clang --target=wasm32-unknown-unknown -nostdlib -O3  -Wl,--export=main -Wl,--allow-undefined -Wl,--no-entry -ffreestanding cat.c -o cat.wasm
-    
 simple_call.wasm: simple_call.c
 	clang --target=wasm32-unknown-unknown -nostdlib -O3  -Wl,--export=main -Wl,--export=__provide_overrides__ -Wl,--allow-undefined -Wl,--no-entry -ffreestanding simple_call.c -o simple_call.wasm
      
@@ -43,16 +36,8 @@ simple_call2.wasm: simple_call2.c
 callback_test.wasm: callback_test.c
 	clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory  -Wl,--export=main-Wl,--export=callback_test -Wl,--allow-undefined -Wl,--no-entry -ffreestanding callback_test.c -o callback_test.wasm 
   
-  
-term_text.wasm: TermText.c
-	clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory  -Wl,--export=main -Wl,--export=__provide_overrides2__ -Wl,--export=__provide_overrides__ -Wl,--export=__caller_heap__ -Wl,--allow-undefined -Wl,--no-entry -ffreestanding TermText.c -o term_text.wasm
-
-term_text_test.wasm: term_text_test.c
-	clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory  -Wl,--export=main -Wl,--export=__provide_overrides2__ -Wl,--export=__provide_overrides__ -Wl,--export=__caller_heap__ -Wl,--allow-undefined -Wl,--no-entry -ffreestanding term_text_test.c -o term_text_test.wasm 
-      
-      
-code1.bc: Code1.c
-	clang --target=wasm32-wasi -v -c -o code1.bc -Oz Code1.c -fdeclspec\
+code1.bc: code1.c
+	clang --target=wasm32-wasi -v -c -o code1.bc -Oz code1.c -fdeclspec\
              --sysroot $(SYSROOT) 
 
 code.wasm: code1.bc sqlite3.bc

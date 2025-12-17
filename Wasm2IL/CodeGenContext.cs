@@ -1,7 +1,7 @@
-using System.Linq.Expressions;
 using System.Reflection;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Wasm2IL.Utils;
 
 namespace Wasm2IL;
 
@@ -39,7 +39,7 @@ internal class CodeGenContext
             if (method3.ReturnParameter.ParameterType == typeof(MethodInfo))
                 method3 = (MethodInfo) method3.Invoke(null, method3.GetParameters().Length == 1 ? [instr] : []);
 
-            foreach (var param in method3.GetParameters().Reverse())
+            foreach (var param in method3.GetParameters().Reversed())
             {
                 if (param.GetCustomAttribute<WasmConstAttribute>() != null)
                     continue;

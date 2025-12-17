@@ -31,6 +31,7 @@ namespace Wasm2IL.UnitTests
             return sb.ToString();
         }
 
+        [Test]
         public static void TestReadWrite()
         {
 
