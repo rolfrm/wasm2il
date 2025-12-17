@@ -8,59 +8,6 @@ using Wasm2IL;
 
 Console.WriteLine("=== wasm2il Examples ===\n");
 
-// -----------------------------------------------------------------------------
-// Example 1: Import Module Implementation
-// When WASM code imports functions, you must provide C# implementations
-// -----------------------------------------------------------------------------
-
-/// <summary>
-/// Implementation for "env" module imports.
-/// The method names must match the import names in the WASM module.
-/// </summary>
-public static class EnvModule
-{
-    private static int _lastLoggedValue;
-
-    public static void log_value(int value)
-    {
-        Console.WriteLine($"[WASM] Logged value: {value}");
-        _lastLoggedValue = value;
-    }
-
-    public static int GetLastLoggedValue() => _lastLoggedValue;
-}
-
-// -----------------------------------------------------------------------------
-// Example 2: Typed Interface for WASM Functions
-// Use [Wasm] attributes to map interface methods to WASM exports
-// -----------------------------------------------------------------------------
-
-/// <summary>
-/// Typed interface for the mathlib WASM module.
-/// Each method maps to a WASM export via the [Wasm] attribute.
-/// </summary>
-public interface IMathLib
-{
-    [Wasm("add")]
-    int Add(int a, int b);
-
-    [Wasm("multiply")]
-    int Multiply(int a, int b);
-
-    [Wasm("compute_and_log")]
-    int ComputeAndLog(int a, int b);
-
-    [Wasm("factorial")]
-    int Factorial(int n);
-
-    [Wasm("string_length")]
-    int StringLength(string s);
-}
-
-// =============================================================================
-// Main Examples
-// =============================================================================
-
 var testsPassed = 0;
 var testsFailed = 0;
 
@@ -68,12 +15,12 @@ void Assert(bool condition, string testName)
 {
     if (condition)
     {
-        Console.WriteLine($"✓ {testName}");
+        Console.WriteLine($"  PASS: {testName}");
         testsPassed++;
     }
     else
     {
-        Console.WriteLine($"✗ {testName} - FAILED");
+        Console.WriteLine($"  FAIL: {testName}");
         testsFailed++;
     }
 }
@@ -96,7 +43,7 @@ var asm = transformer.LoadWasmAssembly(wasmPath, "MathLib");
 Console.WriteLine($"Loaded assembly: {asm.Name}\n");
 
 // -----------------------------------------------------------------------------
-// Example 3: Direct Invocation with Invoke()
+// Example 1: Direct Invocation with Invoke()
 // The simplest way to call WASM functions
 // -----------------------------------------------------------------------------
 
@@ -125,7 +72,7 @@ Assert(fact5 == 120, "factorial(5) == 120");
 Console.WriteLine();
 
 // -----------------------------------------------------------------------------
-// Example 4: Typed Interface with AsImplementation<T>
+// Example 2: Typed Interface with AsImplementation<T>
 // A cleaner API using strongly-typed interfaces
 // -----------------------------------------------------------------------------
 
@@ -155,7 +102,7 @@ Assert(typedFact == 720, "mathLib.Factorial(6) == 720");
 Console.WriteLine();
 
 // -----------------------------------------------------------------------------
-// Example 5: String Marshaling
+// Example 3: String Marshaling
 // Strings are automatically copied to WASM heap
 // -----------------------------------------------------------------------------
 
@@ -177,7 +124,7 @@ Assert(longerLen == 19, "StringLength(\"Hello, WebAssembly!\") == 19");
 Console.WriteLine();
 
 // -----------------------------------------------------------------------------
-// Example 6: Working with WASM Memory
+// Example 4: Working with WASM Memory
 // Direct heap access for advanced scenarios
 // -----------------------------------------------------------------------------
 
@@ -235,4 +182,47 @@ else
 {
     Console.WriteLine("\nAll examples completed successfully!");
     Environment.Exit(0);
+}
+
+// =============================================================================
+// Type Declarations (must come after top-level statements in C#)
+// =============================================================================
+
+/// <summary>
+/// Implementation for "env" module imports.
+/// The method names must match the import names in the WASM module.
+/// </summary>
+public static class EnvModule
+{
+    private static int _lastLoggedValue;
+
+    public static void log_value(int value)
+    {
+        Console.WriteLine($"[WASM] Logged value: {value}");
+        _lastLoggedValue = value;
+    }
+
+    public static int GetLastLoggedValue() => _lastLoggedValue;
+}
+
+/// <summary>
+/// Typed interface for the mathlib WASM module.
+/// Each method maps to a WASM export via the [Wasm] attribute.
+/// </summary>
+public interface IMathLib
+{
+    [Wasm("add")]
+    int Add(int a, int b);
+
+    [Wasm("multiply")]
+    int Multiply(int a, int b);
+
+    [Wasm("compute_and_log")]
+    int ComputeAndLog(int a, int b);
+
+    [Wasm("factorial")]
+    int Factorial(int n);
+
+    [Wasm("string_length")]
+    int StringLength(string s);
 }
