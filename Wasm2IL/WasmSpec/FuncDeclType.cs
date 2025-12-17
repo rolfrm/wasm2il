@@ -4,9 +4,9 @@ namespace Wasm2IL;
 
 public class FuncDeclType
 {
-    public MethodDefinition? Method;
+    public MethodDefinition Method;
     public uint TypeId;
     public bool IsDefaultName;
-    public string? ImportName { get; set; }
+    public string ImportName { get; set; }
     public override string ToString() => Method?.Name ?? "Func?";
 }

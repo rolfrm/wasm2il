@@ -15,13 +15,13 @@ public class WasmAssembly
 
     readonly Assembly asm;
     readonly Type code;
-    readonly MethodInfo? malloc;
-    readonly MethodInfo? free;
+    readonly MethodInfo malloc;
+    readonly MethodInfo free;
     readonly FieldInfo memory;
     readonly FieldInfo memorySize;
-    readonly FieldInfo? functionTable;
+    readonly FieldInfo functionTable;
     readonly List<int> freeFunctions = new();
-    object[]? functionTableArray;
+    object[] functionTableArray;
 
     public string Name => code.Name;
     public Assembly Assembly => asm;
@@ -116,7 +116,7 @@ public class WasmAssembly
         return s;
     }
 
-    public object? Invoke(string methodName, params object[] args)
+    public object Invoke(string methodName, params object[] args)
     {
         var toFree = ImmutableList<int>.Empty;
         var fcnToFree = ImmutableList<int>.Empty;
@@ -149,8 +149,8 @@ public class WasmAssembly
         return result;
     }
 
-    public MethodInfo? GetMethod(string name) => code.GetMethod(name);
-    public FieldInfo? GetField(string name) => code.GetField(name);
+    public MethodInfo GetMethod(string name) => code.GetMethod(name);
+    public FieldInfo GetField(string name) => code.GetField(name);
 
     public Span<byte> GetHeapSpan(int i, int len) => GetHeap().Slice(i, len);
 
@@ -177,7 +177,7 @@ public class WasmAssembly
     public static unsafe void CopyToSpan(Span<byte> span, byte* data) =>
         new Span<byte>(data, span.Length).CopyTo(span);
 
-    public object? LookupFunction(int i)
+    public object LookupFunction(int i)
     {
         var ftable = code.GetField("FunctionTable", BindingFlags.Static | BindingFlags.NonPublic)
             ?.GetValue(null) as Array;
@@ -297,7 +297,7 @@ public class WasmAssembly
                 }
             }
 
-            LocalBuilder? retLoc = null;
+            LocalBuilder retLoc = null;
             il.Emit(OpCodes.Call, staticMethod);
 
             foreach (var (l, idx) in copyBack)

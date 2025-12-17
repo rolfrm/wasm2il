@@ -6,6 +6,6 @@ internal class Global
 {
     public bool Const;
     public byte Type;
-    public object? Value;
-    public FieldDefinition? Field;
+    public object Value;
+    public FieldDefinition Field;
 }

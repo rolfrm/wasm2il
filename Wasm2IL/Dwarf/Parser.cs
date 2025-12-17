@@ -17,7 +17,7 @@ internal class Parser
         return compilationUnits;
     }
 
-    DwarfCompilationUnit? ParseCompilationUnit(BinReader reader)
+    DwarfCompilationUnit ParseCompilationUnit(BinReader reader)
     {
         var unitLength = reader.ReadU32();
         if (unitLength == 0) return null;
@@ -67,7 +67,7 @@ internal class Parser
         }
     }
 
-    DwarfDIE? ParseDIE(BinReader reader)
+    DwarfDIE ParseDIE(BinReader reader)
     {
         var abbreviationCode = reader.ReadU64Leb();
         if (abbreviationCode == 0) return null;
@@ -155,7 +155,7 @@ internal class Parser
 
         public void Add(Abbreviation abbrev) => _data[abbrev.Code] = abbrev;
 
-        public Abbreviation? GetAbbreviation(ulong code) =>
+        public Abbreviation GetAbbreviation(ulong code) =>
             _data.TryGetValue(code, out var abbrev) ? abbrev : null;
     }
 }
@@ -166,7 +166,7 @@ public class DwarfCompilationUnit
     public ushort Version { get; set; }
     public uint DebugAbbrevOffset { get; set; }
     public byte AddressSize { get; set; }
-    public DwarfDIE? RootDIE { get; set; }
+    public DwarfDIE RootDIE { get; set; }
 }
 
 public class DwarfDIE
@@ -180,5 +180,5 @@ public class DwarfDIE
 public class DwarfAttributeValue
 {
     public DwarfForm Form { get; set; }
-    public object? Value { get; set; }
+    public object Value { get; set; }
 }

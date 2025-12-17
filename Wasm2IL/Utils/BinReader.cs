@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Wasm;
 
 namespace Wasm2IL;
 
@@ -45,6 +46,9 @@ internal class BinReader
     public u8 ReadU8() => data[position++];
 
     public byte ReadByte() => ReadU8();
+
+    public Instruction ReadInstruction() => (Instruction) ReadU8();
+    public Instruction PeekInstruction() => (Instruction)data[position];
 
     public u32 ReadU32Leb() => (u32)ReadU64Leb();
 
