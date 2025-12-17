@@ -15,4 +15,10 @@ public static class Utils
         return null;
     }
 
+    public static IEnumerable<T> Reversed<T>(this IList<T> col)
+    {
+        int l = col.Count;
+        for (var i = 0; i < l; i++)
+            yield return col[l - i - 1];
+    }
 }
