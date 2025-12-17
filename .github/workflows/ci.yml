@@ -40,3 +40,6 @@ jobs:
 
     - name: Run tests
       run: dotnet run --project Wasm2IL.UnitTests/Wasm2IL.UnitTests.csproj --configuration Release --no-build
+
+    - name: Run examples
+      run: dotnet run --project Examples/Examples.csproj --configuration Release --no-build

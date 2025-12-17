@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net9.0</TargetFramework>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../Wasm2IL/Wasm2IL.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <CFile Include="CCode/mathlib.c"/>
+    </ItemGroup>
+
+    <Target Name="CToWasm" BeforeTargets="Build">
+        <Exec Command="clang --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-dynamic -o $(OutputPath)%(CFile.Filename).wasm %(CFile.Identity)" />
+    </Target>
+
+</Project>
