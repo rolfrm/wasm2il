@@ -1,3 +1,4 @@
+// ReSharper disable InconsistentNaming
 namespace Wasm
 {
     public enum Instruction : int

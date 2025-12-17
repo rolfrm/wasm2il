@@ -8,7 +8,7 @@ internal struct ImportFunc
     public string Module;
     public uint Index;
     public uint? TypeId;
-    public MethodReference? Method;
+    public MethodReference Method;
     public string CustomName;
 
     public override string ToString()

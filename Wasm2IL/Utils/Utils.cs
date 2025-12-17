@@ -4,7 +4,7 @@ namespace Wasm2IL.Utils;
 
 public static class Utils
 {
-    public static MethodInfo? GetMethod(this List<Type> types, string name)
+    public static MethodInfo GetMethod(this List<Type> types, string name)
     {
         foreach (var t in types)
         {

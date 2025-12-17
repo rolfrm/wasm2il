@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Reflection;
 
 namespace Wasm2IL;
@@ -8,8 +8,8 @@ public class Program
     public static void Main()
     {
         var args = Environment.GetCommandLineArgs();
-        string? run = null;
-        string? file = null;
+        string run = null;
+        string file = null;
 
         for (int i = 0; i < args.Length; i++)
         {
