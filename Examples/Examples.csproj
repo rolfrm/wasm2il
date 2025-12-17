@@ -13,11 +13,11 @@
     </ItemGroup>
 
     <ItemGroup>
-        <WatFile Include="WatFiles/mathlib.wat"/>
+        <CFile Include="CCode/mathlib.c"/>
     </ItemGroup>
 
-    <Target Name="WatToWasm" BeforeTargets="Build">
-        <Exec Command="wat2wasm %(WatFile.Identity) -o $(OutputPath)%(WatFile.Filename).wasm" />
+    <Target Name="CToWasm" BeforeTargets="Build">
+        <Exec Command="clang --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-dynamic -o $(OutputPath)%(CFile.Filename).wasm %(CFile.Identity)" />
     </Target>
 
 </Project>
