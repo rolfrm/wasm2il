@@ -45,6 +45,7 @@ public class ILOptimizer
             {
                 changed |= pass.Run(_body);
             }
+
             iterations++;
         } while (changed && iterations < maxIterations);
     }

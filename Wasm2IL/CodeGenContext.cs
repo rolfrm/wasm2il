@@ -128,8 +128,16 @@ internal class CodeGenContext
         if (!HeapInited)
         {
             HeapInited = true;
-            IL.InsertAfter(0, IL.Create(OpCodes.Ldsfld, MemoryField));
-            IL.InsertAfter(1, IL.Create(OpCodes.Stloc, HeapVar));
+            if (IL.Body.Instructions.Count != 0)
+            {
+                IL.InsertAfter(0, IL.Create(OpCodes.Ldsfld, MemoryField));
+                IL.InsertAfter(1, IL.Create(OpCodes.Stloc, HeapVar));    
+            }
+            else
+            {
+                IL.Emit(OpCodes.Ldsfld, MemoryField);
+                IL.Emit(OpCodes.Stloc, HeapVar);
+            }
         }
 
         IL.Emit(OpCodes.Ldloc, HeapVar);

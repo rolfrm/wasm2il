@@ -713,8 +713,8 @@ public class Transformer
                         foreach (var paramType in ftp.ParamTypes)
                             callSite.Parameters.Add(new ParameterDefinition(paramType));
 
-                        if (isTailCall)
-                            il.Emit(IlOp.Tail);
+                        //if (isTailCall)
+                        //    il.Emit(IlOp.Tail);
                         il.Emit(IlOp.Calli, callSite);
                         if (isTailCall)
                             il.Emit(IlOp.Ret);
@@ -948,62 +948,105 @@ public class Transformer
                     case WOp.F32_STORE:
                     case WOp.F64_STORE:
                         reader.ReadU32Leb(); // align hint (ignored)
-                        var offset = reader.ReadU32Leb();
-                        VariableDefinition stvar = null;
+                        var offset = (int)reader.ReadU32Leb();
+                        
+                        Instruction loadValue = null;
                         if (instr.ToString().Contains("STORE"))
                         {
-                            if (instr.ToString().Contains("F32"))
-                                stvar = ctx.GetHelperVariable(f32Type);
-                            else if (instr.ToString().Contains("F64"))
-                                stvar = ctx.GetHelperVariable(f64Type);
-                            else if (instr.ToString().Contains("I64"))
-                                stvar = ctx.GetHelperVariable(i64Type);
-                            else if (instr.ToString().Contains("I32"))
-                                stvar = ctx.GetHelperVariable(i32Type);
-                            else throw new Exception("Unknown type");
-                            il.Emit(IlOp.Stloc, stvar);
-                            ctx.PopType();
+                            
+                            var valueSource = OptimizerHelper.GetValueSource(il.Body, 1).FirstOrDefault();
+                            if (valueSource != null && 
+                                ( valueSource.OpCode.Name.StartsWith("ldc")
+                                  || valueSource.OpCode.Name.StartsWith("ldloc")
+                                  || valueSource.OpCode.Name.StartsWith("ldarg")
+                                    ))
+                            {
+                                loadValue = valueSource;
+                                il.Remove(valueSource);
+                            }
+                            else
+                            {
+                                VariableDefinition stvar;
+                                if (instr.ToString().Contains("F32"))
+                                    stvar = ctx.GetHelperVariable(f32Type);
+                                else if (instr.ToString().Contains("F64"))
+                                    stvar = ctx.GetHelperVariable(f64Type);
+                                else if (instr.ToString().Contains("I64"))
+                                    stvar = ctx.GetHelperVariable(i64Type);
+                                else if (instr.ToString().Contains("I32"))
+                                    stvar = ctx.GetHelperVariable(i32Type);
+                                else throw new Exception("Unknown type");
+                                loadValue = il.Create(IlOp.Ldloc, stvar);
+                                il.Emit(IlOp.Stloc, stvar);
+                            }
+
+                        }
+                        
+                        bool later = false;
+                        bool add = true;
+                        Instruction prevInstr = null;
+                        var offsetSource = OptimizerHelper.GetValueSource(il.Body, 1).FirstOrDefault();
+                        if (offsetSource != null)
+                        {
+                            if (offsetSource.OpCode == IlOp.Ldc_I4)
+                            {
+                                offset += (int) offsetSource.Operand;
+                                add = false;
+                                il.Remove(offsetSource);
+                            }
+                            else if (offsetSource.OpCode.Name.StartsWith("ldloc")
+                                     || offsetSource.OpCode.Name.StartsWith("ldarg"))
+                            {
+                                prevInstr = offsetSource;
+                                later = true;
+                                il.Remove(offsetSource);
+                            }
+                            else if(offsetSource.OpCode.Name.StartsWith("ldc"))
+                            {
+
+                            }
                         }
 
+
+                        ctx.LoadMemory();
+                        if (later)
+                            il.InsertAfter(il.Body.Instructions.LastOrDefault(), prevInstr);
+                        
                         // adjust according to the offset 
                         if (offset != 0)
                         {
-                            il.Emit(IlOp.Ldc_I4, (int) offset);
+                            il.Emit(IlOp.Ldc_I4, offset);
                             il.Emit(IlOp.Add);
                         }
-
-                        ctx.LoadMemory();
-                        il.Emit(IlOp.Add);
-
-
+                        if(add)
+                            il.Emit(IlOp.Add);
+                            
+                        
+                        if(loadValue != null)
+                            il.Append(loadValue);
                         switch (instr)
                         {
                             // pop address, value. store value in address according to size.
                             case WOp.I32_STORE_8:
                             case WOp.I64_STORE_8:
-                                il.Emit(IlOp.Ldloc, stvar);
+                                
                                 il.Emit(IlOp.Stind_I1);
                                 break;
                             case WOp.I32_STORE_16:
                             case WOp.I64_STORE_16:
-                                il.Emit(IlOp.Ldloc, stvar);
                                 il.Emit(IlOp.Stind_I2);
                                 break;
                             case WOp.I32_STORE:
                             case WOp.I64_STORE_32:
-                                il.Emit(IlOp.Ldloc, stvar);
                                 il.Emit(IlOp.Stind_I4);
                                 break;
                             case WOp.I64_STORE:
-                                il.Emit(IlOp.Ldloc, stvar);
                                 il.Emit(IlOp.Stind_I8);
                                 break;
                             case WOp.F32_STORE:
-                                il.Emit(IlOp.Ldloc, stvar);
                                 il.Emit(IlOp.Stind_R4);
                                 break;
                             case WOp.F64_STORE:
-                                il.Emit(IlOp.Ldloc, stvar);
                                 il.Emit(IlOp.Stind_R8);
                                 break;
                             case WOp.I32_LOAD:
@@ -1193,6 +1236,12 @@ public class Transformer
 
                     case WOp.I32_LT_U:
                     case WOp.I64_LT_U:
+                        if (reader.PeekInstruction() == WOp.I32_EQZ || reader.PeekInstruction() == WOp.I64_EQZ)
+                        {
+                            reader.ReadInstruction();
+                            goto case WOp.I32_GE_U;
+                        }
+                        
                         // optimize by peeking if the next instruction is BR_IF.
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
@@ -1211,6 +1260,11 @@ public class Transformer
                     case WOp.I64_LT_S:
                     case WOp.F64_LT:
                     case WOp.F32_LT:
+                        if (reader.PeekInstruction() == WOp.I32_EQZ || reader.PeekInstruction() == WOp.I64_EQZ)
+                        {
+                            reader.ReadInstruction();
+                            goto case WOp.I32_GE_S;
+                        }
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
                             instr = reader.ReadInstruction();
@@ -1225,6 +1279,11 @@ public class Transformer
                         break;
                     case WOp.I32_GT_U:
                     case WOp.I64_GT_U:
+                        if (reader.PeekInstruction() == WOp.I32_EQZ || reader.PeekInstruction() == WOp.I64_EQZ)
+                        {
+                            reader.ReadInstruction();
+                            goto case WOp.I32_LE_U;
+                        }
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
                             instr = reader.ReadInstruction();
@@ -1241,6 +1300,12 @@ public class Transformer
                     case WOp.I64_GT_S:
                     case WOp.F64_GT:
                     case WOp.F32_GT:
+
+                        if (reader.PeekInstruction() == WOp.I32_EQZ || reader.PeekInstruction() == WOp.I64_EQZ)
+                        {
+                            reader.ReadInstruction();
+                            goto case WOp.I32_LE_S;
+                        }
 
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
@@ -1270,7 +1335,23 @@ public class Transformer
                         // invert the logic
                         var unsigned = instr.ToString().Contains("_U");
                         var le = instr.ToString().Contains("LE");
+                        bool invert = false;
+                        if (reader.PeekInstruction() == WOp.I32_EQZ || reader.PeekInstruction() == WOp.I64_EQZ)
+                        {
+                            reader.ReadInstruction();
+                            if (le)
+                            {
+                                if (unsigned)
+                                    goto case WOp.I32_GT_U;    
+                                goto case WOp.I32_GT_S;
+                                
+                            }
+                            if (unsigned)
+                                goto case WOp.I32_LT_U;
 
+                            goto case WOp.I32_LT_S;
+                                
+                        }
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
                             instr = reader.ReadInstruction();
@@ -1451,6 +1532,10 @@ public class Transformer
 
                     case WOp.VECTOR_INSTRUCTION:
                         var instr2 = (VectorInstructions) reader.ReadU32Leb();
+                        if (instr2.ToString().Contains("RELAXED"))
+                        {
+                            
+                        }
                         switch (instr2)
                         {
                             case VectorInstructions.V128_STORE:
@@ -1458,7 +1543,7 @@ public class Transformer
                             {
                                 if (instr2 == VectorInstructions.V128_STORE)
                                 {
-                                    stvar = ctx.GetHelperVariable(v128Type);
+                                    var stvar = ctx.GetHelperVariable(v128Type);
                                     il.Emit(IlOp.Stloc, stvar);
                                     ctx.PopType();
                                 }
@@ -1696,7 +1781,7 @@ public class Transformer
                             case VectorInstructions.V128_STORE32_LANE:
                             case VectorInstructions.V128_STORE64_LANE:
                             {
-                                stvar = ctx.GetHelperVariable(v128Type);
+                                var stvar = ctx.GetHelperVariable(v128Type);
                                 il.Emit(IlOp.Stloc, stvar);
                                 ctx.PopType();
                                 reader.ReadU32Leb(); // align hint (ignored)
