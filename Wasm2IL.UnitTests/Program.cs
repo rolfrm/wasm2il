@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 
 namespace Wasm2IL;
@@ -46,14 +47,16 @@ public class Program
                     {
                         continue;
                     }
+                    
                     if (method.GetCustomAttribute<TestAttribute>() != null)
                     {
                         var testName = $"{type.Name}.{method.Name}";
                         Console.WriteLine($"====== Test {method} ========");
                         try
                         {
+                            var sw = Stopwatch.StartNew();
                             method.Invoke(instance, Array.Empty<object>());
-                            Console.WriteLine($"======= Pass ========");
+                            Console.WriteLine($"======= Pass ({sw.ElapsedMilliseconds} ms) ========");
                             passed++;
                         }
                         catch (TargetInvocationException e)

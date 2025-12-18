@@ -1964,7 +1964,8 @@ public class Transformer
     void ReadCustomSection(BinReader reader)
     {
         var name = reader.ReadStrN();
-        Log.WriteLine("Custom section name: {0}", name);
+        Log.WriteLine(name.Contains((char) 0) ? "Custom section name: ???" : "Custom section name: {0}", name);
+
         if (name == "name")
         {
             for (int i = 0; i < 3; i++)
