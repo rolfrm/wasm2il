@@ -692,4 +692,326 @@ public partial class Lib
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void v128_store64_lane(long* a, int lane, Vector128<long> v) => *a = v.GetElement(lane);
+
+    // ==================== Relaxed SIMD Instructions ====================
+
+    /// <summary>
+    /// Relaxed swizzle: selects lanes from 'a' using indices in 's'.
+    /// For out-of-range indices (16-255), the result is implementation-defined (0 or the wrapped value).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.I8X16_RELAXED_SWIZZLE)]
+    public static Vector128<byte> i8x16_relaxed_swizzle(Vector128<byte> a, Vector128<byte> s)
+        => v128_shuffle_unsafe(a, s);
+
+    /// <summary>
+    /// Relaxed truncation of f32x4 to i32x4 signed.
+    /// NaN behavior is implementation-defined (0 or INT32_MAX).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.I32X4_RELAXED_TRUNC_F32X4_S)]
+    public static Vector128<int> i32x4_relaxed_trunc_f32x4_s(Vector128<float> a)
+    {
+        // Use hardware intrinsics when available for relaxed behavior
+        if (Sse2.IsSupported)
+            return Sse2.ConvertToVector128Int32WithTruncation(a);
+        if (AdvSimd.IsSupported)
+            return AdvSimd.ConvertToInt32RoundToZero(a);
+        // Fallback: element-wise conversion
+        return Vector128.Create(
+            (int)a.GetElement(0),
+            (int)a.GetElement(1),
+            (int)a.GetElement(2),
+            (int)a.GetElement(3)
+        );
+    }
+
+    /// <summary>
+    /// Relaxed truncation of f32x4 to i32x4 unsigned.
+    /// NaN behavior is implementation-defined (0 or UINT32_MAX).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.I32X4_RELAXED_TRUNC_F32X4_U)]
+    public static Vector128<int> i32x4_relaxed_trunc_f32x4_u(Vector128<float> a)
+    {
+        // Use hardware intrinsics when available for relaxed behavior
+        if (AdvSimd.IsSupported)
+            return AdvSimd.ConvertToUInt32RoundToZero(a).AsInt32();
+        // Fallback: element-wise conversion
+        return Vector128.Create(
+            (int)(uint)a.GetElement(0),
+            (int)(uint)a.GetElement(1),
+            (int)(uint)a.GetElement(2),
+            (int)(uint)a.GetElement(3)
+        );
+    }
+
+    /// <summary>
+    /// Relaxed truncation of f64x2 to i32x4 signed with zero extension.
+    /// The upper two lanes are set to zero.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.I32X4_RELAXED_TRUNC_F64X2_S_ZERO)]
+    public static Vector128<int> i32x4_relaxed_trunc_f64x2_s_zero(Vector128<double> a)
+    {
+        if (Sse2.IsSupported)
+        {
+            var truncated = Sse2.ConvertToVector128Int32WithTruncation(a);
+            return Sse2.UnpackLow(truncated, Vector128<int>.Zero);
+        }
+        return Vector128.Create(
+            (int)a.GetElement(0),
+            (int)a.GetElement(1),
+            0,
+            0
+        );
+    }
+
+    /// <summary>
+    /// Relaxed truncation of f64x2 to i32x4 unsigned with zero extension.
+    /// The upper two lanes are set to zero.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.I32X4_RELAXED_TRUNC_F64X2_U_ZERO)]
+    public static Vector128<int> i32x4_relaxed_trunc_f64x2_u_zero(Vector128<double> a)
+    {
+        return Vector128.Create(
+            (int)(uint)a.GetElement(0),
+            (int)(uint)a.GetElement(1),
+            0,
+            0
+        );
+    }
+
+    /// <summary>
+    /// Relaxed fused multiply-add for f32x4: a * b + c
+    /// May be implemented as fused (single rounding) or unfused (two roundings).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.F32X4_RELAXED_MADD)]
+    public static Vector128<float> f32x4_relaxed_madd(Vector128<float> a, Vector128<float> b, Vector128<float> c)
+    {
+        if (Fma.IsSupported)
+            return Fma.MultiplyAdd(a, b, c);
+        if (AdvSimd.IsSupported)
+            return AdvSimd.FusedMultiplyAdd(c, a, b);
+        // Fallback: unfused multiply-add
+        return a * b + c;
+    }
+
+    /// <summary>
+    /// Relaxed negated fused multiply-add for f32x4: -a * b + c
+    /// May be implemented as fused (single rounding) or unfused (two roundings).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.F32X4_RELAXED_NMADD)]
+    public static Vector128<float> f32x4_relaxed_nmadd(Vector128<float> a, Vector128<float> b, Vector128<float> c)
+    {
+        if (Fma.IsSupported)
+            return Fma.MultiplyAddNegated(a, b, c);
+        if (AdvSimd.IsSupported)
+            return AdvSimd.FusedMultiplySubtract(c, a, b);
+        // Fallback: unfused negated multiply-add
+        return -a * b + c;
+    }
+
+    /// <summary>
+    /// Relaxed fused multiply-add for f64x2: a * b + c
+    /// May be implemented as fused (single rounding) or unfused (two roundings).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.F64X2_RELAXED_MADD)]
+    public static Vector128<double> f64x2_relaxed_madd(Vector128<double> a, Vector128<double> b, Vector128<double> c)
+    {
+        if (Fma.IsSupported)
+            return Fma.MultiplyAdd(a, b, c);
+        if (AdvSimd.Arm64.IsSupported)
+            return AdvSimd.Arm64.FusedMultiplyAdd(c, a, b);
+        // Fallback: unfused multiply-add
+        return a * b + c;
+    }
+
+    /// <summary>
+    /// Relaxed negated fused multiply-add for f64x2: -a * b + c
+    /// May be implemented as fused (single rounding) or unfused (two roundings).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.F64X2_RELAXED_NMADD)]
+    public static Vector128<double> f64x2_relaxed_nmadd(Vector128<double> a, Vector128<double> b, Vector128<double> c)
+    {
+        if (Fma.IsSupported)
+            return Fma.MultiplyAddNegated(a, b, c);
+        if (AdvSimd.Arm64.IsSupported)
+            return AdvSimd.Arm64.FusedMultiplySubtract(c, a, b);
+        // Fallback: unfused negated multiply-add
+        return -a * b + c;
+    }
+
+    /// <summary>
+    /// Relaxed lane select for i8x16: bitwise select based on mask.
+    /// Equivalent to: (a &amp; c) | (b &amp; ~c) or (a &amp; ~c) | (b &amp; c) depending on implementation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.I8X16_RELAXED_LANESELECT)]
+    public static Vector128<byte> i8x16_relaxed_laneselect(Vector128<byte> a, Vector128<byte> b, Vector128<byte> c)
+        => Vector128.ConditionalSelect(c, a, b);
+
+    /// <summary>
+    /// Relaxed lane select for i16x8: bitwise select based on mask.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.I16X8_RELAXED_LANESELECT)]
+    public static Vector128<short> i16x8_relaxed_laneselect(Vector128<short> a, Vector128<short> b, Vector128<short> c)
+        => Vector128.ConditionalSelect(c, a, b);
+
+    /// <summary>
+    /// Relaxed lane select for i32x4: bitwise select based on mask.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.I32X4_RELAXED_LANESELECT)]
+    public static Vector128<int> i32x4_relaxed_laneselect(Vector128<int> a, Vector128<int> b, Vector128<int> c)
+        => Vector128.ConditionalSelect(c, a, b);
+
+    /// <summary>
+    /// Relaxed lane select for i64x2: bitwise select based on mask.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.I64X2_RELAXED_LANESELECT)]
+    public static Vector128<long> i64x2_relaxed_laneselect(Vector128<long> a, Vector128<long> b, Vector128<long> c)
+        => Vector128.ConditionalSelect(c, a, b);
+
+    /// <summary>
+    /// Relaxed minimum for f32x4.
+    /// NaN handling is implementation-defined (may return NaN or the other operand).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.F32X4_RELAXED_MIN)]
+    public static Vector128<float> f32x4_relaxed_min(Vector128<float> a, Vector128<float> b)
+    {
+        if (Sse.IsSupported)
+            return Sse.Min(a, b);
+        if (AdvSimd.IsSupported)
+            return AdvSimd.Min(a, b);
+        return Vector128.Min(a, b);
+    }
+
+    /// <summary>
+    /// Relaxed maximum for f32x4.
+    /// NaN handling is implementation-defined (may return NaN or the other operand).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.F32X4_RELAXED_MAX)]
+    public static Vector128<float> f32x4_relaxed_max(Vector128<float> a, Vector128<float> b)
+    {
+        if (Sse.IsSupported)
+            return Sse.Max(a, b);
+        if (AdvSimd.IsSupported)
+            return AdvSimd.Max(a, b);
+        return Vector128.Max(a, b);
+    }
+
+    /// <summary>
+    /// Relaxed minimum for f64x2.
+    /// NaN handling is implementation-defined (may return NaN or the other operand).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.F64X2_RELAXED_MIN)]
+    public static Vector128<double> f64x2_relaxed_min(Vector128<double> a, Vector128<double> b)
+    {
+        if (Sse2.IsSupported)
+            return Sse2.Min(a, b);
+        if (AdvSimd.Arm64.IsSupported)
+            return AdvSimd.Arm64.Min(a, b);
+        return Vector128.Min(a, b);
+    }
+
+    /// <summary>
+    /// Relaxed maximum for f64x2.
+    /// NaN handling is implementation-defined (may return NaN or the other operand).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.F64X2_RELAXED_MAX)]
+    public static Vector128<double> f64x2_relaxed_max(Vector128<double> a, Vector128<double> b)
+    {
+        if (Sse2.IsSupported)
+            return Sse2.Max(a, b);
+        if (AdvSimd.Arm64.IsSupported)
+            return AdvSimd.Arm64.Max(a, b);
+        return Vector128.Max(a, b);
+    }
+
+    /// <summary>
+    /// Relaxed Q15 fixed-point multiplication with rounding for i16x8.
+    /// Computes (a[i] * b[i] + 0x4000) >> 15 for each lane.
+    /// Overflow behavior for INT16_MIN * INT16_MIN is implementation-defined.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.I16X8_RELAXED_Q15MULR_S)]
+    public static Vector128<short> i16x8_relaxed_q15mulr_s(Vector128<short> a, Vector128<short> b)
+    {
+        if (Ssse3.IsSupported)
+            return Ssse3.MultiplyHighRoundScale(a, b);
+        // Fallback implementation
+        return Vector128.Create(
+            (short)((a.GetElement(0) * b.GetElement(0) + 0x4000) >> 15),
+            (short)((a.GetElement(1) * b.GetElement(1) + 0x4000) >> 15),
+            (short)((a.GetElement(2) * b.GetElement(2) + 0x4000) >> 15),
+            (short)((a.GetElement(3) * b.GetElement(3) + 0x4000) >> 15),
+            (short)((a.GetElement(4) * b.GetElement(4) + 0x4000) >> 15),
+            (short)((a.GetElement(5) * b.GetElement(5) + 0x4000) >> 15),
+            (short)((a.GetElement(6) * b.GetElement(6) + 0x4000) >> 15),
+            (short)((a.GetElement(7) * b.GetElement(7) + 0x4000) >> 15)
+        );
+    }
+
+    /// <summary>
+    /// Relaxed dot product of i8x16 and i7x16 (signed * "unsigned treated as signed") to i16x8.
+    /// Computes pairwise: a[2i] * b[2i] + a[2i+1] * b[2i+1] for each of 8 output lanes.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.I16X8_RELAXED_DOT_I8X16_I7X16_S)]
+    public static Vector128<short> i16x8_relaxed_dot_i8x16_i7x16_s(Vector128<sbyte> a, Vector128<sbyte> b)
+    {
+        if (Ssse3.IsSupported)
+            return Ssse3.MultiplyAddAdjacent(a.AsByte(), b);
+        // Fallback: manual pairwise dot product
+        return Vector128.Create(
+            (short)(a.GetElement(0) * b.GetElement(0) + a.GetElement(1) * b.GetElement(1)),
+            (short)(a.GetElement(2) * b.GetElement(2) + a.GetElement(3) * b.GetElement(3)),
+            (short)(a.GetElement(4) * b.GetElement(4) + a.GetElement(5) * b.GetElement(5)),
+            (short)(a.GetElement(6) * b.GetElement(6) + a.GetElement(7) * b.GetElement(7)),
+            (short)(a.GetElement(8) * b.GetElement(8) + a.GetElement(9) * b.GetElement(9)),
+            (short)(a.GetElement(10) * b.GetElement(10) + a.GetElement(11) * b.GetElement(11)),
+            (short)(a.GetElement(12) * b.GetElement(12) + a.GetElement(13) * b.GetElement(13)),
+            (short)(a.GetElement(14) * b.GetElement(14) + a.GetElement(15) * b.GetElement(15))
+        );
+    }
+
+    /// <summary>
+    /// Relaxed dot product with accumulation: i8x16 and i7x16 to i32x4 with addition.
+    /// Computes quad-wise dot product and adds to accumulator c.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [WasmOpcode(VectorInstructions.I32X4_RELAXED_DOT_I8X16_I7X16_ADD_S)]
+    public static Vector128<int> i32x4_relaxed_dot_i8x16_i7x16_add_s(Vector128<sbyte> a, Vector128<sbyte> b, Vector128<int> c)
+    {
+        // First compute the pairwise dot product to i16x8
+        var dot16 = i16x8_relaxed_dot_i8x16_i7x16_s(a, b);
+
+        if (Sse2.IsSupported)
+        {
+            // Use PMADDWD to sum pairs of i16 into i32
+            var dot32 = Sse2.MultiplyAddAdjacent(dot16, Vector128.Create((short)1));
+            return Sse2.Add(dot32, c);
+        }
+
+        // Fallback: manual pairwise sum
+        var result = Vector128.Create(
+            dot16.GetElement(0) + dot16.GetElement(1),
+            dot16.GetElement(2) + dot16.GetElement(3),
+            dot16.GetElement(4) + dot16.GetElement(5),
+            dot16.GetElement(6) + dot16.GetElement(7)
+        );
+        return result + c;
+    }
 }
