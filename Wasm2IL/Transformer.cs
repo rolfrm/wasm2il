@@ -948,7 +948,7 @@ public class Transformer
                     case WOp.F32_STORE:
                     case WOp.F64_STORE:
                         reader.ReadU32Leb(); // align hint (ignored)
-                        var offset = reader.ReadU32Leb();
+                        var offset = (int)reader.ReadU32Leb();
                         VariableDefinition stvar = null;
                         if (instr.ToString().Contains("STORE"))
                         {
@@ -965,15 +965,110 @@ public class Transformer
                             ctx.PopType();
                         }
 
+                        var prevInstr = il.Body.Instructions.LastOrDefault();
+                        bool later = false;
+                        bool add = true;
+                        // These are performance optimizations to check if the lookup
+                        // address is just a constant or can be moved in front of the memory variable.
+                        if (prevInstr.OpCode == IlOp.Ldc_I4)
+                        {
+                            offset += (int)prevInstr.Operand;
+                            il.Remove(prevInstr);
+                            add = false;
+                        }
+                        else if (prevInstr.OpCode == IlOp.Ldc_I4_0)
+                        {
+                            il.Remove(prevInstr);
+                            add = false;
+                        }
+                        else if(prevInstr.OpCode.ToString().StartsWith("ldloc") || prevInstr.OpCode.ToString().StartsWith("ldarg"))
+                        {
+                            later = true;
+                            il.Remove(prevInstr);
+                        }
+                        else if (prevInstr.OpCode == IlOp.Add)
+                        {
+                            var prev2 = il.Body.Instructions[^2];
+                            if (prev2.OpCode == IlOp.Ldc_I4_0)
+                            {
+                                
+                            }else if (prev2.OpCode == IlOp.Ldc_I4)
+                            {
+                                offset += (int)prev2.Operand;
+                                il.Remove(prevInstr);
+                                il.Remove(prev2);
+                                add = true;
+                            }
+                        }
+                        else if(prevInstr.OpCode != IlOp.Stloc)
+                        {
+                            if (il.Body.Instructions.Count > 2)
+                            {
+                                var prev2 = il.Body.Instructions[^2];
+                                if (prev2.OpCode.ToString().StartsWith("ld"))
+                                {
+                                    var prev3 =  il.Body.Instructions[^3];
+                                    if (prev3.OpCode == IlOp.Ldc_I4_0)
+                                    {
+                                        il.Remove(prev3);
+                                        add = false;
+                                    }
+
+                                    else if (prev3.OpCode == IlOp.Ldc_I4)
+                                    {
+                                        offset += (int) prev3.Operand;
+                                        il.Remove(prev3);
+                                        add = true;
+                                    }
+                                    
+                                }
+                            }
+                        }
+                        else if(prevInstr.OpCode == IlOp.Stloc)
+                        {
+                            if (il.Body.Instructions.Count > 2)
+                            {
+                                var prev2 = il.Body.Instructions[^2];
+                                if (prev2.OpCode.ToString().StartsWith("ld"))
+                                {
+                                    var prev3 =  il.Body.Instructions[^3];
+                                    if (prev3.OpCode == IlOp.Ldc_I4_0)
+                                    {
+                                        il.Remove(prev3);
+                                        add = false;
+                                    }
+
+                                    else if (prev3.OpCode == IlOp.Ldc_I4)
+                                    {
+                                        offset += (int) prev3.Operand;
+                                        il.Remove(prev3);
+                                        add = false;
+                                    }else if(false && (prev3.OpCode.ToString().StartsWith("ldloc") || prev3.OpCode.ToString().StartsWith("ldarg")))
+                                    {
+                                        later = true;
+                                        il.Remove(prev3);
+                                        prevInstr = prev3;
+                                    }
+                                }
+                            }
+                        }
+                        
+
+                        ctx.LoadMemory();
+                        if (later)
+                        {
+                            il.InsertAfter(il.Body.Instructions.LastOrDefault(), prevInstr);
+                        }
+                        
                         // adjust according to the offset 
                         if (offset != 0)
                         {
-                            il.Emit(IlOp.Ldc_I4, (int) offset);
+                            il.Emit(IlOp.Ldc_I4, offset);
                             il.Emit(IlOp.Add);
                         }
-
-                        ctx.LoadMemory();
-                        il.Emit(IlOp.Add);
+                        if(add)
+                            il.Emit(IlOp.Add);
+                            
 
 
                         switch (instr)
@@ -1451,6 +1546,10 @@ public class Transformer
 
                     case WOp.VECTOR_INSTRUCTION:
                         var instr2 = (VectorInstructions) reader.ReadU32Leb();
+                        if (instr2.ToString().Contains("RELAXED"))
+                        {
+                            
+                        }
                         switch (instr2)
                         {
                             case VectorInstructions.V128_STORE:

@@ -478,15 +478,10 @@ LIMIT 200;
         var msg  = w.GetHeapString(c);
 
         int ok5 = (int)SqliteWasm.sqlite3_exec(db2, "VACUUM;", 0, 0, 0);
-        //int ok7 = SqliteWasm.C.sqlite3_exec(db2, vacuum, 0, 0, 0);
-        var c2 = SqliteWasm.sqlite3_errmsg(db2);
+       var c2 = SqliteWasm.sqlite3_errmsg(db2);
 
         var msg2  = w.GetHeapString(c2);
         SqliteWasm.sqlite3_close(db2);
-        //File.Delete("./test_bug2.sqlite");
-
-        //if (ok5!= 0)
-        //    throw new Exception(msg2);
-
+   
     }
 }

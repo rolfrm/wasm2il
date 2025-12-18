@@ -7,8 +7,9 @@ all: sqlite3.wasm callback_test.wasm
 # -msimd128  -mtail-call ./libc.wasm-mtail-call  -msimd128 -mbulk-memory -msimd128 
 
 sqlite3.wasm: sqlite3.c sqlite3.h
-	clang --target=wasm32-unknown-unknown -msimd128  -mbulk-memory -mbulk-memory-opt -flto -fbuiltin -mllvm -inline-threshold=1000 -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -O3 -g2\
-             -I$(MUSL_INCLUDE) -mlong-double-64 \
+	clang --target=wasm32-unknown-unknown -mrelaxed-simd -msimd128 -mtail-call -mbulk-memory -mbulk-memory-opt -flto=full -fbuiltin -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -O3 -g0\
+	         -ffast-math -fno-math-errno -funsafe-math-optimizations -fstrict-aliasing -funroll-loops -fomit-frame-pointer\
+             -I$(MUSL_INCLUDE) \
              -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_WAL -DHAVE_UTIME -DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_ENABLE_SETLK_TIMEOUT -DSQLITE_OMIT_UTF16 -DSQLITE_OMIT_JSON -DSQLITE_OMIT_RTREE -DSQLITE_OMIT_GEOPOLY -DSQLITE_OMIT_FTS5 -DSQLITE_OMIT_DEPRECATED   \
               ./libc.wasm sqlite3.c -Wl,--allow-undefined -Wl,--no-entry\
               -Wl,--export=sqlite3_open -Wl,--export=sqlite3_open_v2 -Wl,--export=sqlite3_close -Wl,--export=sqlite3_exec -Wl,--export=sqlite3_prepare_v2 \
