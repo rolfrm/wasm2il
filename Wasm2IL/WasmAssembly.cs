@@ -116,10 +116,17 @@ public class WasmAssembly
         il.Emit(OpCodes.Callvirt, invokeMethod);
         il.Emit(OpCodes.Ret);
 
-        // Get the function pointer
-        System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod(dm.MethodHandle);
-        return dm.MethodHandle.GetFunctionPointer();
+        // Create a delegate from the DynamicMethod, then get its function pointer
+        var trampolineDelegate = dm.CreateDelegate(delegateType);
+        CallbackStorage[callbackId] = CallbackStorage[callbackId]; // keep original
+        trampolineDelegates.Add(trampolineDelegate); // prevent GC of trampoline
+
+        System.Runtime.CompilerServices.RuntimeHelpers.PrepareDelegate(trampolineDelegate);
+        return trampolineDelegate.Method.MethodHandle.GetFunctionPointer();
     }
+
+    // prevent GC of trampoline delegates
+    readonly List<Delegate> trampolineDelegates = new();
 
     public void FreeCallbackFunction(int idx)
     {
