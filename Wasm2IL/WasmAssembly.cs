@@ -13,6 +13,10 @@ public class WasmAssembly
 
     static readonly ModuleBuilder ModuleBuilder = AsmBuilder.DefineDynamicModule("MainModule");
 
+    // Global storage for callback delegates, accessed by trampolines
+    static readonly Dictionary<int, Delegate> CallbackStorage = new();
+    static int nextCallbackId;
+
     readonly Assembly asm;
     readonly Type code;
     readonly MethodInfo malloc;
@@ -21,7 +25,7 @@ public class WasmAssembly
     readonly FieldInfo memorySize;
     readonly FieldInfo functionTable;
     readonly List<int> freeFunctions = new();
-    readonly Dictionary<int, Delegate> liveCallbacks = new(); // prevent GC of delegates
+    readonly Dictionary<int, int> callbackIds = new(); // tableIndex -> callbackId
     IntPtr[] functionTableArray;
 
     public string Name => code.Name;
@@ -41,6 +45,9 @@ public class WasmAssembly
         functionTable = code.GetField("FunctionTable");
     }
 
+    // Called by trampolines to get the delegate
+    public static Delegate GetCallback(int callbackId) => CallbackStorage[callbackId];
+
     public int AssignCallbackFunction(Delegate d)
     {
         if (functionTable == null)
@@ -48,30 +55,70 @@ public class WasmAssembly
 
         functionTableArray ??= functionTable.GetValue(null) as IntPtr[] ?? [];
 
-        // For managed calli, we need the raw function pointer from the method handle
-        // This only works for static methods (no captured state)
-        if (d.Target != null)
-            throw new NotSupportedException(
-                "Callbacks must be static methods (no closures or instance methods). " +
-                "Use a static method or static lambda without captures.");
+        IntPtr funcPtr;
+        int callbackId = -1;
 
-        System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod(d.Method.MethodHandle);
-        var funcPtr = d.Method.MethodHandle.GetFunctionPointer();
+        if (d.Target == null)
+        {
+            // Static method - can use function pointer directly
+            System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod(d.Method.MethodHandle);
+            funcPtr = d.Method.MethodHandle.GetFunctionPointer();
+        }
+        else
+        {
+            // Instance method or closure - need to generate a trampoline
+            callbackId = nextCallbackId++;
+            CallbackStorage[callbackId] = d;
+            funcPtr = GenerateTrampoline(d.GetType(), callbackId);
+        }
 
         if (freeFunctions.Count > 0)
         {
             var idx = freeFunctions[^1];
             freeFunctions.RemoveAt(freeFunctions.Count - 1);
             functionTableArray[idx] = funcPtr;
-            liveCallbacks[idx] = d; // prevent GC and keep method alive
+            if (callbackId >= 0) callbackIds[idx] = callbackId;
             return idx;
         }
 
         var newIdx = functionTableArray.Length;
         functionTableArray = [.. functionTableArray, funcPtr];
-        liveCallbacks[newIdx] = d; // prevent GC and keep method alive
+        if (callbackId >= 0) callbackIds[newIdx] = callbackId;
         functionTable.SetValue(null, functionTableArray);
         return newIdx;
+    }
+
+    IntPtr GenerateTrampoline(Type delegateType, int callbackId)
+    {
+        var invokeMethod = delegateType.GetMethod("Invoke")!;
+        var paramTypes = invokeMethod.GetParameters().Select(p => p.ParameterType).ToArray();
+        var returnType = invokeMethod.ReturnType;
+
+        var dm = new DynamicMethod(
+            $"Trampoline_{callbackId}",
+            returnType,
+            paramTypes,
+            typeof(WasmAssembly).Module,
+            skipVisibility: true);
+
+        var il = dm.GetILGenerator();
+
+        // Load the delegate: GetCallback(callbackId)
+        il.Emit(OpCodes.Ldc_I4, callbackId);
+        il.Emit(OpCodes.Call, typeof(WasmAssembly).GetMethod(nameof(GetCallback))!);
+        il.Emit(OpCodes.Castclass, delegateType);
+
+        // Load all arguments
+        for (int i = 0; i < paramTypes.Length; i++)
+            il.Emit(OpCodes.Ldarg, i);
+
+        // Call Invoke
+        il.Emit(OpCodes.Callvirt, invokeMethod);
+        il.Emit(OpCodes.Ret);
+
+        // Get the function pointer
+        System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod(dm.MethodHandle);
+        return dm.MethodHandle.GetFunctionPointer();
     }
 
     public void FreeCallbackFunction(int idx)
@@ -79,7 +126,11 @@ public class WasmAssembly
         if (functionTableArray == null)
             throw new InvalidOperationException("FunctionTable not initialized");
         functionTableArray[idx] = IntPtr.Zero;
-        liveCallbacks.Remove(idx); // allow GC
+        if (callbackIds.TryGetValue(idx, out var callbackId))
+        {
+            CallbackStorage.Remove(callbackId);
+            callbackIds.Remove(idx);
+        }
         freeFunctions.Add(idx);
     }
 
