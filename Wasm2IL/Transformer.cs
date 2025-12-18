@@ -701,21 +701,9 @@ public class Transformer
                             throw new NotSupportedException("Multiple tables not supported");
                         var ftp = types[typeidx];
 
-                        // Store function index in helper variable
+                        // Stack: [params..., tableIndex] -> need [params..., funcPtr]
+                        // Store table index, load function pointer, params stay in place
                         il.Emit(IlOp.Stloc, ctx.GetHelperVariable(i32Type));
-                        // Store all parameters in helper variables (in reverse order)
-                        for (int paramIdx = 0; paramIdx < ftp.ParamCount; paramIdx++)
-                        {
-                            var paramIdxReverse = ftp.ParamCount - paramIdx - 1;
-                            il.Emit(IlOp.Stloc,
-                                ctx.GetHelperVariable(ftp.ParamTypes[paramIdxReverse], (int) paramIdxReverse + 1));
-                        }
-
-                        // For calli: load parameters first, then function pointer
-                        for (int i2 = 0; i2 < ftp.ParamCount; i2++)
-                            il.Emit(IlOp.Ldloc, ctx.GetHelperVariable(ftp.ParamTypes[i2], i2 + 1));
-
-                        // Load function pointer from table
                         il.Emit(IlOp.Ldsfld, functionTable);
                         il.Emit(IlOp.Ldloc, ctx.GetHelperVariable(i32Type));
                         il.Emit(IlOp.Ldelem_I);

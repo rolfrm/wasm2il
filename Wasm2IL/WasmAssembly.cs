@@ -47,20 +47,29 @@ public class WasmAssembly
             throw new InvalidOperationException("FunctionTable not available");
 
         functionTableArray ??= functionTable.GetValue(null) as IntPtr[] ?? [];
-        var funcPtr = Marshal.GetFunctionPointerForDelegate(d);
+
+        // For managed calli, we need the raw function pointer from the method handle
+        // This only works for static methods (no captured state)
+        if (d.Target != null)
+            throw new NotSupportedException(
+                "Callbacks must be static methods (no closures or instance methods). " +
+                "Use a static method or static lambda without captures.");
+
+        System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod(d.Method.MethodHandle);
+        var funcPtr = d.Method.MethodHandle.GetFunctionPointer();
 
         if (freeFunctions.Count > 0)
         {
             var idx = freeFunctions[^1];
             freeFunctions.RemoveAt(freeFunctions.Count - 1);
             functionTableArray[idx] = funcPtr;
-            liveCallbacks[idx] = d; // prevent GC
+            liveCallbacks[idx] = d; // prevent GC and keep method alive
             return idx;
         }
 
         var newIdx = functionTableArray.Length;
         functionTableArray = [.. functionTableArray, funcPtr];
-        liveCallbacks[newIdx] = d; // prevent GC
+        liveCallbacks[newIdx] = d; // prevent GC and keep method alive
         functionTable.SetValue(null, functionTableArray);
         return newIdx;
     }
