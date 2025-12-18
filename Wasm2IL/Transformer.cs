@@ -174,7 +174,7 @@ public class Transformer
         cls.Fields.Add(memoryFieldSize);
 
         functionTable = new FieldDefinition("FunctionTable", FieldAttributes.Static | FieldAttributes.Public,
-            asm.MainModule.TypeSystem.Object.MakeArrayType());
+            asm.MainModule.TypeSystem.IntPtr.MakeArrayType());
         cls.Fields.Add(functionTable);
         var cctor = new MethodDefinition(".cctor",
             MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.Static |
@@ -407,7 +407,7 @@ public class Transformer
             ctor.Body.Instructions.RemoveAt(ctor.Body.Instructions.Count - 1);
             var il = ctor.Body.GetILProcessor();
             il.Emit(OpCodes.Ldc_I4, (int) fncCnt + 1);
-            il.Emit(OpCodes.Newarr, def.MainModule.TypeSystem.Object);
+            il.Emit(OpCodes.Newarr, def.MainModule.TypeSystem.IntPtr);
             il.Emit(OpCodes.Stsfld, functionTable);
 
             for (var i2 = 0; i2 < fncCnt; i2++)
@@ -415,12 +415,10 @@ public class Transformer
                 il.Emit(OpCodes.Ldsfld, functionTable);
                 il.Emit(OpCodes.Ldc_I4, (int) (i2 + elementOffset));
 
-                il.Emit(OpCodes.Ldnull);
                 var funcId = reader.ReadU32Leb();
                 if (funcId < importFuncs.Count)
                 {
                     var imp = importFuncs[funcId];
-                    var t = types[(uint) imp.TypeId];
                     if (imp.Method == null)
                     {
                         var method = ResolveImportedMethod(imp.Module, imp.Name);
@@ -438,71 +436,18 @@ public class Transformer
                         throw new InvalidOperationException(
                             $"Failed to resolve imported function: {imp.Module}.{imp.Name}");
 
-                    {
-                        il.Emit(OpCodes.Ldftn, imp.Method);
-                        var ftype = TypeToFunc(t);
-                        var constr = ftype.GetConstructors().First();
-                        var cref = def.MainModule.ImportReference(constr);
-                        il.Emit(OpCodes.Newobj, cref);
-                        il.Emit(OpCodes.Stelem_Any, def.MainModule.TypeSystem.Object);
-                    }
+                    il.Emit(OpCodes.Ldftn, imp.Method);
+                    il.Emit(OpCodes.Stelem_I);
                 }
                 else
                 {
-                    var importFunc = funcDecl[(uint) (funcId - importFuncs.Count)];
-                    var t = types[importFunc.TypeId];
                     il.Emit(OpCodes.Ldftn, funcDecl[(uint) (funcId - importFuncs.Count)].Method);
-                    var ftype = TypeToFunc(t);
-                    var constr = ftype.GetConstructors().First();
-                    var cref = def.MainModule.ImportReference(constr);
-                    il.Emit(OpCodes.Newobj, cref);
-                    il.Emit(OpCodes.Stelem_Any, def.MainModule.TypeSystem.Object);
+                    il.Emit(OpCodes.Stelem_I);
                 }
             }
 
             il.Emit(IlOp.Ret);
         }
-    }
-
-    static readonly Type[] ActionTypes =
-    [
-        typeof(Action), typeof(Action<>), typeof(Action<,>), typeof(Action<,,>),
-        typeof(Action<,,,>), typeof(Action<,,,,>), typeof(Action<,,,,,>), typeof(Action<,,,,,,>),
-        typeof(Action<,,,,,,,>), typeof(Action<,,,,,,,,>), typeof(Action<,,,,,,,,,>)
-    ];
-
-    static readonly Type[] FuncTypes =
-    [
-        typeof(Func<>), typeof(Func<,>), typeof(Func<,,>), typeof(Func<,,,>),
-        typeof(Func<,,,,>), typeof(Func<,,,,,>), typeof(Func<,,,,,,>), typeof(Func<,,,,,,,>),
-        typeof(Func<,,,,,,,,>), typeof(Func<,,,,,,,,,>), typeof(Func<,,,,,,,,,,>)
-    ];
-
-    Type TypeToFunc(TypeId id)
-    {
-        var paramTypes = id.ParamTypes.Select(RefToType).ToArray();
-        if (id.ReturnCount == 0)
-        {
-            if (id.ParamCount >= ActionTypes.Length)
-                throw new NotSupportedException($"Too many parameters: {id.ParamCount}");
-            return id.ParamCount == 0
-                ? typeof(Action)
-                : ActionTypes[id.ParamCount].MakeGenericType(paramTypes);
-        }
-
-        if (id.ParamCount >= FuncTypes.Length)
-            throw new NotSupportedException($"Too many parameters: {id.ParamCount}");
-        var allTypes = paramTypes.Append(RefToType(id.ReturnType)).ToArray();
-        return FuncTypes[id.ParamCount].MakeGenericType(allTypes);
-    }
-
-    Type RefToType(TypeReference r)
-    {
-        if (r == i32Type) return typeof(int);
-        if (r == i64Type) return typeof(long);
-        if (r == f32Type) return typeof(float);
-        if (r == f64Type) return typeof(double);
-        return typeof(void);
     }
 
     void ReadDataSection(BinReader reader)
@@ -756,27 +701,21 @@ public class Transformer
                             throw new NotSupportedException("Multiple tables not supported");
                         var ftp = types[typeidx];
 
+                        // Stack: [params..., tableIndex] -> need [params..., funcPtr]
+                        // Store table index, load function pointer, params stay in place
                         il.Emit(IlOp.Stloc, ctx.GetHelperVariable(i32Type));
-                        for (int paramIdx = 0; paramIdx < ftp.ParamCount; paramIdx++)
-                        {
-                            var paramIdxReverse = ftp.ParamCount - paramIdx - 1;
-                            il.Emit(IlOp.Stloc,
-                                ctx.GetHelperVariable(ftp.ParamTypes[paramIdxReverse], (int) paramIdxReverse + 1));
-                        }
-
-                        // get function from global table
                         il.Emit(IlOp.Ldsfld, functionTable);
                         il.Emit(IlOp.Ldloc, ctx.GetHelperVariable(i32Type));
-                        var funct = TypeToFunc(ftp);
+                        il.Emit(IlOp.Ldelem_I);
 
-                        il.Emit(IlOp.Ldelem_Any, def.MainModule.TypeSystem.Object);
-                        il.Emit(IlOp.Castclass, def.MainModule.ImportReference(funct));
-                        for (int i2 = 0; i2 < ftp.ParamCount; i2++)
-                            il.Emit(IlOp.Ldloc, ctx.GetHelperVariable(ftp.ParamTypes[i2], i2 + 1));
-                        var invoke = funct.GetMethod("Invoke");
+                        // Create CallSite for calli instruction
+                        var callSite = new CallSite(ftp.ReturnType);
+                        foreach (var paramType in ftp.ParamTypes)
+                            callSite.Parameters.Add(new ParameterDefinition(paramType));
+
                         if (isTailCall)
                             il.Emit(IlOp.Tail);
-                        il.Emit(IlOp.Callvirt, def.MainModule.ImportReference(invoke));
+                        il.Emit(IlOp.Calli, callSite);
                         if (isTailCall)
                             il.Emit(IlOp.Ret);
                         ctx.PopType((int) ftp.ParamCount);

@@ -13,7 +13,6 @@ public class WasmAssembly
 
     static readonly ModuleBuilder ModuleBuilder = AsmBuilder.DefineDynamicModule("MainModule");
 
-    readonly Assembly asm;
     readonly Type code;
     readonly MethodInfo malloc;
     readonly MethodInfo free;
@@ -21,14 +20,14 @@ public class WasmAssembly
     readonly FieldInfo memorySize;
     readonly FieldInfo functionTable;
     readonly List<int> freeFunctions = new();
-    object[] functionTableArray;
+     IntPtr[] functionTableArray;
 
     public string Name => code.Name;
-    public Assembly Assembly => asm;
+    public Assembly Assembly { get; }
 
     public WasmAssembly(Assembly asm)
     {
-        this.asm = asm;
+        Assembly = asm;
         code = asm.ExportedTypes.FirstOrDefault()
             ?? throw new InvalidOperationException("No exported types in assembly");
         malloc = code.GetMethod("malloc");
@@ -44,28 +43,34 @@ public class WasmAssembly
     {
         if (functionTable == null)
             throw new InvalidOperationException("FunctionTable not available");
+        if (!d.Method.IsStatic)
+            throw new Exception("Callbacks only supported to static functions.");
+        
+        functionTableArray ??= functionTable.GetValue(null) as IntPtr[] ?? [];
 
-        functionTableArray ??= functionTable.GetValue(null) as object[] ?? [];
+        System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod(d.Method.MethodHandle);
+        var funcPtr = d.Method.MethodHandle.GetFunctionPointer();
 
         if (freeFunctions.Count > 0)
         {
             var idx = freeFunctions[^1];
             freeFunctions.RemoveAt(freeFunctions.Count - 1);
-            functionTableArray[idx] = d;
+            functionTableArray[idx] = funcPtr;
             return idx;
         }
 
         var newIdx = functionTableArray.Length;
-        functionTableArray = [.. functionTableArray, d];
+        functionTableArray = [.. functionTableArray, funcPtr];
         functionTable.SetValue(null, functionTableArray);
         return newIdx;
     }
+
 
     public void FreeCallbackFunction(int idx)
     {
         if (functionTableArray == null)
             throw new InvalidOperationException("FunctionTable not initialized");
-        functionTableArray[idx] = null!;
+        functionTableArray[idx] = IntPtr.Zero;
         freeFunctions.Add(idx);
     }
 
@@ -82,7 +87,7 @@ public class WasmAssembly
         free.Invoke(null, [ptr]);
     }
 
-    public unsafe int FakeMalloc(int len)
+    public int FakeMalloc(int len)
     {
         int memSize = (int)memorySize.GetValue(null)!;
         memorySize.SetValue(null, memSize + len);
@@ -101,8 +106,10 @@ public class WasmAssembly
     public static unsafe void StringToHeap2(byte* buffer, string str)
     {
         var bc = System.Text.Encoding.UTF8.GetByteCount(str);
-        var span = new Span<byte>(buffer, bc + 1);
-        span[bc] = 0;
+        var span = new Span<byte>(buffer, bc + 1)
+        {
+            [bc] = 0
+        };
         System.Text.Encoding.UTF8.GetBytes(str, span);
     }
 
@@ -115,7 +122,6 @@ public class WasmAssembly
         System.Text.Encoding.UTF8.GetBytes(str, span);
         return s;
     }
-
     public object Invoke(string methodName, params object[] args)
     {
         var toFree = ImmutableList<int>.Empty;
@@ -337,7 +343,4 @@ public class WasmAssembly
     }
 }
 
-public class ImplementException : Exception
-{
-    public ImplementException(string s) : base(s) { }
-}
+public class ImplementException(string s) : Exception(s);
