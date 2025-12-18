@@ -13,11 +13,6 @@ public class WasmAssembly
 
     static readonly ModuleBuilder ModuleBuilder = AsmBuilder.DefineDynamicModule("MainModule");
 
-    // Global storage for callback delegates, accessed by trampolines
-    static readonly Dictionary<int, Delegate> callbackStorage = new();
-    static int nextCallbackId;
-
-    readonly Assembly asm;
     readonly Type code;
     readonly MethodInfo malloc;
     readonly MethodInfo free;
@@ -25,15 +20,14 @@ public class WasmAssembly
     readonly FieldInfo memorySize;
     readonly FieldInfo functionTable;
     readonly List<int> freeFunctions = new();
-    readonly Dictionary<int, int> callbackIds = new(); // tableIndex -> callbackId
-    IntPtr[] functionTableArray;
+     IntPtr[] functionTableArray;
 
     public string Name => code.Name;
-    public Assembly Assembly => asm;
+    public Assembly Assembly { get; }
 
     public WasmAssembly(Assembly asm)
     {
-        this.asm = asm;
+        Assembly = asm;
         code = asm.ExportedTypes.FirstOrDefault()
             ?? throw new InvalidOperationException("No exported types in assembly");
         malloc = code.GetMethod("malloc");
@@ -45,34 +39,6 @@ public class WasmAssembly
         functionTable = code.GetField("FunctionTable");
     }
 
-    // Called by trampolines to get the delegate
-    public static Delegate GetCallback(int callbackId) => callbackStorage[callbackId];
-
-    public int AssignCallbackFunction(IntPtr funcPtr) 
-    {
-        if (functionTable == null)
-            throw new InvalidOperationException("FunctionTable not available");
-
-        functionTableArray ??= functionTable.GetValue(null) as IntPtr[] ?? [];
-
-        int callbackId = -1;
-        
-        if (freeFunctions.Count > 0)
-        {
-            var idx = freeFunctions[^1];
-            freeFunctions.RemoveAt(freeFunctions.Count - 1);
-            functionTableArray[idx] = funcPtr;
-            if (callbackId >= 0) callbackIds[idx] = callbackId;
-            return idx;
-        }
-
-        var newIdx = functionTableArray.Length;
-        functionTableArray = [.. functionTableArray, funcPtr];
-        if (callbackId >= 0) callbackIds[newIdx] = callbackId;
-        functionTable.SetValue(null, functionTableArray);
-        return newIdx;
-    }
-    
     public int AssignCallbackFunction(Delegate d)
     {
         if (functionTable == null)
@@ -105,11 +71,6 @@ public class WasmAssembly
         if (functionTableArray == null)
             throw new InvalidOperationException("FunctionTable not initialized");
         functionTableArray[idx] = IntPtr.Zero;
-        if (callbackIds.TryGetValue(idx, out var callbackId))
-        {
-            callbackStorage.Remove(callbackId);
-            callbackIds.Remove(idx);
-        }
         freeFunctions.Add(idx);
     }
 
@@ -126,7 +87,7 @@ public class WasmAssembly
         free.Invoke(null, [ptr]);
     }
 
-    public unsafe int FakeMalloc(int len)
+    public int FakeMalloc(int len)
     {
         int memSize = (int)memorySize.GetValue(null)!;
         memorySize.SetValue(null, memSize + len);
@@ -145,8 +106,10 @@ public class WasmAssembly
     public static unsafe void StringToHeap2(byte* buffer, string str)
     {
         var bc = System.Text.Encoding.UTF8.GetByteCount(str);
-        var span = new Span<byte>(buffer, bc + 1);
-        span[bc] = 0;
+        var span = new Span<byte>(buffer, bc + 1)
+        {
+            [bc] = 0
+        };
         System.Text.Encoding.UTF8.GetBytes(str, span);
     }
 
@@ -380,7 +343,4 @@ public class WasmAssembly
     }
 }
 
-public class ImplementException : Exception
-{
-    public ImplementException(string s) : base(s) { }
-}
+public class ImplementException(string s) : Exception(s);
