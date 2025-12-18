@@ -14,7 +14,7 @@ public class WasmAssembly
     static readonly ModuleBuilder ModuleBuilder = AsmBuilder.DefineDynamicModule("MainModule");
 
     // Global storage for callback delegates, accessed by trampolines
-    static readonly Dictionary<int, Delegate> CallbackStorage = new();
+    static readonly Dictionary<int, Delegate> callbackStorage = new();
     static int nextCallbackId;
 
     readonly Assembly asm;
@@ -46,32 +46,17 @@ public class WasmAssembly
     }
 
     // Called by trampolines to get the delegate
-    public static Delegate GetCallback(int callbackId) => CallbackStorage[callbackId];
+    public static Delegate GetCallback(int callbackId) => callbackStorage[callbackId];
 
-    public int AssignCallbackFunction(Delegate d)
+    public int AssignCallbackFunction(IntPtr funcPtr) 
     {
         if (functionTable == null)
             throw new InvalidOperationException("FunctionTable not available");
 
         functionTableArray ??= functionTable.GetValue(null) as IntPtr[] ?? [];
 
-        IntPtr funcPtr;
         int callbackId = -1;
-
-        if (d.Target == null)
-        {
-            // Static method - can use function pointer directly
-            System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod(d.Method.MethodHandle);
-            funcPtr = d.Method.MethodHandle.GetFunctionPointer();
-        }
-        else
-        {
-            // Instance method or closure - need to generate a trampoline
-            callbackId = nextCallbackId++;
-            CallbackStorage[callbackId] = d;
-            funcPtr = GenerateTrampoline(d.GetType(), callbackId);
-        }
-
+        
         if (freeFunctions.Count > 0)
         {
             var idx = freeFunctions[^1];
@@ -87,46 +72,33 @@ public class WasmAssembly
         functionTable.SetValue(null, functionTableArray);
         return newIdx;
     }
-
-    IntPtr GenerateTrampoline(Type delegateType, int callbackId)
+    
+    public int AssignCallbackFunction(Delegate d)
     {
-        var invokeMethod = delegateType.GetMethod("Invoke")!;
-        var paramTypes = invokeMethod.GetParameters().Select(p => p.ParameterType).ToArray();
-        var returnType = invokeMethod.ReturnType;
+        if (functionTable == null)
+            throw new InvalidOperationException("FunctionTable not available");
+        if (!d.Method.IsStatic)
+            throw new Exception("Callbacks only supported to static functions.");
+        
+        functionTableArray ??= functionTable.GetValue(null) as IntPtr[] ?? [];
 
-        var dm = new DynamicMethod(
-            $"Trampoline_{callbackId}",
-            returnType,
-            paramTypes,
-            typeof(WasmAssembly).Module,
-            skipVisibility: true);
+        System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod(d.Method.MethodHandle);
+        var funcPtr = d.Method.MethodHandle.GetFunctionPointer();
 
-        var il = dm.GetILGenerator();
+        if (freeFunctions.Count > 0)
+        {
+            var idx = freeFunctions[^1];
+            freeFunctions.RemoveAt(freeFunctions.Count - 1);
+            functionTableArray[idx] = funcPtr;
+            return idx;
+        }
 
-        // Load the delegate: GetCallback(callbackId)
-        il.Emit(OpCodes.Ldc_I4, callbackId);
-        il.Emit(OpCodes.Call, typeof(WasmAssembly).GetMethod(nameof(GetCallback))!);
-        il.Emit(OpCodes.Castclass, delegateType);
-
-        // Load all arguments
-        for (int i = 0; i < paramTypes.Length; i++)
-            il.Emit(OpCodes.Ldarg, i);
-
-        // Call Invoke
-        il.Emit(OpCodes.Callvirt, invokeMethod);
-        il.Emit(OpCodes.Ret);
-
-        // Create a delegate from the DynamicMethod, then get its function pointer
-        var trampolineDelegate = dm.CreateDelegate(delegateType);
-        CallbackStorage[callbackId] = CallbackStorage[callbackId]; // keep original
-        trampolineDelegates.Add(trampolineDelegate); // prevent GC of trampoline
-
-        System.Runtime.CompilerServices.RuntimeHelpers.PrepareDelegate(trampolineDelegate);
-        return trampolineDelegate.Method.MethodHandle.GetFunctionPointer();
+        var newIdx = functionTableArray.Length;
+        functionTableArray = [.. functionTableArray, funcPtr];
+        functionTable.SetValue(null, functionTableArray);
+        return newIdx;
     }
 
-    // prevent GC of trampoline delegates
-    readonly List<Delegate> trampolineDelegates = new();
 
     public void FreeCallbackFunction(int idx)
     {
@@ -135,7 +107,7 @@ public class WasmAssembly
         functionTableArray[idx] = IntPtr.Zero;
         if (callbackIds.TryGetValue(idx, out var callbackId))
         {
-            CallbackStorage.Remove(callbackId);
+            callbackStorage.Remove(callbackId);
             callbackIds.Remove(idx);
         }
         freeFunctions.Add(idx);
@@ -187,7 +159,6 @@ public class WasmAssembly
         System.Text.Encoding.UTF8.GetBytes(str, span);
         return s;
     }
-
     public object Invoke(string methodName, params object[] args)
     {
         var toFree = ImmutableList<int>.Empty;

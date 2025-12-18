@@ -89,6 +89,7 @@ public class Program
             {
                 Console.WriteLine($"  FAIL: {testName}");
                 Console.WriteLine($"        {exception.Message}");
+                Console.WriteLine($"{exception.StackTrace}");
                 Console.WriteLine();
             }
             return 1;

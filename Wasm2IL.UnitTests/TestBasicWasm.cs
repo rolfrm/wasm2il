@@ -224,20 +224,21 @@ public class TestBasicWasm
         void callback_text(int arg, Action<int> f);
     }
     
+    static int callback_arg = 0;
+    static void callback(int arg)
+    {
+        callback_arg = arg;
+    }
     [Test]
     public void TestGettingACallback()
     {
-         int callback_arg = 0;
-        void callback(int arg)
-        {
-            callback_arg = arg;
-        }
+         
         var tform = new Transformer();
         var wasmPath = Path.Combine(AppContext.BaseDirectory, "callback_test.wasm");
         var dllPath = Path.Combine(AppContext.BaseDirectory, "callback_test.dll");
         var asm = tform.LoadWasmAssembly(wasmPath, dllPath);
 
-        asm.Invoke("callback_test", 10, (Action<int>)callback);
+        asm.Invoke("callback_test", 10, callback);
         Assert.AreEqual(10, callback_arg);
 
         //var cb = asm.AsImplementation<IApiWithCallback>();
