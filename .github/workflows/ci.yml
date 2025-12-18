@@ -15,16 +15,29 @@ jobs:
       with:
         dotnet-version: '9.0.x'
 
-    - name: Install wabt (WebAssembly Binary Toolkit)
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y wabt
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
 
-    - name: Install clang with WebAssembly support
-      run: |
-        sudo apt-get install -y clang lld
+    - name: Cache APT packages
+      uses: awalsh128/cache-apt-pkgs-action@latest
+      with:
+        packages: wabt clang lld
+        version: 1.0
+
+    - name: Cache libc.wasm
+      id: cache-libc
+      uses: actions/cache@v4
+      with:
+        path: TestCCode/libc.wasm
+        key: libc-wasm-prototype1
 
     - name: Download libc.wasm from minlibc release
+      if: steps.cache-libc.outputs.cache-hit != 'true'
       run: |
         curl -L -o TestCCode/libc.wasm https://github.com/rolfrm/minlibc/releases/download/prototype1/libc.wasm
 
