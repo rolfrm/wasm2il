@@ -956,9 +956,9 @@ public class Transformer
                             
                             var valueSource = OptimizerHelper.GetValueSource(il.Body, 1).FirstOrDefault();
                             if (valueSource != null && 
-                                ( valueSource.OpCode.ToString().StartsWith("ldc")
-                                  || valueSource.OpCode.ToString().StartsWith("ldloc")
-                                  || valueSource.OpCode.ToString().StartsWith("ldarg")
+                                ( valueSource.OpCode.Name.StartsWith("ldc")
+                                  || valueSource.OpCode.Name.StartsWith("ldloc")
+                                  || valueSource.OpCode.Name.StartsWith("ldarg")
                                     ))
                             {
                                 loadValue = valueSource;
@@ -988,21 +988,20 @@ public class Transformer
                         var offsetSource = OptimizerHelper.GetValueSource(il.Body, 1).FirstOrDefault();
                         if (offsetSource != null)
                         {
-                            if (offsetSource?.OpCode == IlOp.Ldc_I4)
+                            if (offsetSource.OpCode == IlOp.Ldc_I4)
                             {
                                 offset += (int) offsetSource.Operand;
                                 add = false;
                                 il.Remove(offsetSource);
                             }
-                            else if (offsetSource.OpCode.ToString().StartsWith("ldloc")
-                                     || offsetSource.OpCode.ToString().StartsWith("ldarg")
-                                     )
+                            else if (offsetSource.OpCode.Name.StartsWith("ldloc")
+                                     || offsetSource.OpCode.Name.StartsWith("ldarg"))
                             {
                                 prevInstr = offsetSource;
                                 later = true;
                                 il.Remove(offsetSource);
                             }
-                            else
+                            else if(offsetSource.OpCode.Name.StartsWith("ldc"))
                             {
 
                             }
@@ -1237,6 +1236,12 @@ public class Transformer
 
                     case WOp.I32_LT_U:
                     case WOp.I64_LT_U:
+                        if (reader.PeekInstruction() == WOp.I32_EQZ || reader.PeekInstruction() == WOp.I64_EQZ)
+                        {
+                            reader.ReadInstruction();
+                            goto case WOp.I32_GE_U;
+                        }
+                        
                         // optimize by peeking if the next instruction is BR_IF.
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
@@ -1255,6 +1260,11 @@ public class Transformer
                     case WOp.I64_LT_S:
                     case WOp.F64_LT:
                     case WOp.F32_LT:
+                        if (reader.PeekInstruction() == WOp.I32_EQZ || reader.PeekInstruction() == WOp.I64_EQZ)
+                        {
+                            reader.ReadInstruction();
+                            goto case WOp.I32_GE_S;
+                        }
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
                             instr = reader.ReadInstruction();
@@ -1269,6 +1279,11 @@ public class Transformer
                         break;
                     case WOp.I32_GT_U:
                     case WOp.I64_GT_U:
+                        if (reader.PeekInstruction() == WOp.I32_EQZ || reader.PeekInstruction() == WOp.I64_EQZ)
+                        {
+                            reader.ReadInstruction();
+                            goto case WOp.I32_LE_U;
+                        }
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
                             instr = reader.ReadInstruction();
@@ -1285,6 +1300,12 @@ public class Transformer
                     case WOp.I64_GT_S:
                     case WOp.F64_GT:
                     case WOp.F32_GT:
+
+                        if (reader.PeekInstruction() == WOp.I32_EQZ || reader.PeekInstruction() == WOp.I64_EQZ)
+                        {
+                            reader.ReadInstruction();
+                            goto case WOp.I32_LE_S;
+                        }
 
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
@@ -1314,7 +1335,23 @@ public class Transformer
                         // invert the logic
                         var unsigned = instr.ToString().Contains("_U");
                         var le = instr.ToString().Contains("LE");
+                        bool invert = false;
+                        if (reader.PeekInstruction() == WOp.I32_EQZ || reader.PeekInstruction() == WOp.I64_EQZ)
+                        {
+                            reader.ReadInstruction();
+                            if (le)
+                            {
+                                if (unsigned)
+                                    goto case WOp.I32_GT_U;    
+                                goto case WOp.I32_GT_S;
+                                
+                            }
+                            if (unsigned)
+                                goto case WOp.I32_LT_U;
 
+                            goto case WOp.I32_LT_S;
+                                
+                        }
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
                             instr = reader.ReadInstruction();
