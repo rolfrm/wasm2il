@@ -21,7 +21,8 @@ public class WasmAssembly
     readonly FieldInfo memorySize;
     readonly FieldInfo functionTable;
     readonly List<int> freeFunctions = new();
-    object[] functionTableArray;
+    readonly Dictionary<int, Delegate> liveCallbacks = new(); // prevent GC of delegates
+    IntPtr[] functionTableArray;
 
     public string Name => code.Name;
     public Assembly Assembly => asm;
@@ -45,18 +46,21 @@ public class WasmAssembly
         if (functionTable == null)
             throw new InvalidOperationException("FunctionTable not available");
 
-        functionTableArray ??= functionTable.GetValue(null) as object[] ?? [];
+        functionTableArray ??= functionTable.GetValue(null) as IntPtr[] ?? [];
+        var funcPtr = Marshal.GetFunctionPointerForDelegate(d);
 
         if (freeFunctions.Count > 0)
         {
             var idx = freeFunctions[^1];
             freeFunctions.RemoveAt(freeFunctions.Count - 1);
-            functionTableArray[idx] = d;
+            functionTableArray[idx] = funcPtr;
+            liveCallbacks[idx] = d; // prevent GC
             return idx;
         }
 
         var newIdx = functionTableArray.Length;
-        functionTableArray = [.. functionTableArray, d];
+        functionTableArray = [.. functionTableArray, funcPtr];
+        liveCallbacks[newIdx] = d; // prevent GC
         functionTable.SetValue(null, functionTableArray);
         return newIdx;
     }
@@ -65,7 +69,8 @@ public class WasmAssembly
     {
         if (functionTableArray == null)
             throw new InvalidOperationException("FunctionTable not initialized");
-        functionTableArray[idx] = null!;
+        functionTableArray[idx] = IntPtr.Zero;
+        liveCallbacks.Remove(idx); // allow GC
         freeFunctions.Add(idx);
     }
 
