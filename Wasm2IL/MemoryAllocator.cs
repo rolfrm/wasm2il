@@ -5,12 +5,15 @@ namespace Wasm2IL;
 public static class MemoryAllocator
 {
     const int MEM_RESERVE = 0x2000;
+    const int MEM_COMMIT = 0x1000;
     const int PAGE_READWRITE = 0x04;
 
     public static unsafe byte* AllocateMemory(long size)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return VirtualAlloc(IntPtr.Zero, new IntPtr(size), MEM_RESERVE, PAGE_READWRITE);
+            return VirtualAlloc(IntPtr.Zero, new IntPtr(size), 
+                MEM_COMMIT | MEM_RESERVE, 
+                PAGE_READWRITE);
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             return mmap(IntPtr.Zero, size, MmapProt.PROT_READ | MmapProt.PROT_WRITE,

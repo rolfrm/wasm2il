@@ -484,4 +484,16 @@ LIMIT 200;
         SqliteWasm.sqlite3_close(db2);
    
     }
+
+    [Test]
+    public void SqliteRationalityTest2()
+    {
+        SqliteRationalityTest();
+    }
+    
+    [Test]
+    public void SqliteRationalityTest3()
+    {
+        SqliteRationalityTest();
+    }
 }

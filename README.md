@@ -60,6 +60,17 @@ WASM linear memory is represented as a native `byte*` pointer, and function tabl
 | **Memory Access** | Direct heap access via spans and pointers for advanced scenarios |
 | **Optimization** | Constant folding and peephole optimization for cleaner IL output |
 
+### Not supported Features
+
+| Feature         | Description |
+|-----------------|-------------|
+| Relaxed SIMD    |             |
+| Sign Extension  |             |
+| Reference Types |             |
+| Memory64        | clang: -m            |
+| Wasm64          |             |
+| Wide Arithmetic | clang: -mwide-arithmetic |
+
 ---
 
 ## ⚠️ Status: Experimental
