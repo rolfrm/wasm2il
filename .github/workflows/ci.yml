@@ -5,7 +5,19 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux
+          - os: macos-14
+            name: macOS (M1)
+          - os: windows-latest
+            name: Windows
+
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
 
     steps:
     - uses: actions/checkout@v4
@@ -18,16 +30,45 @@ jobs:
     - name: Cache NuGet packages
       uses: actions/cache@v4
       with:
-        path: ~/.nuget/packages
+        path: |
+          ~/.nuget/packages
+          ~/AppData/Local/NuGet/Cache
         key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
         restore-keys: |
           ${{ runner.os }}-nuget-
 
-    - name: Cache APT packages
+    # Linux dependencies
+    - name: Cache APT packages (Linux)
+      if: runner.os == 'Linux'
       uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: wabt clang lld
         version: 1.0
+
+    # macOS dependencies
+    - name: Install dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: brew install wabt llvm
+
+    - name: Add LLVM to PATH (macOS)
+      if: runner.os == 'macOS'
+      run: echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
+
+    # Windows dependencies
+    - name: Install LLVM (Windows)
+      if: runner.os == 'Windows'
+      run: choco install llvm --yes
+
+    - name: Install wabt (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $wabtVersion = "1.0.36"
+        $wabtUrl = "https://github.com/WebAssembly/wabt/releases/download/$wabtVersion/wabt-$wabtVersion-windows.tar.gz"
+        Invoke-WebRequest -Uri $wabtUrl -OutFile wabt.tar.gz
+        tar -xzf wabt.tar.gz
+        $wabtPath = (Get-Item "wabt-$wabtVersion\bin").FullName
+        echo $wabtPath >> $env:GITHUB_PATH
 
     - name: Cache libc.wasm
       id: cache-libc
@@ -36,14 +77,28 @@ jobs:
         path: TestCCode/libc.wasm
         key: libc-wasm-prototype1
 
-    - name: Download libc.wasm from minlibc release
-      if: steps.cache-libc.outputs.cache-hit != 'true'
+    - name: Download libc.wasm from minlibc release (Unix)
+      if: steps.cache-libc.outputs.cache-hit != 'true' && runner.os != 'Windows'
       run: |
         curl -L -o TestCCode/libc.wasm https://github.com/rolfrm/minlibc/releases/download/prototype1/libc.wasm
 
-    - name: Build callback_test.wasm
+    - name: Download libc.wasm from minlibc release (Windows)
+      if: steps.cache-libc.outputs.cache-hit != 'true' && runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/rolfrm/minlibc/releases/download/prototype1/libc.wasm" -OutFile "TestCCode/libc.wasm"
+
+    - name: Build callback_test.wasm (Unix)
+      if: runner.os != 'Windows'
       run: make callback_test.wasm
       working-directory: TestCCode
+
+    - name: Build callback_test.wasm (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      working-directory: TestCCode
+      run: |
+        clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory -Wl,--export=main -Wl,--export=callback_test -Wl,--allow-undefined -Wl,--no-entry -ffreestanding callback_test.c -o callback_test.wasm
 
     - name: Restore dependencies
       run: dotnet restore
