@@ -48,11 +48,7 @@ jobs:
     # macOS dependencies
     - name: Install dependencies (macOS)
       if: runner.os == 'macOS'
-      run: brew install wabt llvm wasm-tools
-
-    - name: Add LLVM to PATH (macOS)
-      if: runner.os == 'macOS'
-      run: echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
+      run: brew install wabt emscripten
 
     # Windows dependencies
     - name: Install LLVM (Windows)
@@ -97,7 +93,8 @@ jobs:
       if: runner.os == 'macOS'
       working-directory: TestCCode
       run: |
-        clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory -fuse-ld=lld -Wl,--export=main -Wl,--export=callback_test -Wl,--allow-undefined -Wl,--no-entry -ffreestanding callback_test.c -o callback_test.wasm
+        EMSDK_CLANG=$(dirname $(which emcc))/../libexec/llvm/bin/clang
+        $EMSDK_CLANG --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory -Wl,--export=main -Wl,--export=callback_test -Wl,--allow-undefined -Wl,--no-entry -ffreestanding callback_test.c -o callback_test.wasm
 
     - name: Build callback_test.wasm (Windows)
       if: runner.os == 'Windows'
