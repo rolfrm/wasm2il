@@ -948,18 +948,17 @@ public class Transformer
                     case WOp.F32_STORE:
                     case WOp.F64_STORE:
                         reader.ReadU32Leb(); // align hint (ignored)
-                        var offset = (int)reader.ReadU32Leb();
-                        
+                        var offset = (int) reader.ReadU32Leb();
+
                         Instruction loadValue = null;
                         if (instr.ToString().Contains("STORE"))
                         {
-                            
                             var valueSource = OptimizerHelper.GetValueSource(il.Body, 1).FirstOrDefault();
-                            if (valueSource != null && 
-                                ( valueSource.OpCode.Name.StartsWith("ldc")
-                                  || valueSource.OpCode.Name.StartsWith("ldloc")
-                                  || valueSource.OpCode.Name.StartsWith("ldarg")
-                                    ))
+                            if (valueSource != null &&
+                                (valueSource.OpCode.Name.StartsWith("ldc")
+                                 || valueSource.OpCode.Name.StartsWith("ldloc")
+                                 || valueSource.OpCode.Name.StartsWith("ldarg")
+                                ))
                             {
                                 loadValue = valueSource;
                                 il.Remove(valueSource);
@@ -979,9 +978,17 @@ public class Transformer
                                 loadValue = il.Create(IlOp.Ldloc, stvar);
                                 il.Emit(IlOp.Stloc, stvar);
                             }
-
                         }
+
+                        // check that the memory location is ok.
                         
+                        /*if (instr.ToString().Contains("LOAD"))
+                        {
+                            il.Emit(IlOp.Dup);
+                            il.Emit(IlOp.Ldc_I4, offset);
+                            ctx.EmitCall(typeof(Lib).GetMethod(nameof(Lib.CheckMemory2)));
+                        }*/
+
                         bool later = false;
                         bool add = true;
                         Instruction prevInstr = null;
@@ -1001,35 +1008,35 @@ public class Transformer
                                 later = true;
                                 il.Remove(offsetSource);
                             }
-                            else if(offsetSource.OpCode.Name.StartsWith("ldc"))
+                            else if (offsetSource.OpCode.Name.StartsWith("ldc"))
                             {
-
                             }
                         }
 
-
+                        
                         ctx.LoadMemory();
                         if (later)
                             il.InsertAfter(il.Body.Instructions.LastOrDefault(), prevInstr);
-                        
+
                         // adjust according to the offset 
                         if (offset != 0)
                         {
                             il.Emit(IlOp.Ldc_I4, offset);
                             il.Emit(IlOp.Add);
                         }
-                        if(add)
+
+                        if (add)
                             il.Emit(IlOp.Add);
-                            
-                        
-                        if(loadValue != null)
+
+
+                        if (loadValue != null)
                             il.Append(loadValue);
                         switch (instr)
                         {
                             // pop address, value. store value in address according to size.
                             case WOp.I32_STORE_8:
                             case WOp.I64_STORE_8:
-                                
+
                                 il.Emit(IlOp.Stind_I1);
                                 break;
                             case WOp.I32_STORE_16:
@@ -1218,7 +1225,7 @@ public class Transformer
                         il.Emit(IlOp.Div);
                         ctx.PopType();
                         break;
-                    case WOp.I32_DIV_U: 
+                    case WOp.I32_DIV_U:
                     case WOp.I64_DIV_U:
                         il.Emit(IlOp.Div_Un);
                         ctx.PopType();
@@ -1241,7 +1248,7 @@ public class Transformer
                             reader.ReadInstruction();
                             goto case WOp.I32_GE_U;
                         }
-                        
+
                         // optimize by peeking if the next instruction is BR_IF.
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
@@ -1265,6 +1272,7 @@ public class Transformer
                             reader.ReadInstruction();
                             goto case WOp.I32_GE_S;
                         }
+
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
                             instr = reader.ReadInstruction();
@@ -1284,6 +1292,7 @@ public class Transformer
                             reader.ReadInstruction();
                             goto case WOp.I32_LE_U;
                         }
+
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
                             instr = reader.ReadInstruction();
@@ -1342,16 +1351,16 @@ public class Transformer
                             if (le)
                             {
                                 if (unsigned)
-                                    goto case WOp.I32_GT_U;    
+                                    goto case WOp.I32_GT_U;
                                 goto case WOp.I32_GT_S;
-                                
                             }
+
                             if (unsigned)
                                 goto case WOp.I32_LT_U;
 
                             goto case WOp.I32_LT_S;
-                                
                         }
+
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
                             instr = reader.ReadInstruction();
@@ -1428,7 +1437,6 @@ public class Transformer
                     case WOp.I64_EQZ:
                         if (reader.PeekInstruction() == WOp.BR_IF)
                         {
-
                         }
 
                         il.Emit(IlOp.Ldc_I8, 0L);
@@ -1534,8 +1542,8 @@ public class Transformer
                         var instr2 = (VectorInstructions) reader.ReadU32Leb();
                         if (instr2.ToString().Contains("RELAXED"))
                         {
-                            
                         }
+
                         switch (instr2)
                         {
                             case VectorInstructions.V128_STORE:
@@ -1547,6 +1555,7 @@ public class Transformer
                                     il.Emit(IlOp.Stloc, stvar);
                                     ctx.PopType();
                                 }
+
                                 reader.ReadU32Leb(); // align hint (ignored)
                                 var offset3 = reader.ReadU32Leb();
 
@@ -1558,7 +1567,7 @@ public class Transformer
 
                                 ctx.LoadMemory();
                                 il.Emit(IlOp.Add);
-                                    
+
                                 var stvar2 = ctx.GetHelperVariable(v128Type);
                                 if (instr2 == VectorInstructions.V128_STORE)
                                 {
@@ -1859,7 +1868,7 @@ public class Transformer
 
     readonly Dictionary<MethodReference, MethodReference> wrappedMethods = new();
 
-        
+
     void ReadExportSection(BinReader reader)
     {
         var exportCount = reader.ReadU32Leb();
@@ -1997,7 +2006,7 @@ public class Transformer
                 cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
                 cctoril.Emit(OpCodes.Ldc_I4, (int) (min * PageSize));
                 // Allocate 4GB of virtual memory so we'll never have to move the heap pointer.
-                cctoril.Emit(OpCodes.Ldc_I8, 4L * 1024L * 1024L * 1024L);
+                cctoril.Emit(OpCodes.Ldc_I8, 200L * 1024L * 1024L);
                 cctoril.EmitCall(() => MemoryAllocator.AllocateMemory);
                 cctoril.Emit(OpCodes.Stsfld, memoryField);
                 cctoril.Emit(OpCodes.Stsfld, memoryFieldSize);
@@ -2013,7 +2022,7 @@ public class Transformer
                 cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
 
                 // Allocate 4GB of virtual memory so we'll never have to move the heap pointer.
-                cctoril.Emit(OpCodes.Ldc_I8, 4L * 1024L * 1024L * 1024L);
+                cctoril.Emit(OpCodes.Ldc_I8, 200L * 1024L * 1024L * 1024L);
                 cctoril.EmitCall(() => MemoryAllocator.AllocateMemory);
                 cctoril.Emit(OpCodes.Stsfld, memoryField);
                 cctoril.Emit(OpCodes.Ldc_I4, (int) (min * PageSize));

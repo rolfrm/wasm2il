@@ -204,9 +204,6 @@ public class LibC
                 p = 0;
             }
             lookup[name2] = p;
-            var str = ctx.GetHeapString(p);
-            
-
         }
         
         return p;

@@ -61,8 +61,11 @@ public class Program
                         }
                         catch (TargetInvocationException e)
                         {
-                            var inner = e.InnerException ?? e;
-                            Console.WriteLine($"Fail: {inner.Message}");
+                            // Unwrap all nested TargetInvocationExceptions
+                            Exception inner = e;
+                            while (inner is TargetInvocationException tie && tie.InnerException != null)
+                                inner = tie.InnerException;
+                            Console.WriteLine($"Fail: {inner.GetType().Name}: {inner.Message}");
                             failures.Add((testName, inner));
                             failed++;
                         }
@@ -91,8 +94,16 @@ public class Program
             foreach (var (testName, exception) in failures)
             {
                 Console.WriteLine($"  FAIL: {testName}");
-                Console.WriteLine($"        {exception.Message}");
+                Console.WriteLine($"        {exception.GetType().FullName}: {exception.Message}");
                 Console.WriteLine($"{exception.StackTrace}");
+                // Print inner exceptions if any
+                var inner = exception.InnerException;
+                while (inner != null)
+                {
+                    Console.WriteLine($"  ---> {inner.GetType().FullName}: {inner.Message}");
+                    Console.WriteLine($"{inner.StackTrace}");
+                    inner = inner.InnerException;
+                }
                 Console.WriteLine();
             }
             return 1;

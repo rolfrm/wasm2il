@@ -8,11 +8,11 @@ public static class MemoryAllocator
     const int MEM_COMMIT = 0x1000;
     const int PAGE_READWRITE = 0x04;
 
-    public static unsafe byte* AllocateMemory(long size)
+    static unsafe byte* AllocateMemory0(long size)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return VirtualAlloc(IntPtr.Zero, new IntPtr(size), 
-                MEM_COMMIT | MEM_RESERVE, 
+            return VirtualAlloc(IntPtr.Zero, new IntPtr(size),
+                MEM_COMMIT | MEM_RESERVE,
                 PAGE_READWRITE);
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
@@ -25,6 +25,16 @@ public static class MemoryAllocator
 
         throw new PlatformNotSupportedException("Unsupported platform for memory allocation");
     }
+
+    public static unsafe byte* AllocateMemory(long size)
+    {
+        var r = AllocateMemory0(size);
+        if (r == null)
+            throw new Exception("Unable to allocate memory");
+
+        return r;
+    }
+    
 
     [DllImport("kernel32.dll", SetLastError = true)]
     static extern unsafe byte* VirtualAlloc(IntPtr lpAddress, IntPtr dwSize, int flAllocationType, int flProtect);
