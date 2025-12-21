@@ -48,7 +48,7 @@ jobs:
     # macOS dependencies
     - name: Install dependencies (macOS)
       if: runner.os == 'macOS'
-      run: brew install wabt llvm
+      run: brew install wabt llvm wasm-tools
 
     - name: Add LLVM to PATH (macOS)
       if: runner.os == 'macOS'
