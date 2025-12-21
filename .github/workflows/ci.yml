@@ -88,14 +88,20 @@ jobs:
       run: |
         Invoke-WebRequest -Uri "https://github.com/rolfrm/minlibc/releases/download/prototype1/libc.wasm" -OutFile "TestCCode/libc.wasm"
 
-    - name: Build callback_test.wasm (Unix)
-      if: runner.os != 'Windows'
+    - name: Build callback_test.wasm (Linux)
+      if: runner.os == 'Linux'
       run: make callback_test.wasm
       working-directory: TestCCode
 
+    - name: Build callback_test.wasm (macOS)
+      if: runner.os == 'macOS'
+      working-directory: TestCCode
+      run: |
+        $(brew --prefix llvm)/bin/clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory -Wl,--export=main -Wl,--export=callback_test -Wl,--allow-undefined -Wl,--no-entry -ffreestanding callback_test.c -o callback_test.wasm
+
     - name: Build callback_test.wasm (Windows)
       if: runner.os == 'Windows'
-      shell: pwsh
+      shell: cmd
       working-directory: TestCCode
       run: |
         clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory -Wl,--export=main -Wl,--export=callback_test -Wl,--allow-undefined -Wl,--no-entry -ffreestanding callback_test.c -o callback_test.wasm
