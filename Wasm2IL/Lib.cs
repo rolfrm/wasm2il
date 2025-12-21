@@ -27,7 +27,7 @@ public static partial class Lib
         var loc2 = new IntPtr(loc).ToInt64();
         var mem2 = new IntPtr(memory).ToInt64();
         if (loc2 > (mem2 + size) || loc2 < mem2)
-            throw new Exception("Memory access out of range");
+            throw new Exception("Memory access out of range: {loc2 - mem2} out of {size}.");
     }
     
     [WasmOpcode(ExtendedInstruction.I32_TRUNC_SAT_F32_S)]
