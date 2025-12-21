@@ -49,7 +49,7 @@ jobs:
     - name: Install dependencies (macOS)
       if: runner.os == 'macOS'
       run: | 
-        brew install wabt llvm wasm-tools wasmtime lld
+        brew install wabt llvm lld
         which wasm-ld
         wasm-ld -v
       
