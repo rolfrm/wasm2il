@@ -279,12 +279,43 @@ public class LibC
         return path;
     }
 
+    // Special stream for /dev/urandom that generates random data
+    class RandomStream : Stream
+    {
+        static readonly Random _random = new();
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            _random.NextBytes(buffer.AsSpan(offset, count));
+            return count;
+        }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     static  int _fd = 990;
     public static Dictionary<int, FileStream> files = new ();
+    static Dictionary<int, Stream> specialStreams = new();
     static Dictionary<int, string> directories = new();
     public static int open(HeapContext ctx, CString path, OpenFlags flags, OpenMode mode)
     {
-        var p = NormalizePath(path.ToString());
+        var pathStr = path.ToString();
+
+        // Handle special files
+        if (pathStr == "/dev/urandom" || pathStr == "/dev/random")
+        {
+            var fd = _fd++;
+            specialStreams[fd] = new RandomStream();
+            return fd;
+        }
+
+        var p = NormalizePath(pathStr);
         if (Directory.Exists(p))
         {
             var fd = _fd++;
@@ -366,7 +397,14 @@ public class LibC
 
     public static unsafe int read(int fd, byte * buffer, int count)
     {
-        var str = files[fd];
+        Stream str;
+        if (files.TryGetValue(fd, out var fileStream))
+            str = fileStream;
+        else if (specialStreams.TryGetValue(fd, out var specialStream))
+            str = specialStream;
+        else
+            throw new InvalidOperationException($"Invalid file descriptor: {fd}");
+
         var bufferSpan = new Span<byte>(buffer, count);
         int readBytes = str.Read(bufferSpan);
         return readBytes;
@@ -431,8 +469,16 @@ public class LibC
     {
         if (directories.Remove(fd, out _))
             return 0;
-        files[fd].Close();
-        files.Remove(fd);
+        if (specialStreams.Remove(fd, out var specialStream))
+        {
+            specialStream.Dispose();
+            return 0;
+        }
+        if (files.TryGetValue(fd, out var file))
+        {
+            file.Close();
+            files.Remove(fd);
+        }
         return 0;
     }
 
