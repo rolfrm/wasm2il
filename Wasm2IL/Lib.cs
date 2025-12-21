@@ -21,6 +21,14 @@ public static partial class Lib
     {
         Unsafe.CopyBlockUnaligned(dst, src, (uint) N);
     }
+
+    public static unsafe void CheckMemory(void * loc, int size, void * memory)
+    {
+        var loc2 = new IntPtr(loc).ToInt64();
+        var mem2 = new IntPtr(memory).ToInt64();
+        if (loc2 > (mem2 + size) || loc2 < mem2)
+            throw new Exception("Memory access out of range");
+    }
     
     [WasmOpcode(ExtendedInstruction.I32_TRUNC_SAT_F32_S)]
     public static int I32_TRUNC_SAT_F32_S(float f)

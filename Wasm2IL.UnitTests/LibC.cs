@@ -204,9 +204,6 @@ public class LibC
                 p = 0;
             }
             lookup[name2] = p;
-            var str = ctx.GetHeapString(p);
-            
-
         }
         
         return p;
@@ -244,7 +241,20 @@ public class LibC
     public static int getcwd(HeapContext ctx, int buf, uint size)
     {
         var strBuf = GetModuleContext(ctx.Module).GetSpan(buf, (int)size);
-        var e = System.Text.Encoding.UTF8.GetBytes(Directory.GetCurrentDirectory(), strBuf);
+        var cwd = Directory.GetCurrentDirectory();
+
+        // Convert Windows path to Unix-style for POSIX compatibility
+        // e.g., "D:\a\wasm2il" -> "/d/a/wasm2il"
+        if (OperatingSystem.IsWindows() && cwd.Length >= 2 && cwd[1] == ':')
+        {
+            cwd = "/" + char.ToLower(cwd[0]) + cwd.Substring(2).Replace('\\', '/');
+        }
+        else
+        {
+            cwd = cwd.Replace('\\', '/');
+        }
+
+        var e = System.Text.Encoding.UTF8.GetBytes(cwd, strBuf);
         strBuf[e] = 0;
         return buf;
     }
@@ -254,21 +264,67 @@ public class LibC
         return Process.GetCurrentProcess().Id;
     }
 
+    static string NormalizePath(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            // Convert Unix-style paths back to Windows
+            // e.g., "/d/a/wasm2il" -> "D:\a\wasm2il"
+            if (path.Length >= 3 && path[0] == '/' && char.IsLetter(path[1]) && path[2] == '/')
+            {
+                path = char.ToUpper(path[1]) + ":" + path.Substring(2);
+            }
+            return path.Replace('/', '\\');
+        }
+        return path;
+    }
+
+    // Special stream for /dev/urandom that generates random data (Windows only)
+    class RandomStream : Stream
+    {
+        static readonly Random _random = new();
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            _random.NextBytes(buffer.AsSpan(offset, count));
+            return count;
+        }
+        public override long Seek(long offset, System.IO.SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     static  int _fd = 990;
     public static Dictionary<int, FileStream> files = new ();
+    static Dictionary<int, Stream> specialStreams = new();
     static Dictionary<int, string> directories = new();
     public static int open(HeapContext ctx, CString path, OpenFlags flags, OpenMode mode)
     {
-        var p = path.ToString();
+        var pathStr = path.ToString();
+
+        // Handle special files on Windows (these don't exist on Windows)
+        if (OperatingSystem.IsWindows() && (pathStr == "/dev/urandom" || pathStr == "/dev/random"))
+        {
+            var fd = _fd++;
+            specialStreams[fd] = new RandomStream();
+            return fd;
+        }
+
+        var p = NormalizePath(pathStr);
         if (Directory.Exists(p))
         {
             var fd = _fd++;
             directories[fd] = p;
-            return fd;    
+            return fd;
         }
         else
         {
-            var f = new FileStream(path.ToString(), FileMode.OpenOrCreate,FileAccess.ReadWrite, FileShare.ReadWrite);
+            var f = new FileStream(p, FileMode.OpenOrCreate,FileAccess.ReadWrite, FileShare.ReadWrite);
             var fd = _fd++;
             files[fd] = f;
             return fd;
@@ -313,7 +369,7 @@ public class LibC
     
     public static unsafe int stat(HeapContext ctx, CString path, Stat* stat)
     {
-        var finfo = new FileInfo(path.ToString());
+        var finfo = new FileInfo(NormalizePath(path.ToString()));
         var x = GetModuleContext(ctx.Module);
         x.ErrorNo[0] = 0;
         if (!finfo.Exists)
@@ -341,7 +397,14 @@ public class LibC
 
     public static unsafe int read(int fd, byte * buffer, int count)
     {
-        var str = files[fd];
+        Stream str;
+        if (files.TryGetValue(fd, out var fileStream))
+            str = fileStream;
+        else if (specialStreams.TryGetValue(fd, out var specialStream))
+            str = specialStream;
+        else
+            throw new InvalidOperationException($"Invalid file descriptor: {fd}");
+
         var bufferSpan = new Span<byte>(buffer, count);
         int readBytes = str.Read(bufferSpan);
         return readBytes;
@@ -406,14 +469,22 @@ public class LibC
     {
         if (directories.Remove(fd, out _))
             return 0;
-        files[fd].Close();
-        files.Remove(fd);
+        if (specialStreams.Remove(fd, out var specialStream))
+        {
+            specialStream.Dispose();
+            return 0;
+        }
+        if (files.TryGetValue(fd, out var file))
+        {
+            file.Close();
+            files.Remove(fd);
+        }
         return 0;
     }
 
     public static int unlink(CString path)
     {
-        File.Delete(path.ToString());
+        File.Delete(NormalizePath(path.ToString()));
         return 0;
     }
 
