@@ -37,6 +37,11 @@ public class Transformer
     /// </summary>
     public bool EnableOptimizations { get; set; } = true;
 
+    /// <summary>
+    /// Adds code to check that loads are in range. 
+    /// </summary>
+    public bool CheckLoads { get; set; } = true;
+
     public void LoadImportModule(string moduleName, Type type)
     {
         if (!importModules.TryGetValue(moduleName, out var typeList))
@@ -981,14 +986,7 @@ public class Transformer
                         }
 
                         // check that the memory location is ok.
-                        
-                        /*if (instr.ToString().Contains("LOAD"))
-                        {
-                            il.Emit(IlOp.Dup);
-                            il.Emit(IlOp.Ldc_I4, offset);
-                            ctx.EmitCall(typeof(Lib).GetMethod(nameof(Lib.CheckMemory2)));
-                        }*/
-
+                       
                         bool later = false;
                         bool add = true;
                         Instruction prevInstr = null;
@@ -1028,6 +1026,13 @@ public class Transformer
                         if (add)
                             il.Emit(IlOp.Add);
 
+                        if (CheckLoads && instr.ToString().Contains("LOAD"))
+                        {
+                            il.Emit(IlOp.Dup);
+                            il.Emit(IlOp.Ldsfld, memoryFieldSize);
+                            il.Emit(IlOp.Ldsfld, memoryField);
+                            ctx.EmitCall(typeof(Lib).GetMethod(nameof(Lib.CheckMemory)));
+                        }
 
                         if (loadValue != null)
                             il.Append(loadValue);

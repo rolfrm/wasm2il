@@ -482,18 +482,5 @@ LIMIT 200;
 
         var msg2  = w.GetHeapString(c2);
         SqliteWasm.sqlite3_close(db2);
-   
-    }
-
-    [Test]
-    public void SqliteRationalityTest2()
-    {
-        SqliteRationalityTest();
-    }
-    
-    [Test]
-    public void SqliteRationalityTest3()
-    {
-        SqliteRationalityTest();
     }
 }
