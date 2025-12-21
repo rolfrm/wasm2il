@@ -40,7 +40,7 @@ public class Transformer
     /// <summary>
     /// Adds code to check that loads are in range. 
     /// </summary>
-    public bool CheckLoads { get; set; } = true;
+    public bool CheckLoads { get; set; } = false;
 
     public void LoadImportModule(string moduleName, Type type)
     {
