@@ -279,7 +279,7 @@ public class LibC
         return path;
     }
 
-    // Special stream for /dev/urandom that generates random data
+    // Special stream for /dev/urandom that generates random data (Windows only)
     class RandomStream : Stream
     {
         static readonly Random _random = new();
@@ -294,7 +294,7 @@ public class LibC
             _random.NextBytes(buffer.AsSpan(offset, count));
             return count;
         }
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override long Seek(long offset, System.IO.SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
@@ -307,8 +307,8 @@ public class LibC
     {
         var pathStr = path.ToString();
 
-        // Handle special files
-        if (pathStr == "/dev/urandom" || pathStr == "/dev/random")
+        // Handle special files on Windows (these don't exist on Windows)
+        if (OperatingSystem.IsWindows() && (pathStr == "/dev/urandom" || pathStr == "/dev/random"))
         {
             var fd = _fd++;
             specialStreams[fd] = new RandomStream();
