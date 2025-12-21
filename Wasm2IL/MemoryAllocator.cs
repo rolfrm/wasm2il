@@ -12,7 +12,7 @@ public static class MemoryAllocator
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return VirtualAlloc(IntPtr.Zero, new IntPtr(size),
-                MEM_COMMIT | MEM_RESERVE,
+                MEM_RESERVE,
                 PAGE_READWRITE);
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
