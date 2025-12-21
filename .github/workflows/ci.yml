@@ -97,7 +97,7 @@ jobs:
       if: runner.os == 'macOS'
       working-directory: TestCCode
       run: |
-        $(brew --prefix llvm)/bin/clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory -Wl,--export=main -Wl,--export=callback_test -Wl,--allow-undefined -Wl,--no-entry -ffreestanding callback_test.c -o callback_test.wasm
+        $(brew --prefix llvm)/bin/clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory -fuse-ld=$(brew --prefix llvm)/bin/wasm-ld -Wl,--export=main -Wl,--export=callback_test -Wl,--allow-undefined -Wl,--no-entry -ffreestanding callback_test.c -o callback_test.wasm
 
     - name: Build callback_test.wasm (Windows)
       if: runner.os == 'Windows'
