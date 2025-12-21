@@ -241,7 +241,20 @@ public class LibC
     public static int getcwd(HeapContext ctx, int buf, uint size)
     {
         var strBuf = GetModuleContext(ctx.Module).GetSpan(buf, (int)size);
-        var e = System.Text.Encoding.UTF8.GetBytes(Directory.GetCurrentDirectory(), strBuf);
+        var cwd = Directory.GetCurrentDirectory();
+
+        // Convert Windows path to Unix-style for POSIX compatibility
+        // e.g., "D:\a\wasm2il" -> "/d/a/wasm2il"
+        if (OperatingSystem.IsWindows() && cwd.Length >= 2 && cwd[1] == ':')
+        {
+            cwd = "/" + char.ToLower(cwd[0]) + cwd.Substring(2).Replace('\\', '/');
+        }
+        else
+        {
+            cwd = cwd.Replace('\\', '/');
+        }
+
+        var e = System.Text.Encoding.UTF8.GetBytes(cwd, strBuf);
         strBuf[e] = 0;
         return buf;
     }
@@ -251,21 +264,36 @@ public class LibC
         return Process.GetCurrentProcess().Id;
     }
 
+    static string NormalizePath(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            // Convert Unix-style paths back to Windows
+            // e.g., "/d/a/wasm2il" -> "D:\a\wasm2il"
+            if (path.Length >= 3 && path[0] == '/' && char.IsLetter(path[1]) && path[2] == '/')
+            {
+                path = char.ToUpper(path[1]) + ":" + path.Substring(2);
+            }
+            return path.Replace('/', '\\');
+        }
+        return path;
+    }
+
     static  int _fd = 990;
     public static Dictionary<int, FileStream> files = new ();
     static Dictionary<int, string> directories = new();
     public static int open(HeapContext ctx, CString path, OpenFlags flags, OpenMode mode)
     {
-        var p = path.ToString();
+        var p = NormalizePath(path.ToString());
         if (Directory.Exists(p))
         {
             var fd = _fd++;
             directories[fd] = p;
-            return fd;    
+            return fd;
         }
         else
         {
-            var f = new FileStream(path.ToString(), FileMode.OpenOrCreate,FileAccess.ReadWrite, FileShare.ReadWrite);
+            var f = new FileStream(p, FileMode.OpenOrCreate,FileAccess.ReadWrite, FileShare.ReadWrite);
             var fd = _fd++;
             files[fd] = f;
             return fd;
@@ -310,7 +338,7 @@ public class LibC
     
     public static unsafe int stat(HeapContext ctx, CString path, Stat* stat)
     {
-        var finfo = new FileInfo(path.ToString());
+        var finfo = new FileInfo(NormalizePath(path.ToString()));
         var x = GetModuleContext(ctx.Module);
         x.ErrorNo[0] = 0;
         if (!finfo.Exists)
@@ -410,7 +438,7 @@ public class LibC
 
     public static int unlink(CString path)
     {
-        File.Delete(path.ToString());
+        File.Delete(NormalizePath(path.ToString()));
         return 0;
     }
 
