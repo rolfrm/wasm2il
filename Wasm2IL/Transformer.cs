@@ -189,7 +189,7 @@ public class Transformer
         cctoril.Emit(OpCodes.Nop);
         cctoril.Emit(OpCodes.Ret);
 
-        moduleContext = new(voidType, memoryField, asm.MainModule, cls);
+        moduleContext = new(voidType, memoryField, memoryFieldSize, asm.MainModule, cls);
     }
 
     public void Transform(Stream str, string asmName, string filePath)
@@ -927,7 +927,56 @@ public class Transformer
                         var memIdx = reader.ReadU8();
                         if (memIdx != 0)
                             throw new NotSupportedException("Multiple memories not supported");
-                        throw new NotSupportedException("memory.grow is not supported");
+
+                        ctx.PopType(); // pop delta (i32)
+
+                        // Store delta to a temp variable
+                        var deltaVar = ctx.GetHelperVariable(i32Type, 100);
+                        il.Emit(IlOp.Stloc, deltaVar);
+
+                        // Store old size for return value
+                        var oldSizeVar = ctx.GetHelperVariable(i32Type, 101);
+                        il.Emit(IlOp.Ldsfld, ctx.ModuleContext.MemorySizeField);
+                        il.Emit(IlOp.Stloc, oldSizeVar);
+
+                        // Load arguments for GrowMemory(byte* currentPtr, long currentSize, long newSize)
+                        // Arg 1: current pointer
+                        il.Emit(IlOp.Ldsfld, memoryField);
+
+                        // Arg 2: current size (convert to long)
+                        il.Emit(IlOp.Ldsfld, ctx.ModuleContext.MemorySizeField);
+                        il.Emit(IlOp.Conv_I8);
+
+                        // Arg 3: new size = currentSize + delta * PageSize
+                        il.Emit(IlOp.Ldsfld, ctx.ModuleContext.MemorySizeField);
+                        il.Emit(IlOp.Conv_I8);
+                        il.Emit(IlOp.Ldloc, deltaVar);
+                        il.Emit(IlOp.Conv_I8);
+                        il.Emit(IlOp.Ldc_I8, (long)PageSize);
+                        il.Emit(IlOp.Mul);
+                        il.Emit(IlOp.Add);
+
+                        // Call GrowMemory
+                        il.EmitCall(() => MemoryAllocator.GrowMemory);
+
+                        // Store the new pointer
+                        il.Emit(IlOp.Stsfld, memoryField);
+
+                        // Update MemorySizeField = oldSize + delta * PageSize
+                        il.Emit(IlOp.Ldloc, oldSizeVar);
+                        il.Emit(IlOp.Ldloc, deltaVar);
+                        il.Emit(IlOp.Ldc_I4, (int)PageSize);
+                        il.Emit(IlOp.Mul);
+                        il.Emit(IlOp.Add);
+                        il.Emit(IlOp.Stsfld, ctx.ModuleContext.MemorySizeField);
+
+                        // Return old size in pages
+                        il.Emit(IlOp.Ldloc, oldSizeVar);
+                        il.Emit(IlOp.Ldc_I4, (int)PageSize);
+                        il.Emit(IlOp.Div);
+
+                        ctx.PushType(i32Type);
+                        break;
                     }
                     case WOp.I32_LOAD:
                     case WOp.I32_LOAD8_S:
