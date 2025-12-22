@@ -17,11 +17,12 @@ internal class CodeGenModuleContext
     TypeReference v128Type;
 
     
-    public CodeGenModuleContext(TypeReference voidType, FieldDefinition memoryField, FieldDefinition memorySizeField, ModuleDefinition module,
+    public CodeGenModuleContext(TypeReference voidType, FieldDefinition memoryField, FieldDefinition memoryFieldIndirect, FieldDefinition memorySizeField, ModuleDefinition module,
         TypeDefinition @class)
     {
         VoidType = voidType;
         MemoryField = memoryField;
+        MemoryFieldIndirect = memoryFieldIndirect;
         MemorySizeField = memorySizeField;
         Module = module;
         Class = @class;
@@ -89,6 +90,7 @@ internal class CodeGenModuleContext
     }
     
     public FieldDefinition MemoryField { get; }
+    public FieldDefinition MemoryFieldIndirect { get; }
     public FieldDefinition MemorySizeField { get; }
     public ModuleDefinition Module { get; }
     public TypeDefinition Class { get; }

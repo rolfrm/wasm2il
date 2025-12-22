@@ -38,6 +38,27 @@ public static class MemoryAllocator
     }
 
     /// <summary>
+    /// Allocates memory with an indirection pointer. Returns byte** that points to
+    /// a location containing the actual heap pointer. This allows the heap pointer
+    /// to be updated (e.g., during growth) without invalidating cached values.
+    /// </summary>
+    /// <param name="size">Size of the heap to allocate</param>
+    /// <returns>Pointer to pointer (byte**) - dereference to get actual heap</returns>
+    public static unsafe byte** AllocateMemoryIndirect(long size)
+    {
+        // Allocate 8 bytes to hold the pointer
+        var ptrStorage = (byte**)AllocateMemory(8);
+
+        // Allocate the actual heap
+        var heap = AllocateMemory(size);
+
+        // Store heap pointer at the indirection location
+        *ptrStorage = heap;
+
+        return ptrStorage;
+    }
+
+    /// <summary>
     /// Grows memory from currentSize to newSize. First tries to extend the current region in place,
     /// otherwise allocates new memory and copies the data.
     /// </summary>

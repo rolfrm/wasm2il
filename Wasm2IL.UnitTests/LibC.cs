@@ -112,6 +112,7 @@ public class LibC
         readonly MethodInfo malloc;
         readonly MethodInfo free;
         readonly FieldInfo memory;
+        readonly FieldInfo memoryIndirect;
         readonly FieldInfo memorySize;
         readonly FieldInfo memoryAllocatedSize;
         public Type Ctx => _ctx;
@@ -125,6 +126,7 @@ public class LibC
             malloc = ctx.GetMethod("malloc");
             free = ctx.GetMethod("free");
             memory = ctx.GetField("Memory");
+            memoryIndirect = ctx.GetField("MemoryIndirect");
             memorySize = ctx.GetField("MemorySize");
             memoryAllocatedSize = ctx.GetField("MemoryAllocatedSize");
             ErrnoLocation = Malloc(4);
@@ -165,6 +167,8 @@ public class LibC
 
         public long GetAllocatedSize() => (long)memoryAllocatedSize.GetValue(null);
 
+        public unsafe byte** GetMemoryIndirect() => (byte**)Pointer.Unbox(memoryIndirect.GetValue(null));
+
         public unsafe void GrowMemoryIfNeeded(int newSize)
         {
             var allocatedSize = GetAllocatedSize();
@@ -177,6 +181,12 @@ public class LibC
             var currentSize = allocatedSize;
 
             var newPtr = MemoryAllocator.GrowMemory(currentPtr, currentSize, newAllocatedSize);
+
+            // Update the pointer through indirection - this is what running code sees
+            var ptrStorage = GetMemoryIndirect();
+            *ptrStorage = newPtr;
+
+            // Also update the Memory field for compatibility
             memory.SetValue(null, Pointer.Box(newPtr, typeof(byte*)));
             memoryAllocatedSize.SetValue(null, newAllocatedSize);
         }
