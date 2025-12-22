@@ -127,19 +127,23 @@ internal class CodeGenContext
     {
         if (!HeapInited)
         {
+            // Cache MemoryFieldIndirect (byte**) in HeapVar at function start
             HeapInited = true;
             if (IL.Body.Instructions.Count != 0)
             {
-                IL.InsertAfter(0, IL.Create(OpCodes.Ldsfld, MemoryField));
-                IL.InsertAfter(1, IL.Create(OpCodes.Stloc, HeapVar));    
+                IL.InsertAfter(0, IL.Create(OpCodes.Ldsfld, ModuleContext.MemoryFieldIndirect));
+                IL.InsertAfter(1, IL.Create(OpCodes.Stloc, HeapVar));
             }
             else
             {
-                IL.Emit(OpCodes.Ldsfld, MemoryField);
+                IL.Emit(OpCodes.Ldsfld, ModuleContext.MemoryFieldIndirect);
                 IL.Emit(OpCodes.Stloc, HeapVar);
             }
         }
 
+        // Load the cached byte** and dereference to get current byte*
+        // This ensures we always see the latest pointer after memory growth
         IL.Emit(OpCodes.Ldloc, HeapVar);
+        IL.Emit(OpCodes.Ldind_I);
     }
 }

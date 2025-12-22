@@ -134,7 +134,9 @@ public class Transformer
     AssemblyDefinition def;
     TypeDefinition cls;
     FieldDefinition memoryField;
+    FieldDefinition memoryFieldIndirect;
     FieldDefinition memoryFieldSize;
+    FieldDefinition memoryFieldAllocatedSize;
     FieldDefinition functionTable;
 
     TypeReference f32Type, f64Type, i64Type, i16Type, i32Type, voidType, byteType;
@@ -170,6 +172,12 @@ public class Transformer
         asm.MainModule.Types.Add(cls);
         def = asm;
 
+        // MemoryIndirect is byte** - points to a location that holds the actual memory pointer
+        // This allows memory growth to update the pointer without invalidating cached values
+        memoryFieldIndirect = new FieldDefinition("MemoryIndirect", FieldAttributes.Static | FieldAttributes.Public,
+            asm.MainModule.TypeSystem.Byte.MakePointerType().MakePointerType());
+        cls.Fields.Add(memoryFieldIndirect);
+
         memoryField = new FieldDefinition("Memory", FieldAttributes.Static | FieldAttributes.Public,
             asm.MainModule.TypeSystem.Byte.MakePointerType());
         cls.Fields.Add(memoryField);
@@ -177,6 +185,10 @@ public class Transformer
         memoryFieldSize = new FieldDefinition("MemorySize", FieldAttributes.Static | FieldAttributes.Public,
             asm.MainModule.TypeSystem.Int32);
         cls.Fields.Add(memoryFieldSize);
+
+        memoryFieldAllocatedSize = new FieldDefinition("MemoryAllocatedSize", FieldAttributes.Static | FieldAttributes.Public,
+            asm.MainModule.TypeSystem.Int64);
+        cls.Fields.Add(memoryFieldAllocatedSize);
 
         functionTable = new FieldDefinition("FunctionTable", FieldAttributes.Static | FieldAttributes.Public,
             asm.MainModule.TypeSystem.IntPtr.MakeArrayType());
@@ -189,7 +201,7 @@ public class Transformer
         cctoril.Emit(OpCodes.Nop);
         cctoril.Emit(OpCodes.Ret);
 
-        moduleContext = new(voidType, memoryField, asm.MainModule, cls);
+        moduleContext = new(voidType, memoryField, memoryFieldIndirect, memoryFieldSize, asm.MainModule, cls);
     }
 
     public void Transform(Stream str, string asmName, string filePath)
@@ -2009,12 +2021,21 @@ public class Transformer
                 Log.WriteLine("Memory: {0} pages", min);
                 var cctoril = cls.GetStaticConstructor().Body.GetILProcessor();
                 cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
-                cctoril.Emit(OpCodes.Ldc_I4, (int) (min * PageSize));
-                // Allocate 4GB of virtual memory so we'll never have to move the heap pointer.
-                cctoril.Emit(OpCodes.Ldc_I8, 200L * 1024L * 1024L);
-                cctoril.EmitCall(() => MemoryAllocator.AllocateMemory);
+                const long allocSize = 200L * 1024L * 1024L;
+
+                // Allocate with indirection - returns byte** pointing to heap pointer storage
+                cctoril.Emit(OpCodes.Ldc_I8, allocSize);
+                cctoril.EmitCall(() => MemoryAllocator.AllocateMemoryIndirect);
+                cctoril.Emit(OpCodes.Dup);
+                cctoril.Emit(OpCodes.Stsfld, memoryFieldIndirect);
+                // Dereference to get byte* and store in Memory for compatibility
+                cctoril.Emit(OpCodes.Ldind_I);
                 cctoril.Emit(OpCodes.Stsfld, memoryField);
+
+                cctoril.Emit(OpCodes.Ldc_I4, (int) (min * PageSize));
                 cctoril.Emit(OpCodes.Stsfld, memoryFieldSize);
+                cctoril.Emit(OpCodes.Ldc_I8, allocSize);
+                cctoril.Emit(OpCodes.Stsfld, memoryFieldAllocatedSize);
                 cctoril.Emit(OpCodes.Ret);
             }
             else if (type == 1)
@@ -2026,13 +2047,21 @@ public class Transformer
                 var cctoril = cls.GetStaticConstructor().Body.GetILProcessor();
                 cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
 
-                // Allocate 4GB of virtual memory so we'll never have to move the heap pointer.
-                cctoril.Emit(OpCodes.Ldc_I8, 200L * 1024L * 1024L * 1024L);
-                cctoril.EmitCall(() => MemoryAllocator.AllocateMemory);
+                const long allocSize = 200L * 1024L * 1024L * 1024L;
+
+                // Allocate with indirection - returns byte** pointing to heap pointer storage
+                cctoril.Emit(OpCodes.Ldc_I8, allocSize);
+                cctoril.EmitCall(() => MemoryAllocator.AllocateMemoryIndirect);
+                cctoril.Emit(OpCodes.Dup);
+                cctoril.Emit(OpCodes.Stsfld, memoryFieldIndirect);
+                // Dereference to get byte* and store in Memory for compatibility
+                cctoril.Emit(OpCodes.Ldind_I);
                 cctoril.Emit(OpCodes.Stsfld, memoryField);
+
                 cctoril.Emit(OpCodes.Ldc_I4, (int) (min * PageSize));
                 cctoril.Emit(OpCodes.Stsfld, memoryFieldSize);
-
+                cctoril.Emit(OpCodes.Ldc_I8, allocSize);
+                cctoril.Emit(OpCodes.Stsfld, memoryFieldAllocatedSize);
                 cctoril.Emit(OpCodes.Ret);
             }
         }
