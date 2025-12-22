@@ -141,7 +141,7 @@ public static class MemoryAllocator
     static extern unsafe byte* mmap(IntPtr addr, long length, MmapProt prot, MmapFlags flags, int fd, IntPtr offset);
 
     [DllImport("libc", SetLastError = true)]
-    static extern int munmap(byte* addr, long length);
+    static extern unsafe int munmap(byte* addr, long length);
 
     [DllImport("libc", SetLastError = true)]
     static extern unsafe byte* mremap(byte* old_address, long old_size, long new_size, MremapFlags flags);
