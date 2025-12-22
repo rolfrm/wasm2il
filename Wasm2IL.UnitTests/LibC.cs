@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Wasm2IL;
 
 namespace Wasm2IL.UnitTests;
 
@@ -104,13 +105,15 @@ public class LibC
             d[i] = (byte)value;
     }
 
-    class ModuleContext 
+    class ModuleContext
     {
         readonly Type _ctx;
 
         readonly MethodInfo malloc;
         readonly MethodInfo free;
         readonly FieldInfo memory;
+        readonly FieldInfo memorySize;
+        readonly FieldInfo memoryAllocatedSize;
         public Type Ctx => _ctx;
         public int ErrnoLocation { get; }
         public Span<int> ErrorNo => MemoryMarshal.Cast<byte, int>(GetSpan(ErrnoLocation, 4));
@@ -118,16 +121,16 @@ public class LibC
         public  ModuleContext(Type ctx)
         {
             _ctx = ctx;
-            
+
             malloc = ctx.GetMethod("malloc");
             free = ctx.GetMethod("free");
             memory = ctx.GetField("Memory");
             memorySize = ctx.GetField("MemorySize");
+            memoryAllocatedSize = ctx.GetField("MemoryAllocatedSize");
             ErrnoLocation = Malloc(4);
         }
 
         Dictionary<string, int> interned = new();
-        readonly FieldInfo memorySize;
 
         public int InternString(string str)
         {
@@ -158,6 +161,24 @@ public class LibC
         public void SetHeap(int size)
         {
             memorySize.SetValue(null, size);
+        }
+
+        public long GetAllocatedSize() => (long)memoryAllocatedSize.GetValue(null);
+
+        public unsafe void GrowMemoryIfNeeded(int newSize)
+        {
+            var allocatedSize = GetAllocatedSize();
+            if (newSize <= allocatedSize)
+                return;
+
+            // Grow by 2x or to newSize, whichever is larger
+            var newAllocatedSize = Math.Max(allocatedSize * 2, newSize);
+            var currentPtr = GetHeapRaw();
+            var currentSize = allocatedSize;
+
+            var newPtr = MemoryAllocator.GrowMemory(currentPtr, currentSize, newAllocatedSize);
+            memory.SetValue(null, Pointer.Box(newPtr, typeof(byte*)));
+            memoryAllocatedSize.SetValue(null, newAllocatedSize);
         }
     }
 
@@ -428,9 +449,11 @@ public class LibC
         }
 
         if (increment > 0)
-        {         
+        {
             var lp = x.GetHeapSize();
             int newSize = lp + increment;
+            // Grow memory if needed (extends by 2x factor when exceeded)
+            x.GrowMemoryIfNeeded(newSize);
             x.SetHeap(newSize);
             return lp;
         }

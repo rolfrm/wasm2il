@@ -135,6 +135,7 @@ public class Transformer
     TypeDefinition cls;
     FieldDefinition memoryField;
     FieldDefinition memoryFieldSize;
+    FieldDefinition memoryFieldAllocatedSize;
     FieldDefinition functionTable;
 
     TypeReference f32Type, f64Type, i64Type, i16Type, i32Type, voidType, byteType;
@@ -177,6 +178,10 @@ public class Transformer
         memoryFieldSize = new FieldDefinition("MemorySize", FieldAttributes.Static | FieldAttributes.Public,
             asm.MainModule.TypeSystem.Int32);
         cls.Fields.Add(memoryFieldSize);
+
+        memoryFieldAllocatedSize = new FieldDefinition("MemoryAllocatedSize", FieldAttributes.Static | FieldAttributes.Public,
+            asm.MainModule.TypeSystem.Int64);
+        cls.Fields.Add(memoryFieldAllocatedSize);
 
         functionTable = new FieldDefinition("FunctionTable", FieldAttributes.Static | FieldAttributes.Public,
             asm.MainModule.TypeSystem.IntPtr.MakeArrayType());
@@ -927,56 +932,7 @@ public class Transformer
                         var memIdx = reader.ReadU8();
                         if (memIdx != 0)
                             throw new NotSupportedException("Multiple memories not supported");
-
-                        ctx.PopType(); // pop delta (i32)
-
-                        // Store delta to a temp variable
-                        var deltaVar = ctx.GetHelperVariable(i32Type, 100);
-                        il.Emit(IlOp.Stloc, deltaVar);
-
-                        // Store old size for return value
-                        var oldSizeVar = ctx.GetHelperVariable(i32Type, 101);
-                        il.Emit(IlOp.Ldsfld, ctx.ModuleContext.MemorySizeField);
-                        il.Emit(IlOp.Stloc, oldSizeVar);
-
-                        // Load arguments for GrowMemory(byte* currentPtr, long currentSize, long newSize)
-                        // Arg 1: current pointer
-                        il.Emit(IlOp.Ldsfld, memoryField);
-
-                        // Arg 2: current size (convert to long)
-                        il.Emit(IlOp.Ldsfld, ctx.ModuleContext.MemorySizeField);
-                        il.Emit(IlOp.Conv_I8);
-
-                        // Arg 3: new size = currentSize + delta * PageSize
-                        il.Emit(IlOp.Ldsfld, ctx.ModuleContext.MemorySizeField);
-                        il.Emit(IlOp.Conv_I8);
-                        il.Emit(IlOp.Ldloc, deltaVar);
-                        il.Emit(IlOp.Conv_I8);
-                        il.Emit(IlOp.Ldc_I8, (long)PageSize);
-                        il.Emit(IlOp.Mul);
-                        il.Emit(IlOp.Add);
-
-                        // Call GrowMemory
-                        il.EmitCall(() => MemoryAllocator.GrowMemory);
-
-                        // Store the new pointer
-                        il.Emit(IlOp.Stsfld, memoryField);
-
-                        // Update MemorySizeField = oldSize + delta * PageSize
-                        il.Emit(IlOp.Ldloc, oldSizeVar);
-                        il.Emit(IlOp.Ldloc, deltaVar);
-                        il.Emit(IlOp.Ldc_I4, (int)PageSize);
-                        il.Emit(IlOp.Mul);
-                        il.Emit(IlOp.Add);
-                        il.Emit(IlOp.Stsfld, ctx.ModuleContext.MemorySizeField);
-
-                        // Return old size in pages
-                        il.Emit(IlOp.Ldloc, oldSizeVar);
-                        il.Emit(IlOp.Ldc_I4, (int)PageSize);
-                        il.Emit(IlOp.Div);
-
-                        ctx.PushType(i32Type);
-                        break;
+                        throw new NotSupportedException("memory.grow is not supported");
                     }
                     case WOp.I32_LOAD:
                     case WOp.I32_LOAD8_S:
@@ -2058,12 +2014,14 @@ public class Transformer
                 Log.WriteLine("Memory: {0} pages", min);
                 var cctoril = cls.GetStaticConstructor().Body.GetILProcessor();
                 cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
-                cctoril.Emit(OpCodes.Ldc_I4, (int) (min * PageSize));
-                // Allocate 4GB of virtual memory so we'll never have to move the heap pointer.
-                cctoril.Emit(OpCodes.Ldc_I8, 200L * 1024L * 1024L);
+                const long allocSize = 200L * 1024L * 1024L;
+                cctoril.Emit(OpCodes.Ldc_I8, allocSize);
                 cctoril.EmitCall(() => MemoryAllocator.AllocateMemory);
                 cctoril.Emit(OpCodes.Stsfld, memoryField);
+                cctoril.Emit(OpCodes.Ldc_I4, (int) (min * PageSize));
                 cctoril.Emit(OpCodes.Stsfld, memoryFieldSize);
+                cctoril.Emit(OpCodes.Ldc_I8, allocSize);
+                cctoril.Emit(OpCodes.Stsfld, memoryFieldAllocatedSize);
                 cctoril.Emit(OpCodes.Ret);
             }
             else if (type == 1)
@@ -2075,13 +2033,14 @@ public class Transformer
                 var cctoril = cls.GetStaticConstructor().Body.GetILProcessor();
                 cctoril.Body.Instructions.RemoveAt(cctoril.Body.Instructions.Count - 1);
 
-                // Allocate 4GB of virtual memory so we'll never have to move the heap pointer.
-                cctoril.Emit(OpCodes.Ldc_I8, 200L * 1024L * 1024L * 1024L);
+                const long allocSize = 200L * 1024L * 1024L * 1024L;
+                cctoril.Emit(OpCodes.Ldc_I8, allocSize);
                 cctoril.EmitCall(() => MemoryAllocator.AllocateMemory);
                 cctoril.Emit(OpCodes.Stsfld, memoryField);
                 cctoril.Emit(OpCodes.Ldc_I4, (int) (min * PageSize));
                 cctoril.Emit(OpCodes.Stsfld, memoryFieldSize);
-
+                cctoril.Emit(OpCodes.Ldc_I8, allocSize);
+                cctoril.Emit(OpCodes.Stsfld, memoryFieldAllocatedSize);
                 cctoril.Emit(OpCodes.Ret);
             }
         }
