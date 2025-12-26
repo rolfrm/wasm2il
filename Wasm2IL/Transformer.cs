@@ -1551,6 +1551,37 @@ public class Transformer
                         ctx.EmitCallForOpcode(einstr);
                         break;
 
+                    case WOp.ATOMIC_INSTRUCTION:
+                    {
+                        var ainstr = (AtomicInstruction) reader.ReadU32Leb();
+
+                        // Handle atomic.fence specially - it just has a reserved byte
+                        if (ainstr == AtomicInstruction.ATOMIC_FENCE)
+                        {
+                            reader.ReadU8(); // reserved byte, must be 0x00
+                            ctx.EmitCallForOpcode(ainstr);
+                            break;
+                        }
+
+                        // All other atomic instructions have memarg (align + offset)
+                        reader.ReadU32Leb(); // align hint (ignored for now)
+                        var offset = reader.ReadU32Leb();
+
+                        // Load address computation: stack value + offset + memory base
+                        if (offset != 0)
+                        {
+                            il.Emit(IlOp.Ldc_I4, (int) offset);
+                            il.Emit(IlOp.Add);
+                        }
+                        ctx.LoadMemory();
+                        il.Emit(IlOp.Add);
+
+                        ctx.PopType(); // pop the address
+
+                        ctx.EmitCallForOpcode(ainstr);
+                        break;
+                    }
+
                     case WOp.VECTOR_INSTRUCTION:
                         var instr2 = (VectorInstructions) reader.ReadU32Leb();
                         if (instr2.ToString().Contains("RELAXED"))

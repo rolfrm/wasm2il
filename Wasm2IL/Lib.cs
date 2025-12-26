@@ -224,6 +224,11 @@ public class WasmOpcodeAttribute : Attribute
     {
         Key = instruction;
     }
+
+    public WasmOpcodeAttribute(AtomicInstruction instruction)
+    {
+        Key = instruction;
+    }
 }
 
 public class WasmConstAttribute : Attribute
