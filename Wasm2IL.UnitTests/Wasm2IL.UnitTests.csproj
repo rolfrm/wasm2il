@@ -1,16 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-      <OutputType>Exe</OutputType>
+        <OutputType>Exe</OutputType>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
-      <Optimize>true</Optimize>
+        <Optimize>true</Optimize>
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="../Wasm2IL/Wasm2IL.csproj" />
+        <ProjectReference Include="../Wasm2IL/Wasm2IL.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -19,25 +19,33 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Reference Include="SqliteWasm">
-        <HintPath>..\SqliteWasm.dll</HintPath>
-      </Reference>
+        <Reference Include="SqliteWasm">
+            <HintPath>..\SqliteWasm.dll</HintPath>
+        </Reference>
     </ItemGroup>
 
     <ItemGroup>
-      <None Include="..\TestCCode\sqlite3.wasm">
-        <Link>sqlite3.wasm</Link>
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </None>
+        <None Include="..\TestCCode\sqlite3.wasm">
+            <Link>sqlite3.wasm</Link>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
         <None Include="..\TestCCode\callback_test.wasm">
             <Link>callback_test.wasm</Link>
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
-      <Content Include="bin\Debug\net9.0\Mono.Cecil.dll" />
+        <None Include="..\TestCCode\code.wasm">
+            <Link>code.wasm</Link>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <None Include="..\TestCCode\perf.sqlite">
+            <Link>perf.sqlite</Link>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <Content Include="bin\Debug\net9.0\Mono.Cecil.dll"/>
     </ItemGroup>
 
     <Target Name="WatToWasm" BeforeTargets="Build">
-        <Exec Command="wat2wasm %(WatFile.Identity) -o $(OutputPath)%(WatFile.Filename).wasm" />
+        <Exec Command="wat2wasm %(WatFile.Identity) -o $(OutputPath)%(WatFile.Filename).wasm"/>
     </Target>
 
 </Project>

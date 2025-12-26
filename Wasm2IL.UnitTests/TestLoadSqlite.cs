@@ -483,4 +483,24 @@ LIMIT 200;
         var msg2  = w.GetHeapString(c2);
         SqliteWasm.sqlite3_close(db2);
     }
+
+    //[Test]
+    public void SqlitePerf()
+    {
+        var sqltText = File.ReadAllText("perf.sqlite");
+            
+        var w = built;
+        var SqliteWasm = w.AsImplementation<ISqliteApi>();
+        SqliteWasm.sqlite3_initialize();
+        int dbptr = w.Malloc(4);
+        SqliteWasm.sqlite3_open(":memory:", dbptr);
+        int db = w.GetHeapObject<int>(dbptr);
+        for (int i = 0; i < 4; i++)
+        {
+            var sw = Stopwatch.StartNew();
+            int ok = (int) SqliteWasm.sqlite3_exec(db, sqltText, 0, 0, 0);
+            var elapsed = sw.Elapsed;
+            Console.WriteLine("Perf: {0:0.000}s", elapsed.TotalSeconds);
+        }
+    }
 }

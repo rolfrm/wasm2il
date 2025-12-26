@@ -232,18 +232,20 @@ public class TestBasicWasm
     [Test]
     public void TestGettingACallback()
     {
-         
-        var tform = new Transformer();
         var wasmPath = Path.Combine(AppContext.BaseDirectory, "callback_test.wasm");
-        var dllPath = Path.Combine(AppContext.BaseDirectory, "callback_test.dll");
-        var asm = tform.LoadWasmAssembly(wasmPath, dllPath);
-
+        var asm = Transformer.Transform(wasmPath, []);
         asm.Invoke("callback_test", 10, callback);
         Assert.AreEqual(10, callback_arg);
 
         //var cb = asm.AsImplementation<IApiWithCallback>();
         //cb.callback_text(15, callback);
         //Assert.AreEqual(15, callback_arg);
+    }
 
+    [Test]
+    public void TestAtomics()
+    {
+        var wasmPath = Path.Combine(AppContext.BaseDirectory, "code.wasm");
+        var asm = Transformer.Transform(wasmPath, []);
     }
 }

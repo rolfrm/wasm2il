@@ -16,5 +16,8 @@
 
     <ItemGroup>
       <None Remove="util.wat" />
+      <None Update="perf.sqlite">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 </Project>

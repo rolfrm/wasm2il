@@ -7,8 +7,8 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include "sqlite3.h"
 #include <fcntl.h>
+#include <stdatomic.h>
 #define F_RDLCK 0
 #define F_WRLCK 1
 #define F_UNLCK 2
@@ -393,7 +393,6 @@ int preMallocTest3(){
     return 0;
 }
 
-__declspec(noinline) 
 void * falloc(int size){
     return malloc(size);
 }
@@ -494,70 +493,6 @@ int mallocTest()
     return 0;
 }
 
-void sqlitedolog(void* ctx,int x,const char* msg){
-    printf("SQL: %s\n", msg);
-    fflush(stdout);
-    //abort();
-}
-int sqlAssert(sqlite3 *db, int rc){
-    switch(rc){
-       case SQLITE_OK:
-       case SQLITE_DONE:
-       case SQLITE_ROW:
-           return rc; // ok error codes.
-       default:
-          printf("Error: %s\n", sqlite3_errmsg(db));
-          abort();
-          return rc;
-    }
-}
-
-int TestSqlite(const char * connectionString)
-{
-    sqlite3_config(SQLITE_CONFIG_LOG, sqlitedolog, NULL);
-    printf("%s\n", sqlite3_libversion());
-
-    sqlite3 *db;
-    sqlite3_stmt *res; 
-    int rc;
-    sqlAssert(db, sqlite3_open(connectionString, &db));
-    sqlAssert(db, sqlite3_prepare_v2(db, "SELECT SQLITE_VERSION()", -1, &res, 0));
-    
-    rc = sqlite3_step(res);
-    if (rc == SQLITE_ROW)
-        printf("Got row: %s\n", sqlite3_column_text(res, 0));
-    sqlAssert(db, sqlite3_finalize(res));
-    printf("Lets try create\n"); fflush(stdout);
-    char *err_msg = 0;
-    sqlAssert(db, sqlite3_exec(db, "CREATE TABLE Animals(Id INT, Name TEXT, Price INT, HitPoints REAL);", 0, 0, &err_msg));
-    printf("Lets try populating it.\n"); fflush(stdout);
-    sqlAssert(db, sqlite3_exec(db, "INSERT INTO Animals VALUES (1, \"Tiger\", 10, 100.0);", 0, 0,  &err_msg));
-    sqlAssert(db, sqlite3_exec(db, "INSERT INTO Animals VALUES (2, \"Lion\", 15, 100.0);", 0, 0,  &err_msg));
-    sqlAssert(db, sqlite3_prepare_v2(db, "SELECT * FROM Animals", -1, &res, 0));
-    
-    while (SQLITE_ROW == (rc = sqlAssert(db, sqlite3_step(res))))
-    {
-        printf("Got Animal row: %s hp=%f id = %i, price = %i\n", sqlite3_column_text(res, 1), sqlite3_column_double(res, 3) , sqlite3_column_int(res, 0), sqlite3_column_int(res, 2));
-    }
-    sqlAssert(db, rc);
-    sqlAssert(db, sqlite3_finalize(res));
-    
-    sqlAssert(db, sqlite3_prepare_v2(db, "SELECT * FROM (SELECT lower(hex(RANDOMBLOB(16)))) LIMIT 10", -1, &res, 0));
-    while (SQLITE_ROW == (rc = sqlAssert(db, sqlite3_step(res))))
-    {
-        printf("Got Blob: %s \n", sqlite3_column_text(res, 0));
-    }
-    sqlAssert(db, sqlite3_finalize(res));
-    sqlAssert(db, sqlite3_exec(db, "VACUUM;", 0, 0,  &err_msg));
-    printf("Totally done.\n");
-
-    sqlAssert(db, sqlite3_close(db));
-    fflush(stdout);
-    return 0;
-}
-
-
-
 
 int testFstat(){
     struct stat buf;
@@ -602,17 +537,14 @@ int testFstat(){
     return 0;
 }
 
-__declspec(noinline)
 int testWrap(int x){
     return 5;
 }
 
-__declspec(noinline)
 fptr getTestWrap(){
     return testWrap;
 }
 
-__declspec(noinline)
 int testTestWrap(){
     // this method should be wrapped in something else.
     //assert(testWrap(3) != 5);
@@ -646,8 +578,7 @@ int GoTest2()
     //printf("done\n");
     //return 0;
     //remove("/tmp/sqlthing");
-    if (TestSqlite(":memory:") != 0)
-        return 4;
+    
     //if(testFstat() != 0)
     //    return 6;
     
@@ -667,4 +598,10 @@ int GoTest()
 }
 int main(){
     GoTest();
+}
+
+_Atomic int x;
+__attribute__((visibility("default")))
+void f(void) {
+    atomic_fetch_add(&x, 1);
 }

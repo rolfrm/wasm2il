@@ -3,7 +3,7 @@ SYSROOT_LIB=$(SYSROOT)/lib/wasm32-wasi
 #MUSL_INCLUDE=/Users/bruger/code/work/musl/include
 MUSL_INCLUDE=/Users/bruger/code/minlibc/include
 SSL_PATH=/Users/bruger/code/extern/openssl/include
-all: sqlite3.wasm callback_test.wasm
+all: sqlite3.wasm callback_test.wasm code.wasm
 # -msimd128  -mtail-call ./libc.wasm-mtail-call  -msimd128 -mbulk-memory -msimd128 
 
 sqlite3.wasm: sqlite3.c sqlite3.h
@@ -35,11 +35,10 @@ simple_call2.wasm: simple_call2.c
 	clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory  -Wl,--export=main -Wl,--export=__provide_overrides2__ -Wl,--export=__provide_overrides__ -Wl,--export=__caller_heap__ -Wl,--allow-undefined -Wl,--no-entry -ffreestanding simple_call2.c -o simple_call2.wasm
 	 
 callback_test.wasm: callback_test.c
-	clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory  -Wl,--export=main-Wl,--export=callback_test -Wl,--allow-undefined -Wl,--no-entry -ffreestanding callback_test.c -o callback_test.wasm 
+	clang --std=c23 --target=wasm32-none -nostdlib -O3 -mmultimemory  -Wl,--export=main-Wl,--export=callback_test -Wl,--allow-undefined -Wl,--no-entry -ffreestanding callback_test.c -o callback_test.wasm 
   
 code1.bc: code1.c
-	clang --target=wasm32-wasi -v -c -o code1.bc -Oz code1.c -fdeclspec\
-             --sysroot $(SYSROOT) 
+	clang --target=wasm32-none -I$(MUSL_INCLUDE) -matomics -v -c -o code1.bc code1.c 
 
-code.wasm: code1.bc sqlite3.bc
-	wasm-ld -export-all --allow-undefined -error-limit=0 -L$(SYSROOT)/lib/wasm32-wasi/ $(SYSROOT_LIB)/libc.a  $^  $(SYSROOT_LIB)/crt1.o  -o code.wasm --no-entry 
+code.wasm: code1.bc
+	wasm-ld --export-all --allow-undefined -error-limit=0 $^  -o code.wasm --no-entry 

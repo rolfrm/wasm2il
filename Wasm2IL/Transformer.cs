@@ -42,6 +42,14 @@ public class Transformer
     /// </summary>
     public bool CheckLoads { get; set; } = false;
 
+    public static WasmAssembly Transform(string wasmModulePath, (string moduleName, Type lib)[] environment)
+    {
+        var tf = new Transformer();
+        foreach (var item in environment)
+            tf.LoadImportModule(item.moduleName, item.lib);
+        return tf.LoadWasmAssembly(wasmModulePath, "C");
+    }
+    
     public void LoadImportModule(string moduleName, Type type)
     {
         if (!importModules.TryGetValue(moduleName, out var typeList))
