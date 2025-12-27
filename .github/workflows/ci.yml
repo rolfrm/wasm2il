@@ -38,18 +38,14 @@ jobs:
           ${{ runner.os }}-nuget-
 
     # Linux dependencies
-    - name: Cache APT packages (Linux)
+    - name: Install APT packages (Linux)
       if: runner.os == 'Linux'
-      uses: awalsh128/cache-apt-pkgs-action@latest
-      with:
-        packages: wabt clang lld
-        version: 1.0
+      run: apt install wabt clang lld lld-21
 
     # macOS dependencies
     - name: Install dependencies (macOS)
       if: runner.os == 'macOS'
-      run: | 
-        brew install wabt llvm lld      
+      run: brew install wabt llvm lld      
 
     - name: Add LLVM to PATH (macOS)
       if: runner.os == 'macOS'
@@ -89,7 +85,7 @@ jobs:
       run: |
         Invoke-WebRequest -Uri "https://github.com/rolfrm/minlibc/releases/download/prototype1/libc.wasm" -OutFile "TestCCode/libc.wasm"
 
-    - name: Build callback_test.wasm (Linux)
+    - name: Make
       run: make
       working-directory: TestCCode
 
