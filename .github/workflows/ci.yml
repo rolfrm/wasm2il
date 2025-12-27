@@ -40,7 +40,7 @@ jobs:
     # Linux dependencies
     - name: Install APT packages (Linux)
       if: runner.os == 'Linux'
-      run: apt install wabt clang lld lld-21
+      run: sudo apt install wabt clang lld lld-21
 
     # macOS dependencies
     - name: Install dependencies (macOS)
