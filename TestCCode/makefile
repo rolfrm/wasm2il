@@ -8,7 +8,7 @@ minlibc:
 	cd minlibc; unzip ../minlibc.zip
 
 sqlite3.wasm: sqlite3.c sqlite3.h minlibc
-	clang --target=wasm32-unknown-unknown -mrelaxed-simd -msimd128 -mtail-call -mbulk-memory -mbulk-memory-opt -flto=full -fbuiltin -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -O3 -g0\
+	clang --target=wasm32-unknown-unknown -mrelaxed-simd -msimd128 -mtail-call -mbulk-memory -flto=full -fbuiltin -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -O3 -g0\
 	         -ffast-math -fno-math-errno -funsafe-math-optimizations -fstrict-aliasing -fomit-frame-pointer -fno-unroll-loops -fno-inline-functions \
              -I$(MUSL_INCLUDE) \
              -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_WAL -DHAVE_UTIME -DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_ENABLE_SETLK_TIMEOUT -DSQLITE_OMIT_UTF16 -DSQLITE_OMIT_JSON -DSQLITE_OMIT_RTREE -DSQLITE_OMIT_GEOPOLY -DSQLITE_OMIT_FTS5 -DSQLITE_OMIT_DEPRECATED   \
@@ -21,7 +21,7 @@ sqlite3.wasm: sqlite3.c sqlite3.h minlibc
               -Wl,--export=malloc -Wl,--export=free
               
 sqlite3.bc: sqlite3.c sqlite3.h
-	clang --target=wasm32-unknown-unknown -c -msimd128  -mbulk-memory -mbulk-memory-opt -flto -fbuiltin -mllvm -inline-threshold=1000 -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.bc -O3 -g0\
+	clang --target=wasm32-unknown-unknown -c -msimd128  -mbulk-memory -flto -fbuiltin -mllvm -inline-threshold=1000 -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.bc -O3 -g0\
              -I$(MUSL_INCLUDE)  \
              -DSQLITE_THREADSAFE=0 -DHAVE_UTIME -DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_ENABLE_SETLK_TIMEOUT -DSQLITE_OMIT_UTF16 -DSQLITE_OMIT_JSON -DSQLITE_OMIT_RTREE -DSQLITE_OMIT_GEOPOLY -DSQLITE_OMIT_FTS5 -DSQLITE_OMIT_DEPRECATED   \
               sqlite3.c -Wl,--allow-undefined 
