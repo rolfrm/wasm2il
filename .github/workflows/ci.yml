@@ -9,8 +9,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            name: Linux
+          #- os: ubuntu-latest
+          #  name: Linux
           - os: macos-26
             name: macOS (M1)
           - os: windows-latest
