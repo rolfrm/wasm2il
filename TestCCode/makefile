@@ -1,13 +1,14 @@
-SYSROOT=/Users/bruger/code/work/wasi-libc/sysroot
-SYSROOT_LIB=$(SYSROOT)/lib/wasm32-wasi
-#MUSL_INCLUDE=/Users/bruger/code/work/musl/include
-MUSL_INCLUDE=/Users/bruger/code/minlibc/include
-SSL_PATH=/Users/bruger/code/extern/openssl/include
+MUSL_INCLUDE=minlibc/include
 all: sqlite3.wasm callback_test.wasm code.wasm
 # -msimd128  -mtail-call ./libc.wasm-mtail-call  -msimd128 -mbulk-memory -msimd128 
 
-sqlite3.wasm: sqlite3.c sqlite3.h
-	clang --target=wasm32-unknown-unknown -mrelaxed-simd -msimd128 -mtail-call -mbulk-memory -mbulk-memory-opt -flto=full -fbuiltin -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -O3 -g0\
+minlibc:
+	curl -L -o minlibc.zip https://github.com/rolfrm/minlibc/releases/download/prototype1/include.zip
+	mkdir minlibc
+	cd minlibc; unzip ../minlibc.zip
+
+sqlite3.wasm: sqlite3.c sqlite3.h minlibc
+	clang --target=wasm32-unknown-unknown -mrelaxed-simd -msimd128 -mtail-call -mbulk-memory -flto=full -fbuiltin -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -O3 -g0\
 	         -ffast-math -fno-math-errno -funsafe-math-optimizations -fstrict-aliasing -fomit-frame-pointer -fno-unroll-loops -fno-inline-functions \
              -I$(MUSL_INCLUDE) \
              -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_WAL -DHAVE_UTIME -DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_ENABLE_SETLK_TIMEOUT -DSQLITE_OMIT_UTF16 -DSQLITE_OMIT_JSON -DSQLITE_OMIT_RTREE -DSQLITE_OMIT_GEOPOLY -DSQLITE_OMIT_FTS5 -DSQLITE_OMIT_DEPRECATED   \
@@ -20,7 +21,7 @@ sqlite3.wasm: sqlite3.c sqlite3.h
               -Wl,--export=malloc -Wl,--export=free
               
 sqlite3.bc: sqlite3.c sqlite3.h
-	clang --target=wasm32-unknown-unknown -c -msimd128  -mbulk-memory -mbulk-memory-opt -flto -fbuiltin -mllvm -inline-threshold=1000 -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.bc -O3 -g0\
+	clang --target=wasm32-unknown-unknown -c -msimd128  -mbulk-memory -flto -fbuiltin -mllvm -inline-threshold=1000 -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.bc -O3 -g0\
              -I$(MUSL_INCLUDE)  \
              -DSQLITE_THREADSAFE=0 -DHAVE_UTIME -DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_ENABLE_SETLK_TIMEOUT -DSQLITE_OMIT_UTF16 -DSQLITE_OMIT_JSON -DSQLITE_OMIT_RTREE -DSQLITE_OMIT_GEOPOLY -DSQLITE_OMIT_FTS5 -DSQLITE_OMIT_DEPRECATED   \
               sqlite3.c -Wl,--allow-undefined 
@@ -34,10 +35,10 @@ simple_call.wasm: simple_call.c
 simple_call2.wasm: simple_call2.c
 	clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory  -Wl,--export=main -Wl,--export=__provide_overrides2__ -Wl,--export=__provide_overrides__ -Wl,--export=__caller_heap__ -Wl,--allow-undefined -Wl,--no-entry -ffreestanding simple_call2.c -o simple_call2.wasm
 	 
-callback_test.wasm: callback_test.c
+callback_test.wasm: callback_test.c minlibc
 	clang --std=c23 --target=wasm32-none -nostdlib -O3 -mmultimemory  -Wl,--export=main-Wl,--export=callback_test -Wl,--allow-undefined -Wl,--no-entry -ffreestanding callback_test.c -o callback_test.wasm 
   
-code1.bc: code1.c
+code1.bc: code1.c minlibc
 	clang --target=wasm32-none -I$(MUSL_INCLUDE) -matomics -v -c -o code1.bc code1.c 
 
 code.wasm: code1.bc

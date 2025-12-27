@@ -189,6 +189,7 @@ namespace Wasm
         REF_FUNC = 0xD2,
         EXTENDED_INSTRUCTION = 0xFC,
         VECTOR_INSTRUCTION = 0xFD,
+        ATOMIC_INSTRUCTION = 0xFE,
     }
 
     public enum ExtendedInstruction
@@ -432,5 +433,95 @@ namespace Wasm
         I16X8_RELAXED_Q15MULR_S = 0x111,
         I16X8_RELAXED_DOT_I8X16_I7X16_S = 0x112,
         I32X4_RELAXED_DOT_I8X16_I7X16_ADD_S = 0x113,
+    }
+
+    public enum AtomicInstruction
+    {
+        // Memory Atomic Notify/Wait
+        MEMORY_ATOMIC_NOTIFY = 0x00,
+        MEMORY_ATOMIC_WAIT32 = 0x01,
+        MEMORY_ATOMIC_WAIT64 = 0x02,
+        ATOMIC_FENCE = 0x03,
+
+        // Atomic Load Operations
+        I32_ATOMIC_LOAD = 0x10,
+        I64_ATOMIC_LOAD = 0x11,
+        I32_ATOMIC_LOAD8_U = 0x12,
+        I32_ATOMIC_LOAD16_U = 0x13,
+        I64_ATOMIC_LOAD8_U = 0x14,
+        I64_ATOMIC_LOAD16_U = 0x15,
+        I64_ATOMIC_LOAD32_U = 0x16,
+
+        // Atomic Store Operations
+        I32_ATOMIC_STORE = 0x17,
+        I64_ATOMIC_STORE = 0x18,
+        I32_ATOMIC_STORE8 = 0x19,
+        I32_ATOMIC_STORE16 = 0x1A,
+        I64_ATOMIC_STORE8 = 0x1B,
+        I64_ATOMIC_STORE16 = 0x1C,
+        I64_ATOMIC_STORE32 = 0x1D,
+
+        // Atomic RMW Add Operations
+        I32_ATOMIC_RMW_ADD = 0x1E,
+        I64_ATOMIC_RMW_ADD = 0x1F,
+        I32_ATOMIC_RMW8_ADD_U = 0x20,
+        I32_ATOMIC_RMW16_ADD_U = 0x21,
+        I64_ATOMIC_RMW8_ADD_U = 0x22,
+        I64_ATOMIC_RMW16_ADD_U = 0x23,
+        I64_ATOMIC_RMW32_ADD_U = 0x24,
+
+        // Atomic RMW Sub Operations
+        I32_ATOMIC_RMW_SUB = 0x25,
+        I64_ATOMIC_RMW_SUB = 0x26,
+        I32_ATOMIC_RMW8_SUB_U = 0x27,
+        I32_ATOMIC_RMW16_SUB_U = 0x28,
+        I64_ATOMIC_RMW8_SUB_U = 0x29,
+        I64_ATOMIC_RMW16_SUB_U = 0x2A,
+        I64_ATOMIC_RMW32_SUB_U = 0x2B,
+
+        // Atomic RMW And Operations
+        I32_ATOMIC_RMW_AND = 0x2C,
+        I64_ATOMIC_RMW_AND = 0x2D,
+        I32_ATOMIC_RMW8_AND_U = 0x2E,
+        I32_ATOMIC_RMW16_AND_U = 0x2F,
+        I64_ATOMIC_RMW8_AND_U = 0x30,
+        I64_ATOMIC_RMW16_AND_U = 0x31,
+        I64_ATOMIC_RMW32_AND_U = 0x32,
+
+        // Atomic RMW Or Operations
+        I32_ATOMIC_RMW_OR = 0x33,
+        I64_ATOMIC_RMW_OR = 0x34,
+        I32_ATOMIC_RMW8_OR_U = 0x35,
+        I32_ATOMIC_RMW16_OR_U = 0x36,
+        I64_ATOMIC_RMW8_OR_U = 0x37,
+        I64_ATOMIC_RMW16_OR_U = 0x38,
+        I64_ATOMIC_RMW32_OR_U = 0x39,
+
+        // Atomic RMW Xor Operations
+        I32_ATOMIC_RMW_XOR = 0x3A,
+        I64_ATOMIC_RMW_XOR = 0x3B,
+        I32_ATOMIC_RMW8_XOR_U = 0x3C,
+        I32_ATOMIC_RMW16_XOR_U = 0x3D,
+        I64_ATOMIC_RMW8_XOR_U = 0x3E,
+        I64_ATOMIC_RMW16_XOR_U = 0x3F,
+        I64_ATOMIC_RMW32_XOR_U = 0x40,
+
+        // Atomic RMW Exchange Operations
+        I32_ATOMIC_RMW_XCHG = 0x41,
+        I64_ATOMIC_RMW_XCHG = 0x42,
+        I32_ATOMIC_RMW8_XCHG_U = 0x43,
+        I32_ATOMIC_RMW16_XCHG_U = 0x44,
+        I64_ATOMIC_RMW8_XCHG_U = 0x45,
+        I64_ATOMIC_RMW16_XCHG_U = 0x46,
+        I64_ATOMIC_RMW32_XCHG_U = 0x47,
+
+        // Atomic RMW Compare-Exchange Operations
+        I32_ATOMIC_RMW_CMPXCHG = 0x48,
+        I64_ATOMIC_RMW_CMPXCHG = 0x49,
+        I32_ATOMIC_RMW8_CMPXCHG_U = 0x4A,
+        I32_ATOMIC_RMW16_CMPXCHG_U = 0x4B,
+        I64_ATOMIC_RMW8_CMPXCHG_U = 0x4C,
+        I64_ATOMIC_RMW16_CMPXCHG_U = 0x4D,
+        I64_ATOMIC_RMW32_CMPXCHG_U = 0x4E,
     }
 }

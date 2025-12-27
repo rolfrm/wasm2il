@@ -47,7 +47,7 @@ public class Transformer
         var tf = new Transformer();
         foreach (var item in environment)
             tf.LoadImportModule(item.moduleName, item.lib);
-        return tf.LoadWasmAssembly(wasmModulePath, "C");
+        return tf.LoadWasmAssembly(wasmModulePath, "C", Path.ChangeExtension(wasmModulePath, "dll"));
     }
     
     public void LoadImportModule(string moduleName, Type type)
@@ -189,6 +189,7 @@ public class Transformer
         functionTable = new FieldDefinition("FunctionTable", FieldAttributes.Static | FieldAttributes.Public,
             asm.MainModule.TypeSystem.IntPtr.MakeArrayType());
         cls.Fields.Add(functionTable);
+       
         var cctor = new MethodDefinition(".cctor",
             MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.Static |
             MethodAttributes.RTSpecialName | MethodAttributes.SpecialName, asm.MainModule.TypeSystem.Void);
@@ -422,7 +423,7 @@ public class Transformer
             il.Emit(OpCodes.Ldc_I4, (int) fncCnt + 1);
             il.Emit(OpCodes.Newarr, def.MainModule.TypeSystem.IntPtr);
             il.Emit(OpCodes.Stsfld, functionTable);
-
+            
             for (var i2 = 0; i2 < fncCnt; i2++)
             {
                 il.Emit(OpCodes.Ldsfld, functionTable);
@@ -456,6 +457,13 @@ public class Transformer
                 {
                     il.Emit(OpCodes.Ldftn, funcDecl[(uint) (funcId - importFuncs.Count)].Method);
                     il.Emit(OpCodes.Stelem_I);
+                    
+                    var attrCtor = def.MainModule.ImportReference(typeof(FunctionExportAttribute).GetConstructor([typeof(int)]));
+                    var attr = new CustomAttribute(attrCtor);
+                    attr.ConstructorArguments.Add(new CustomAttributeArgument(this.i32Type, (int)(i2 + elementOffset)));
+                    funcDecl[(uint) (funcId - importFuncs.Count)].Method.CustomAttributes.Add(attr);
+
+
                 }
             }
 
@@ -1551,12 +1559,23 @@ public class Transformer
                         ctx.EmitCallForOpcode(einstr);
                         break;
 
-                    case WOp.VECTOR_INSTRUCTION:
-                        var instr2 = (VectorInstructions) reader.ReadU32Leb();
-                        if (instr2.ToString().Contains("RELAXED"))
+                    case WOp.ATOMIC_INSTRUCTION:
+                    {
+                        var ainstr = (AtomicInstruction) reader.ReadU32Leb();
+
+                        // Handle atomic.fence specially - it just has a reserved byte
+                        if (ainstr == AtomicInstruction.ATOMIC_FENCE)
                         {
+                            reader.ReadU8(); // reserved byte, must be 0x00
                         }
 
+                        ctx.EmitCallForOpcode(ainstr);
+                        break;
+                    }
+
+                    case WOp.VECTOR_INSTRUCTION:
+                        var instr2 = (VectorInstructions) reader.ReadU32Leb();
+                        
                         switch (instr2)
                         {
                             case VectorInstructions.V128_STORE:
@@ -2061,6 +2080,7 @@ public class Transformer
                 Method = new MethodDefinition("func" + i, MethodAttributes.Static | MethodAttributes.Public,
                     def.MainModule.TypeSystem.Void)
             };
+            
         }
     }
 
