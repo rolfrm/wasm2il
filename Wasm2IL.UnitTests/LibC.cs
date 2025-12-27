@@ -82,6 +82,30 @@ public class LibC
         }
         
     }
+
+    static Dictionary<int, Thread> threads = new();
+    static int threadid = 0;
+
+    public static int start_thread(HeapContext ctx, int function, int userdata)
+    {
+        var id = Interlocked.Increment(ref threadid);
+        var ctx2 = GetModuleContext(ctx.Module);
+        var m = ctx2.LookupFunction(function) as MethodInfo;
+        
+        var thread = new Thread(() => m.Invoke(null, [userdata]));
+        thread.Start();
+        threads[id] = thread;
+        return id;
+    }
+    public static void join_thread(int threadid)
+    {
+        threads[threadid].Join();
+    }
+
+    public static void stdout_string(CString msg)
+    {
+        Console.Write(msg.ToString());
+    }
     
     public static int strlen(CString p)
     {
@@ -158,6 +182,12 @@ public class LibC
         public void SetHeap(int size)
         {
             memorySize.SetValue(null, size);
+        }
+
+        public object LookupFunction(int i)
+        {
+            var m = Ctx.GetMethods().FirstOrDefault(m => m.GetCustomAttribute<FunctionExportAttribute>()?.Id == i);
+            return m;
         }
     }
 

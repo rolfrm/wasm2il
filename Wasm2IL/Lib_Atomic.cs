@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using System.Threading;
 using Wasm;
 
 namespace Wasm2IL;
@@ -20,9 +19,11 @@ public partial class Lib
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_LOAD)]
-    public static unsafe int I32AtomicLoad(int* addr)
+    public static unsafe int I32AtomicLoad(HeapContext ctx, int addr)
     {
-        return Volatile.Read(ref *addr);
+        var mem = (byte * ) (IntPtr)ctx.Module.GetField("Memory").GetValue(null);
+        
+        return Volatile.Read(ref *(mem + addr));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -122,9 +123,9 @@ public partial class Lib
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW_ADD)]
-    public static unsafe int I32AtomicRmwAdd(int* addr, int value)
+    public static unsafe int I32AtomicRmwAdd(int* addr, int value,[WasmConst] byte align, [WasmConst] int offset)
     {
-        return Interlocked.Add(ref *addr, value) - value;
+        return Interlocked.Add(ref *(addr + offset), value) - value;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

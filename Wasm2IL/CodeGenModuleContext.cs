@@ -84,6 +84,7 @@ internal class CodeGenModuleContext
         if (r == typeof(Vector128<double>)) return v128Type;
         if (r == typeof(void)) return voidType;
         if (r.IsPointer) return i32Type;
+        if (r == typeof(HeapContext)) return Module.ImportReference(typeof(HeapContext));
         throw new Exception("unrecognized type");
     }
     

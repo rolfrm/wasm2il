@@ -65,6 +65,11 @@ internal class CodeGenContext
                         var b = reader.ReadByte();
                         IL.Emit(OpCodes.Ldc_I4, (int)b);
                     }
+                    if (param.ParameterType == typeof(int))
+                    {
+                        var b = reader.ReadU32Leb();
+                        IL.Emit(OpCodes.Ldc_I4, (int)b);
+                    }
 
                 }
             }

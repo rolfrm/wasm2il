@@ -14,6 +14,15 @@
 #define F_UNLCK 2
 #define F_GETLK  5
 #define F_SETLK 6
+unsigned char malloc_buffer[1024 * 16];
+size_t offset = 0;
+void * malloc(size_t size)
+{
+    void * p = malloc_buffer + offset;
+    offset += size;
+    return p;
+}
+
 int AddNumbers(int a, int b)
 {
     return a + b;
@@ -596,12 +605,37 @@ int GoTest()
     fflush(stdout);
     return result;
 }
+
 int main(){
     GoTest();
 }
+__attribute__((import_module("sys")))
+void * start_thread(void (* f) (void * userdata), void * userdata);
+__attribute__((import_module("sys")))
+void join_thread(void * thread_ptr);
 
-_Atomic int x;
-__attribute__((visibility("default")))
-void f(void) {
-    atomic_fetch_add(&x, 1);
+__attribute__((import_module("sys")))
+void stdout_string(char * str);
+
+_Atomic int atomx = 0;
+
+void test_thread(void * x)
+{
+    atomic_fetch_add(&atomx, 1);
 }
+__attribute__((visibility("default")))
+int testAtomics(void) {
+    void * t = start_thread(test_thread, NULL);
+    void * t2 = start_thread(test_thread, NULL);
+    void * t3 = start_thread(test_thread, NULL);
+    void * t4 = start_thread(test_thread, NULL);
+    
+    atomic_fetch_add(&atomx, 1);
+    join_thread(t);
+    join_thread(t2);
+    join_thread(t3);
+    join_thread(t4);
+    stdout_string("Thread completed\n");
+    return atomic_fetch_add(&atomx, 0);
+}
+

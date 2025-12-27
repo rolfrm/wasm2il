@@ -246,6 +246,8 @@ public class TestBasicWasm
     public void TestAtomics()
     {
         var wasmPath = Path.Combine(AppContext.BaseDirectory, "code.wasm");
-        var asm = Transformer.Transform(wasmPath, []);
+        var asm = Transformer.Transform(wasmPath, [("sys", typeof(LibC))]);
+        var atomx= (int)asm.Invoke("testAtomics", []);
+        Assert.AreEqual(atomx, 5);
     }
 }
