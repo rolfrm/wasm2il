@@ -49,16 +49,17 @@ WASM linear memory is represented as a native `byte*` pointer, and function tabl
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **Direct IL Generation** | Compiles WASM directly to .NET IL using Mono.Cecil, producing standard .NET assemblies |
-| **WASM 1.0 Support** | Handles most WASM32 1.0 instructions including arithmetic, memory, control flow, and type conversions |
-| **SIMD Operations** | Vector128 support for WASM SIMD instructions |
-| **C# Interop** | Import C# methods into WASM and export WASM functions for C# to call |
-| **Typed Wrappers** | Use `AsImplementation<T>` to create clean, strongly-typed C# interfaces over WASM exports |
-| **Automatic Marshaling** | Strings and `Span<byte>` are automatically copied to/from WASM heap memory |
-| **Memory Access** | Direct heap access via spans and pointers for advanced scenarios |
-| **Optimization** | Constant folding and peephole optimization for cleaner IL output |
+| Feature                  | Description                                                                                           |
+|--------------------------|-------------------------------------------------------------------------------------------------------|
+| **Direct IL Generation** | Compiles WASM directly to .NET IL using Mono.Cecil, producing standard .NET assemblies                |
+| **WASM 1.0 Support**     | Handles most WASM32 1.0 instructions including arithmetic, memory, control flow, and type conversions |
+| **SIMD Operations**      | Vector128 support for WASM SIMD instructions                                                          |
+| **C# Interop**           | Import C# methods into WASM and export WASM functions for C# to call                                  |
+| **Typed Wrappers**       | Use `AsImplementation<T>` to create clean, strongly-typed C# interfaces over WASM exports             |
+| **Automatic Marshaling** | Strings and `Span<byte>` are automatically copied to/from WASM heap memory                            |
+| **Memory Access**        | Direct heap access via spans and pointers for advanced scenarios                                      |
+| **Optimization**         | Constant folding and peephole optimization for cleaner IL output                                      |
+| **Threadng / Atomics**   | WASM modules compiled with -matomics can start threads and synchronize data.                          |
 
 ### Not supported Features
 
