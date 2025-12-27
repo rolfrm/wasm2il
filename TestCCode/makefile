@@ -7,7 +7,7 @@ minlibc:
 	mkdir minlibc
 	cd minlibc; unzip ../minlibc.zip
 
-sqlite3.wasm: sqlite3.c sqlite3.h
+sqlite3.wasm: sqlite3.c sqlite3.h minlibc
 	clang --target=wasm32-unknown-unknown -mrelaxed-simd -msimd128 -mtail-call -mbulk-memory -mbulk-memory-opt -flto=full -fbuiltin -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -O3 -g0\
 	         -ffast-math -fno-math-errno -funsafe-math-optimizations -fstrict-aliasing -fomit-frame-pointer -fno-unroll-loops -fno-inline-functions \
              -I$(MUSL_INCLUDE) \
@@ -35,10 +35,10 @@ simple_call.wasm: simple_call.c
 simple_call2.wasm: simple_call2.c
 	clang --std=c23 --target=wasm32-unknown-unknown -nostdlib -O3 -mmultimemory  -Wl,--export=main -Wl,--export=__provide_overrides2__ -Wl,--export=__provide_overrides__ -Wl,--export=__caller_heap__ -Wl,--allow-undefined -Wl,--no-entry -ffreestanding simple_call2.c -o simple_call2.wasm
 	 
-callback_test.wasm: callback_test.c
+callback_test.wasm: callback_test.c minlibc
 	clang --std=c23 --target=wasm32-none -nostdlib -O3 -mmultimemory  -Wl,--export=main-Wl,--export=callback_test -Wl,--allow-undefined -Wl,--no-entry -ffreestanding callback_test.c -o callback_test.wasm 
   
-code1.bc: code1.c
+code1.bc: code1.c minlibc
 	clang --target=wasm32-none -I$(MUSL_INCLUDE) -matomics -v -c -o code1.bc code1.c 
 
 code.wasm: code1.bc
