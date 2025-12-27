@@ -1567,29 +1567,7 @@ public class Transformer
                         if (ainstr == AtomicInstruction.ATOMIC_FENCE)
                         {
                             reader.ReadU8(); // reserved byte, must be 0x00
-                            ctx.EmitCallForOpcode(ainstr);
-                            break;
                         }
-                        if (ainstr == AtomicInstruction.I32_ATOMIC_RMW_ADD)
-                        {
-                            ctx.EmitCallForOpcode(ainstr);
-                            break;
-                        }
-
-                        // All other atomic instructions have memarg (align + offset)
-                        reader.ReadU32Leb(); // align hint (ignored for now)
-                        var atomicOffset = reader.ReadU32Leb();
-
-                        // Load address computation: stack value + offset + memory base
-                        if (atomicOffset != 0)
-                        {
-                            il.Emit(IlOp.Ldc_I4, (int) atomicOffset);
-                            il.Emit(IlOp.Add);
-                        }
-                        ctx.LoadMemory();
-                        il.Emit(IlOp.Add);
-
-                        ctx.PopType(); // pop the address
 
                         ctx.EmitCallForOpcode(ainstr);
                         break;
