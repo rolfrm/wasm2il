@@ -1,10 +1,11 @@
-SYSROOT=/Users/bruger/code/work/wasi-libc/sysroot
-SYSROOT_LIB=$(SYSROOT)/lib/wasm32-wasi
-#MUSL_INCLUDE=/Users/bruger/code/work/musl/include
-MUSL_INCLUDE=/Users/bruger/code/minlibc/include
-SSL_PATH=/Users/bruger/code/extern/openssl/include
+MUSL_INCLUDE=minlibc/include
 all: sqlite3.wasm callback_test.wasm code.wasm
 # -msimd128  -mtail-call ./libc.wasm-mtail-call  -msimd128 -mbulk-memory -msimd128 
+
+minlibc:
+	curl -L -o minlibc.zip https://github.com/rolfrm/minlibc/releases/download/prototype1/include.zip
+	mkdir minlibc
+	cd minlibc; unzip ../minlibc.zip
 
 sqlite3.wasm: sqlite3.c sqlite3.h
 	clang --target=wasm32-unknown-unknown -mrelaxed-simd -msimd128 -mtail-call -mbulk-memory -mbulk-memory-opt -flto=full -fbuiltin -nostdlib -Wl,--gc-sections -DSQLITE_OMIT_LOAD_EXTENSION -o sqlite3.wasm -O3 -g0\
