@@ -139,46 +139,36 @@ public partial class Lib
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW8_ADD_U)]
     public static unsafe int I32AtomicRmw8AddU(byte* addr, int value)
     {
-        byte oldVal, newVal;
+        int* alignedAddr = (int*)((nint)addr & ~3);
+        int shift = (int)(((nint)addr & 3) * 8);
+        int mask = 0xFF << shift;
+        int oldWord, newWord;
         do
         {
-            oldVal = Volatile.Read(ref *addr);
-            newVal = (byte)(oldVal + value);
-        } while (Interlocked.CompareExchange(ref *(int*)((nint)addr & ~3),
-            ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), newVal),
-            ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), oldVal))
-            != ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), oldVal));
-        return oldVal;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int ReplaceByteInInt(int value, int byteIndex, byte newByte)
-    {
-        int shift = byteIndex * 8;
-        return (value & ~(0xFF << shift)) | (newByte << shift);
+            oldWord = Volatile.Read(ref *alignedAddr);
+            int oldByte = (oldWord >> shift) & 0xFF;
+            int newByte = (oldByte + value) & 0xFF;
+            newWord = (oldWord & ~mask) | (newByte << shift);
+        } while (Interlocked.CompareExchange(ref *alignedAddr, newWord, oldWord) != oldWord);
+        return (oldWord >> shift) & 0xFF;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW16_ADD_U)]
     public static unsafe int I32AtomicRmw16AddU(ushort* addr, int value)
     {
-        ushort oldVal, newVal;
+        int* alignedAddr = (int*)((nint)addr & ~3);
+        int shift = (int)(((nint)addr & 2) * 8);
+        int mask = 0xFFFF << shift;
+        int oldWord, newWord;
         do
         {
-            oldVal = Volatile.Read(ref *addr);
-            newVal = (ushort)(oldVal + value);
-        } while (Interlocked.CompareExchange(ref *(int*)((nint)addr & ~3),
-            ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, newVal),
-            ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, oldVal))
-            != ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, oldVal));
-        return oldVal;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int ReplaceShortInInt(int value, int shortIndex, ushort newShort)
-    {
-        int shift = shortIndex * 16;
-        return (value & ~(0xFFFF << shift)) | (newShort << shift);
+            oldWord = Volatile.Read(ref *alignedAddr);
+            int oldShort = (oldWord >> shift) & 0xFFFF;
+            int newShort = (oldShort + value) & 0xFFFF;
+            newWord = (oldWord & ~mask) | (newShort << shift);
+        } while (Interlocked.CompareExchange(ref *alignedAddr, newWord, oldWord) != oldWord);
+        return (oldWord >> shift) & 0xFFFF;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -222,28 +212,50 @@ public partial class Lib
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW8_SUB_U)]
     public static unsafe int I32AtomicRmw8SubU(byte* addr, int value)
     {
-        return I32AtomicRmw8AddU(addr, -value);
+        int* alignedAddr = (int*)((nint)addr & ~3);
+        int shift = (int)(((nint)addr & 3) * 8);
+        int mask = 0xFF << shift;
+        int oldWord, newWord;
+        do
+        {
+            oldWord = Volatile.Read(ref *alignedAddr);
+            int oldByte = (oldWord >> shift) & 0xFF;
+            int newByte = (oldByte - value) & 0xFF;
+            newWord = (oldWord & ~mask) | (newByte << shift);
+        } while (Interlocked.CompareExchange(ref *alignedAddr, newWord, oldWord) != oldWord);
+        return (oldWord >> shift) & 0xFF;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW16_SUB_U)]
     public static unsafe int I32AtomicRmw16SubU(ushort* addr, int value)
     {
-        return I32AtomicRmw16AddU(addr, -value);
+        int* alignedAddr = (int*)((nint)addr & ~3);
+        int shift = (int)(((nint)addr & 2) * 8);
+        int mask = 0xFFFF << shift;
+        int oldWord, newWord;
+        do
+        {
+            oldWord = Volatile.Read(ref *alignedAddr);
+            int oldShort = (oldWord >> shift) & 0xFFFF;
+            int newShort = (oldShort - value) & 0xFFFF;
+            newWord = (oldWord & ~mask) | (newShort << shift);
+        } while (Interlocked.CompareExchange(ref *alignedAddr, newWord, oldWord) != oldWord);
+        return (oldWord >> shift) & 0xFFFF;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(AtomicInstruction.I64_ATOMIC_RMW8_SUB_U)]
     public static unsafe long I64AtomicRmw8SubU(byte* addr, long value)
     {
-        return I32AtomicRmw8AddU(addr, -(int)value);
+        return I32AtomicRmw8SubU(addr, (int)value);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(AtomicInstruction.I64_ATOMIC_RMW16_SUB_U)]
     public static unsafe long I64AtomicRmw16SubU(ushort* addr, long value)
     {
-        return I32AtomicRmw16AddU(addr, -(int)value);
+        return I32AtomicRmw16SubU(addr, (int)value);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -273,32 +285,36 @@ public partial class Lib
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW8_AND_U)]
     public static unsafe int I32AtomicRmw8AndU(byte* addr, int value)
     {
-        byte oldVal, newVal;
+        int* alignedAddr = (int*)((nint)addr & ~3);
+        int shift = (int)(((nint)addr & 3) * 8);
+        int mask = 0xFF << shift;
+        int oldWord, newWord;
         do
         {
-            oldVal = Volatile.Read(ref *addr);
-            newVal = (byte)(oldVal & value);
-        } while (Interlocked.CompareExchange(ref *(int*)((nint)addr & ~3),
-            ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), newVal),
-            ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), oldVal))
-            != ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), oldVal));
-        return oldVal;
+            oldWord = Volatile.Read(ref *alignedAddr);
+            int oldByte = (oldWord >> shift) & 0xFF;
+            int newByte = oldByte & value;
+            newWord = (oldWord & ~mask) | (newByte << shift);
+        } while (Interlocked.CompareExchange(ref *alignedAddr, newWord, oldWord) != oldWord);
+        return (oldWord >> shift) & 0xFF;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW16_AND_U)]
     public static unsafe int I32AtomicRmw16AndU(ushort* addr, int value)
     {
-        ushort oldVal, newVal;
+        int* alignedAddr = (int*)((nint)addr & ~3);
+        int shift = (int)(((nint)addr & 2) * 8);
+        int mask = 0xFFFF << shift;
+        int oldWord, newWord;
         do
         {
-            oldVal = Volatile.Read(ref *addr);
-            newVal = (ushort)(oldVal & value);
-        } while (Interlocked.CompareExchange(ref *(int*)((nint)addr & ~3),
-            ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, newVal),
-            ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, oldVal))
-            != ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, oldVal));
-        return oldVal;
+            oldWord = Volatile.Read(ref *alignedAddr);
+            int oldShort = (oldWord >> shift) & 0xFFFF;
+            int newShort = oldShort & value;
+            newWord = (oldWord & ~mask) | (newShort << shift);
+        } while (Interlocked.CompareExchange(ref *alignedAddr, newWord, oldWord) != oldWord);
+        return (oldWord >> shift) & 0xFFFF;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -342,32 +358,36 @@ public partial class Lib
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW8_OR_U)]
     public static unsafe int I32AtomicRmw8OrU(byte* addr, int value)
     {
-        byte oldVal, newVal;
+        int* alignedAddr = (int*)((nint)addr & ~3);
+        int shift = (int)(((nint)addr & 3) * 8);
+        int mask = 0xFF << shift;
+        int oldWord, newWord;
         do
         {
-            oldVal = Volatile.Read(ref *addr);
-            newVal = (byte)(oldVal | value);
-        } while (Interlocked.CompareExchange(ref *(int*)((nint)addr & ~3),
-            ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), newVal),
-            ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), oldVal))
-            != ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), oldVal));
-        return oldVal;
+            oldWord = Volatile.Read(ref *alignedAddr);
+            int oldByte = (oldWord >> shift) & 0xFF;
+            int newByte = oldByte | value;
+            newWord = (oldWord & ~mask) | (newByte << shift);
+        } while (Interlocked.CompareExchange(ref *alignedAddr, newWord, oldWord) != oldWord);
+        return (oldWord >> shift) & 0xFF;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW16_OR_U)]
     public static unsafe int I32AtomicRmw16OrU(ushort* addr, int value)
     {
-        ushort oldVal, newVal;
+        int* alignedAddr = (int*)((nint)addr & ~3);
+        int shift = (int)(((nint)addr & 2) * 8);
+        int mask = 0xFFFF << shift;
+        int oldWord, newWord;
         do
         {
-            oldVal = Volatile.Read(ref *addr);
-            newVal = (ushort)(oldVal | value);
-        } while (Interlocked.CompareExchange(ref *(int*)((nint)addr & ~3),
-            ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, newVal),
-            ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, oldVal))
-            != ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, oldVal));
-        return oldVal;
+            oldWord = Volatile.Read(ref *alignedAddr);
+            int oldShort = (oldWord >> shift) & 0xFFFF;
+            int newShort = oldShort | value;
+            newWord = (oldWord & ~mask) | (newShort << shift);
+        } while (Interlocked.CompareExchange(ref *alignedAddr, newWord, oldWord) != oldWord);
+        return (oldWord >> shift) & 0xFFFF;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -423,32 +443,36 @@ public partial class Lib
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW8_XOR_U)]
     public static unsafe int I32AtomicRmw8XorU(byte* addr, int value)
     {
-        byte oldVal, newVal;
+        int* alignedAddr = (int*)((nint)addr & ~3);
+        int shift = (int)(((nint)addr & 3) * 8);
+        int mask = 0xFF << shift;
+        int oldWord, newWord;
         do
         {
-            oldVal = Volatile.Read(ref *addr);
-            newVal = (byte)(oldVal ^ value);
-        } while (Interlocked.CompareExchange(ref *(int*)((nint)addr & ~3),
-            ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), newVal),
-            ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), oldVal))
-            != ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), oldVal));
-        return oldVal;
+            oldWord = Volatile.Read(ref *alignedAddr);
+            int oldByte = (oldWord >> shift) & 0xFF;
+            int newByte = oldByte ^ value;
+            newWord = (oldWord & ~mask) | (newByte << shift);
+        } while (Interlocked.CompareExchange(ref *alignedAddr, newWord, oldWord) != oldWord);
+        return (oldWord >> shift) & 0xFF;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW16_XOR_U)]
     public static unsafe int I32AtomicRmw16XorU(ushort* addr, int value)
     {
-        ushort oldVal, newVal;
+        int* alignedAddr = (int*)((nint)addr & ~3);
+        int shift = (int)(((nint)addr & 2) * 8);
+        int mask = 0xFFFF << shift;
+        int oldWord, newWord;
         do
         {
-            oldVal = Volatile.Read(ref *addr);
-            newVal = (ushort)(oldVal ^ value);
-        } while (Interlocked.CompareExchange(ref *(int*)((nint)addr & ~3),
-            ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, newVal),
-            ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, oldVal))
-            != ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, oldVal));
-        return oldVal;
+            oldWord = Volatile.Read(ref *alignedAddr);
+            int oldShort = (oldWord >> shift) & 0xFFFF;
+            int newShort = oldShort ^ value;
+            newWord = (oldWord & ~mask) | (newShort << shift);
+        } while (Interlocked.CompareExchange(ref *alignedAddr, newWord, oldWord) != oldWord);
+        return (oldWord >> shift) & 0xFFFF;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -498,32 +522,34 @@ public partial class Lib
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW8_XCHG_U)]
     public static unsafe int I32AtomicRmw8XchgU(byte* addr, int value)
     {
-        byte oldVal;
-        byte newVal = (byte)value;
+        int* alignedAddr = (int*)((nint)addr & ~3);
+        int shift = (int)(((nint)addr & 3) * 8);
+        int mask = 0xFF << shift;
+        int newByte = value & 0xFF;
+        int oldWord, newWord;
         do
         {
-            oldVal = Volatile.Read(ref *addr);
-        } while (Interlocked.CompareExchange(ref *(int*)((nint)addr & ~3),
-            ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), newVal),
-            ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), oldVal))
-            != ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), oldVal));
-        return oldVal;
+            oldWord = Volatile.Read(ref *alignedAddr);
+            newWord = (oldWord & ~mask) | (newByte << shift);
+        } while (Interlocked.CompareExchange(ref *alignedAddr, newWord, oldWord) != oldWord);
+        return (oldWord >> shift) & 0xFF;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW16_XCHG_U)]
     public static unsafe int I32AtomicRmw16XchgU(ushort* addr, int value)
     {
-        ushort oldVal;
-        ushort newVal = (ushort)value;
+        int* alignedAddr = (int*)((nint)addr & ~3);
+        int shift = (int)(((nint)addr & 2) * 8);
+        int mask = 0xFFFF << shift;
+        int newShort = value & 0xFFFF;
+        int oldWord, newWord;
         do
         {
-            oldVal = Volatile.Read(ref *addr);
-        } while (Interlocked.CompareExchange(ref *(int*)((nint)addr & ~3),
-            ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, newVal),
-            ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, oldVal))
-            != ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, oldVal));
-        return oldVal;
+            oldWord = Volatile.Read(ref *alignedAddr);
+            newWord = (oldWord & ~mask) | (newShort << shift);
+        } while (Interlocked.CompareExchange(ref *alignedAddr, newWord, oldWord) != oldWord);
+        return (oldWord >> shift) & 0xFFFF;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -567,28 +593,42 @@ public partial class Lib
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW8_CMPXCHG_U)]
     public static unsafe int I32AtomicRmw8CmpxchgU(byte* addr, int expected, int replacement)
     {
-        byte oldVal = Volatile.Read(ref *addr);
-        if (oldVal == (byte)expected)
+        int* alignedAddr = (int*)((nint)addr & ~3);
+        int shift = (int)(((nint)addr & 3) * 8);
+        int mask = 0xFF << shift;
+        int expectedByte = expected & 0xFF;
+        int replacementByte = replacement & 0xFF;
+        int oldWord, newWord;
+        do
         {
-            Interlocked.CompareExchange(ref *(int*)((nint)addr & ~3),
-                ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), (byte)replacement),
-                ReplaceByteInInt(*(int*)((nint)addr & ~3), (int)((nint)addr & 3), (byte)expected));
-        }
-        return Volatile.Read(ref *addr);
+            oldWord = Volatile.Read(ref *alignedAddr);
+            int currentByte = (oldWord >> shift) & 0xFF;
+            if (currentByte != expectedByte)
+                return currentByte;
+            newWord = (oldWord & ~mask) | (replacementByte << shift);
+        } while (Interlocked.CompareExchange(ref *alignedAddr, newWord, oldWord) != oldWord);
+        return expectedByte;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(AtomicInstruction.I32_ATOMIC_RMW16_CMPXCHG_U)]
     public static unsafe int I32AtomicRmw16CmpxchgU(ushort* addr, int expected, int replacement)
     {
-        ushort oldVal = Volatile.Read(ref *addr);
-        if (oldVal == (ushort)expected)
+        int* alignedAddr = (int*)((nint)addr & ~3);
+        int shift = (int)(((nint)addr & 2) * 8);
+        int mask = 0xFFFF << shift;
+        int expectedShort = expected & 0xFFFF;
+        int replacementShort = replacement & 0xFFFF;
+        int oldWord, newWord;
+        do
         {
-            Interlocked.CompareExchange(ref *(int*)((nint)addr & ~3),
-                ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, (ushort)replacement),
-                ReplaceShortInInt(*(int*)((nint)addr & ~3), ((nint)addr & 2) != 0 ? 1 : 0, (ushort)expected));
-        }
-        return Volatile.Read(ref *addr);
+            oldWord = Volatile.Read(ref *alignedAddr);
+            int currentShort = (oldWord >> shift) & 0xFFFF;
+            if (currentShort != expectedShort)
+                return currentShort;
+            newWord = (oldWord & ~mask) | (replacementShort << shift);
+        } while (Interlocked.CompareExchange(ref *alignedAddr, newWord, oldWord) != oldWord);
+        return expectedShort;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -613,16 +653,11 @@ public partial class Lib
     }
 
     // ==================== Memory Atomic Wait/Notify Operations ====================
-    // These are used for thread synchronization (futex-like operations)
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [WasmOpcode(AtomicInstruction.MEMORY_ATOMIC_NOTIFY)]
     public static unsafe int MemoryAtomicNotify(int* addr, int count)
     {
-        // Wake up 'count' threads waiting on this address
-        // In .NET, we use Monitor for this
-        // Returns the number of threads woken up
-        // For single-threaded scenarios, this is effectively a no-op
         lock (GetWaitLock(addr))
         {
             if (count == int.MaxValue)
@@ -637,7 +672,6 @@ public partial class Lib
                 }
             }
         }
-        // Return count as an approximation (actual count may differ)
         return count;
     }
 
@@ -645,20 +679,13 @@ public partial class Lib
     [WasmOpcode(AtomicInstruction.MEMORY_ATOMIC_WAIT32)]
     public static unsafe int MemoryAtomicWait32(int* addr, int expected, long timeout)
     {
-        // Wait on address if value equals expected
-        // Returns: 0 = woken by notify, 1 = value mismatch, 2 = timeout
         if (Volatile.Read(ref *addr) != expected)
-        {
-            return 1; // "not-equal"
-        }
+            return 1;
 
         lock (GetWaitLock(addr))
         {
-            // Double-check after acquiring lock
             if (Volatile.Read(ref *addr) != expected)
-            {
-                return 1; // "not-equal"
-            }
+                return 1;
 
             bool signaled;
             if (timeout < 0)
@@ -668,13 +695,11 @@ public partial class Lib
             }
             else
             {
-                // Timeout is in nanoseconds, convert to milliseconds
                 int timeoutMs = (int)(timeout / 1_000_000);
                 if (timeoutMs == 0 && timeout > 0) timeoutMs = 1;
                 signaled = Monitor.Wait(GetWaitLock(addr), timeoutMs);
             }
-
-            return signaled ? 0 : 2; // 0 = "ok", 2 = "timed-out"
+            return signaled ? 0 : 2;
         }
     }
 
@@ -682,20 +707,13 @@ public partial class Lib
     [WasmOpcode(AtomicInstruction.MEMORY_ATOMIC_WAIT64)]
     public static unsafe int MemoryAtomicWait64(long* addr, long expected, long timeout)
     {
-        // Wait on address if value equals expected
-        // Returns: 0 = woken by notify, 1 = value mismatch, 2 = timeout
         if (Interlocked.Read(ref *addr) != expected)
-        {
-            return 1; // "not-equal"
-        }
+            return 1;
 
         lock (GetWaitLock(addr))
         {
-            // Double-check after acquiring lock
             if (Interlocked.Read(ref *addr) != expected)
-            {
-                return 1; // "not-equal"
-            }
+                return 1;
 
             bool signaled;
             if (timeout < 0)
@@ -705,34 +723,27 @@ public partial class Lib
             }
             else
             {
-                // Timeout is in nanoseconds, convert to milliseconds
                 int timeoutMs = (int)(timeout / 1_000_000);
                 if (timeoutMs == 0 && timeout > 0) timeoutMs = 1;
                 signaled = Monitor.Wait(GetWaitLock(addr), timeoutMs);
             }
-
-            return signaled ? 0 : 2; // 0 = "ok", 2 = "timed-out"
+            return signaled ? 0 : 2;
         }
     }
 
-    // Simple lock table for wait/notify operations
-    // Using a fixed-size table with address hashing to avoid allocations
     private static readonly object[] WaitLocks = CreateWaitLocks();
 
     private static object[] CreateWaitLocks()
     {
         var locks = new object[256];
         for (int i = 0; i < locks.Length; i++)
-        {
             locks[i] = new object();
-        }
         return locks;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static unsafe object GetWaitLock(void* addr)
     {
-        // Hash the address to get a lock index
         var index = ((nint)addr >> 2) & 0xFF;
         return WaitLocks[index];
     }
