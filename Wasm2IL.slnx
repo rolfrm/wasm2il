@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="TestCCode/TestCCode.csproj" />
+  <Project Path="Wasm2IL.UnitTests/Wasm2IL.UnitTests.csproj" />
+  <Project Path="Wasm2IL/Wasm2IL.csproj" />
+</Solution>
